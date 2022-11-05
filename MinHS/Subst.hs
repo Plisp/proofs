@@ -12,13 +12,16 @@ import MinHS.Env hiding (lookup)
 import Data.Semigroup (Semigroup ((<>)))
 newtype Subst = Subst [(Id, Type)]
 
-instance Semigroup Subst where 
+instance Semigroup Subst where
   Subst a <> Subst b = Subst $ map (fmap $ substitute $ Subst b) a
                             ++ map (fmap $ substitute $ Subst a) b
-  
+
 instance Monoid Subst where
   mempty = Subst []
   mappend = (<>)
+
+instance Show Subst where
+  show (Subst as) = show as
 
 substitute :: Subst -> Type -> Type
 substitute s (Base c   ) = Base  c
