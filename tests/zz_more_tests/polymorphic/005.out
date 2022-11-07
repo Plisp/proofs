@@ -1,0 +1,5 @@
+main :: (() -> f -> f) = if True
+                            then let g :: (a -> a) = (recfun f :: (a -> a) x = x);
+                                 in g
+                            else let g :: (d -> d) = (recfun f :: (d -> d) x = x);
+                                 in g;
