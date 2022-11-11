@@ -1,1 +1,1 @@
-main :: (() -> Int * Bool) = (1, True);
+main :: (Int * Bool) = (1, True);

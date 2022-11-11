@@ -1,1 +1,1 @@
-main :: (() -> Int + b) = Inl 10;
+main :: forall b. (Int + b) = Inl 10;

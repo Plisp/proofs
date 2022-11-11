@@ -1,1 +1,1 @@
-main :: (() -> Int) = fst ((1, 2));
+main :: Int = fst ((1, 2));

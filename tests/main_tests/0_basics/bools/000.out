@@ -1,1 +1,1 @@
-main :: (() -> Bool) = True;
+main :: Bool = True;

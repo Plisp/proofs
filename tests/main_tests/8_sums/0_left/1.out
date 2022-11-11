@@ -1,1 +1,1 @@
-main :: (() -> (() * Int + g) + b) = Inl (((), Inl 3));
+main :: forall b. forall g. ((() * Int + g) + b) = Inl (((), Inl 3));

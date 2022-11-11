@@ -1,1 +1,1 @@
-main :: (() -> Bool * Bool) = (True, False);
+main :: (Bool * Bool) = (True, False);

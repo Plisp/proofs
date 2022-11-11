@@ -1,1 +1,1 @@
-main :: (() -> Bool) = (==) (snd ((True, 5))) 10;
+main :: Bool = (==) (snd ((True, 5))) 10;

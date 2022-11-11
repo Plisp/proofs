@@ -1,0 +1,5 @@
+main :: Int
+	= letrec a :: [Int] = Cons 1 b;
+			b :: [Int] = Cons 2 a;
+			c :: [Int] = Cons 3 c;
+	in (head c) + (head (tail (tail a)));

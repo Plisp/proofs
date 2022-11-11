@@ -1,2 +1,2 @@
-main :: (() -> Bool) = let t :: Bool = True;
-                       in t;
+main :: Bool = let t :: Bool = True;
+               in t;

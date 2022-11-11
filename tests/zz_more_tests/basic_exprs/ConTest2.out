@@ -1,1 +1,1 @@
-main :: (() -> Bool) = fst ((True, 5));
+main :: Bool = fst ((True, 5));

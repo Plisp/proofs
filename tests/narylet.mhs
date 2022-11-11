@@ -1,0 +1,3 @@
+main
+	= let eq x y z = if (x == y) then (x == z) else False;
+	in eq 3 3 3;

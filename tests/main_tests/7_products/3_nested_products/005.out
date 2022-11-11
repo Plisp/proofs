@@ -1,1 +1,1 @@
-main :: (() -> Int) = fst ((1, fst ((True, False))));
+main :: Int = fst ((1, fst ((True, False))));
