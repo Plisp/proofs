@@ -1,2 +1,2 @@
-main :: Int = let f :: (a -> c -> e -> g -> Int -> Int) = (recfun f :: (a -> c -> e -> g -> Int -> Int) x = (recfun f :: (c -> e -> g -> Int -> Int) x = (recfun f :: (e -> g -> Int -> Int) x = (recfun f :: (g -> Int -> Int) x = (recfun f :: (Int -> Int) x = (*) 2 x)))));
+main :: Int = let f :: forall g. forall e. forall c. forall a. (a -> c -> e -> g -> Int -> Int) = (recfun f :: (a -> c -> e -> g -> Int -> Int) x = (recfun f :: (c -> e -> g -> Int -> Int) x = (recfun f :: (e -> g -> Int -> Int) x = (recfun f :: (g -> Int -> Int) x = (recfun f :: (Int -> Int) x = (*) 2 x)))));
               in f 0 0 0 0 7;

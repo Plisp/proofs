@@ -39,7 +39,7 @@ main = execParser argsInfo >>= main'
             _             -> readerAbort (ShowHelpText Nothing)
 
         evaluatorAction :: (Doc -> Doc) -> Action String (IO ())
-        evaluatorAction f = parser >=> typechecker f >=> evaluator >=> printer f
+        evaluatorAction f = parser >=> evaluator >=> printer f
 
         parser :: Action String Program
         parser = either (Left . putStrLn . show) Right . parseProgram ""

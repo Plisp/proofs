@@ -1,4 +1,0 @@
-main
-	= let eq
-			= recfun eq x y = x == y;
-	in eq 3 3;

@@ -1,3 +1,5 @@
-main
-	= let eq x y z = if (x == y) then (x == z) else False;
-	in eq 3 3 3;
+main =
+    let id x = x;
+        f x y = x == y;
+        x = f;
+    in f 2;

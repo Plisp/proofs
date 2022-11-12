@@ -1,5 +1,5 @@
 main :: forall f. (f -> f) = if True
-                                then let g :: (a -> a) = (recfun f :: (a -> a) x = x);
+                                then let g :: forall a. (a -> a) = (recfun f :: (a -> a) x = x);
                                      in g
-                                else let g :: (d -> d) = (recfun f :: (d -> d) x = x);
+                                else let g :: forall d. (d -> d) = (recfun f :: (d -> d) x = x);
                                      in g;

@@ -1,4 +1,0 @@
-main :: Int
-	= let a :: Int = 3;
-		b :: Int = 2;
-	in a + b;

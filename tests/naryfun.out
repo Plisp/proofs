@@ -1,0 +1,2 @@
+main :: (Int -> Bool) = let f :: (Int -> Int -> Bool) = (recfun g :: (Int -> Int -> Bool) x y = (==) x y);
+                        in f 2;

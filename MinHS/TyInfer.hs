@@ -5,9 +5,6 @@ import MinHS.Syntax
 import MinHS.Subst
 import MinHS.TCMonad
 
--- TODO remove all tracing, especially since I derived show for Subst
-import Debug.Trace
-
 import Data.Monoid (Monoid (..), (<>))
 import Data.Foldable (foldMap)
 import Data.List (nub, union, (\\))
@@ -52,20 +49,6 @@ type Gamma = E.Env QType
 initialGamma :: Gamma
 initialGamma = E.empty
 
--- impl
-
-infer :: Program -> Either TypeError Program
-infer program = do (p', tau, s) <- runTC $ inferProgram initialGamma program
-                   return p'
-
-inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
-inferProgram env [Bind "main" ty [] e] =
-  do (e, t, s) <- (inferExp env e);
-     return ([Bind "main" (Just (generalise env t)) [{-no params-}]
-              (allTypes (substQType s) e)],
-             t,
-             s)
-
 tv :: Type -> [Id]
 tv (TypeVar x) = [x]
 tv (Prod  a b) = tv a `union` tv b
@@ -80,28 +63,34 @@ tvQ (Ty t) = tv t
 tvGamma :: Gamma -> [Id]
 tvGamma = nub . foldMap tvQ
 
-generalise :: Gamma -> Type -> QType
-generalise g t = generalise' ((tv t) \\ (tvGamma g)) (Ty t)
-generalise' :: [Id] -> QType -> QType
-generalise' [] ty = ty
-generalise' (v:vs) ty = generalise' vs (Forall v ty)
+bindName :: Bind -> String
+bindName (Bind id _ _ _) = id
 
-unquantify :: QType -> TC Type
-unquantify = unquantify' 0 emptySubst
-unquantify' :: Int -> Subst -> QType -> TC Type
-unquantify' i s (Ty t) = return $ substitute s t
-unquantify' i s (Forall x t) = do x' <- fresh
-                                  unquantify' (i + 1)
-                                              ((show i =: x') <> s)
-                                              (substQType (x =: TypeVar (show i)) t)
+freshVars :: Int -> TC [Type]
+freshVars 0 = return []
+freshVars n = do a <- fresh
+                 l <- (freshVars (n - 1))
+                 return $ a:l
+
+-- impl
+
+infer :: Program -> Either TypeError Program
+infer program = do (p', _, _) <- runTC $ inferProgram initialGamma program
+                   return p'
+
+inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
+inferProgram env [Bind "main" ty [] e] =
+  do (e, t, s) <- (inferExp env e);
+     return ([Bind "main" (Just (generalise env t)) [{-no params-}]
+              (allTypes (substQType s) e)],
+             t,
+             s)
 
 unify :: Type -> Type -> TC Subst
 unify (TypeVar a) (TypeVar b) = return $ if a == b then emptySubst else (a =: (TypeVar b))
-unify (Base a) (Base b) = case (a, b) of
-                            (Unit, Unit) -> return emptySubst
-                            (Bool, Bool) -> return emptySubst
-                            (Int, Int) -> return emptySubst
-                            _ -> typeError $ TypeMismatch (Base a) (Base b)
+unify (Base a) (Base b) = if a == b
+                          then return emptySubst
+                          else typeError $ TypeMismatch (Base a) (Base b)
 
 unify (Arrow a1 a2) (Arrow b1 b2) = do s1 <- a1 `unify` b1
                                        s2 <- substitute s1 a2 `unify` substitute s1 b2
@@ -167,31 +156,55 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) =
              u' <> u <> e2s <> e1s <> es)
 inferExp g (Case e _) = typeError MalformedAlternatives
 
--- TODO multiple param recfun (a -> ( -> ))
-inferExp g (Recfun (Bind f _ [x] e)) =
-  do a1 <- fresh
-     a2 <- fresh
-     (ee, t, es) <- inferExp (E.addAll g [(x, (Ty a1)), (f, (Ty a2))]) e
-     u <- (substitute es a2) `unify` (Arrow (substitute es a1) t)
-     return (let ty = (substitute u (Arrow (substitute es a1) t)) in
-               ((Recfun (Bind f (Just (Ty ty)) [x] ee)), ty, u <> es))
+inferExp g (Recfun (Bind f _ params e)) =
+  do as <- freshVars (length params)
+     a2 <- fresh -- whole function type for recursive binding
 
--- TODO multiple let, substitution + binding used in next
--- TODO multiple param let (a -> F)
-inferExp g (Let [(Bind x typeAnnot params e1)] e2) =
-  do (e1e, t, e1s) <- inferExp g e1
-     (e2e, t', e2s) <- inferExp (substGamma e1s
-                                  (E.add g
-                                    (x, (generalise (substGamma e1s g) t))))
-                       e2
-     return ((Let [(Bind x (Just (Ty t)) params e1e)] e2e),
-             t', e2s <> e1s)
+     let vars = (zip params (map (\a -> Ty a) as))
+     (ee, t, es) <- inferExp (E.addAll g ( (f, (Ty a2)) : vars)) e
 
--- TODO letrec
--- inferExp g (Letrec bindings e) =
---   do let ctx = E.addAll g $
---                map (\x -> let b = (Bind id _ params val) in
---                             do (ee, t, es) <- inferExp ctx val
---                                return (id, t))
---                bindings in
---        () <- inferExp e
+     let fty = substitute es (foldr (\a b -> (Arrow a b)) t as)
+     u <- (substitute es a2) `unify` fty
+     let ty = substitute u fty
+     return ((Recfun (Bind f (Just (Ty ty)) params ee)), ty, u <> es)
+
+inferExp g (Let binds e2) =
+  do (bs, ts, s) <- letBindTypes g binds
+     (e2e, t', e2s) <- inferExp (substGamma s (E.addAll g (zip (map bindName bs) ts))) e2
+     return ((Let bs e2e), t', s <> e2s)
+
+-- nary funs, add vars, subs to env
+inferExp g (Letrec bindings e) = error "TODO"
+
+letBindTypes :: Gamma -> [Bind] -> TC ([Bind], [QType], Subst)
+letBindTypes g [] = return ([], [], emptySubst)
+letBindTypes g ((Bind x _ [] e):rest) =
+  do (ee, t, s) <- inferExp g e
+     let gty = generalise (substGamma s g) t
+     (bs, ts, ss) <- letBindTypes (substGamma s (E.add g (x, gty))) rest
+     return $ ((Bind x (Just gty) [] ee):bs, gty:ts, s <> ss)
+-- let functions
+letBindTypes g ((Bind x _ params e):rest) =
+  do as <- freshVars (length params)
+     (ee, t, es) <- inferExp (E.addAll g (zip params (map (\a -> Ty a) as))) e
+     let fty = substitute es (foldr (\a b -> (Arrow a b)) t as)
+     let gty = generalise (substGamma es g) fty
+
+     (bs, ts, ss) <- letBindTypes (substGamma es (E.add g (x, gty))) rest
+     return $ ((Bind x (Just gty) params ee):bs, gty:ts, es <> ss)
+
+generalise :: Gamma -> Type -> QType
+generalise g t = generalise' ((tv t) \\ (tvGamma g)) (Ty t)
+generalise' :: [Id] -> QType -> QType
+generalise' [] ty = ty
+generalise' (v:vs) ty = generalise' vs (Forall v ty)
+
+unquantify :: QType -> TC Type
+unquantify = unquantify' 0 emptySubst
+-- replaces all prenex quantified vars by numbers, then substitutes letters back in
+unquantify' :: Int -> Subst -> QType -> TC Type
+unquantify' i s (Ty t) = return $ substitute s t
+unquantify' i s (Forall x t) = do x' <- fresh
+                                  unquantify' (i + 1)
+                                              ((show i =: x') <> s)
+                                              (substQType (x =: TypeVar (show i)) t)
