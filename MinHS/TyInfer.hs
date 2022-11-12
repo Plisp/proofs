@@ -168,20 +168,25 @@ inferExp g (Recfun (Bind f _ params e)) =
      let ty = substitute u fty
      return ((Recfun (Bind f (Just (Ty ty)) params ee)), ty, u <> es)
 
-inferExp g (Let binds e2) =
+inferExp g (Let binds e) =
   do (bs, ts, s) <- letBindTypes g binds
-     (e2e, t', e2s) <- inferExp (substGamma s (E.addAll g (zip (map bindName bs) ts))) e2
+     (e2e, t', e2s) <- inferExp (substGamma s (E.addAll g (zip (map bindName bs) ts))) e
      return ((Let bs e2e), t', s <> e2s)
 
--- nary funs, add vars, subs to env
-inferExp g (Letrec bindings e) = error "TODO"
+inferExp g (Letrec bindings e) =
+  do as <- freshVars (length bindings)
+     let vars = (zip (map bindName bindings) (map (\a -> Ty a) as))
+     (bs, ts, s) <- letBindTypes (E.addAll g vars) bindings
+
+     (e2e, t', e2s) <- inferExp (substGamma s (E.addAll g (zip (map bindName bs) ts))) e
+     return ((Letrec bs e2e), t', s <> e2s)
 
 letBindTypes :: Gamma -> [Bind] -> TC ([Bind], [QType], Subst)
 letBindTypes g [] = return ([], [], emptySubst)
 letBindTypes g ((Bind x _ [] e):rest) =
   do (ee, t, s) <- inferExp g e
      let gty = generalise (substGamma s g) t
-     (bs, ts, ss) <- letBindTypes (substGamma s (E.add g (x, gty))) rest
+     (bs, ts, ss) <- letBindTypes (substGamma s (E.add g (x, gty))) rest -- overwrite env
      return $ ((Bind x (Just gty) [] ee):bs, gty:ts, s <> ss)
 -- let functions
 letBindTypes g ((Bind x _ params e):rest) =

@@ -1,0 +1,4 @@
+main :: (Int -> Bool) = letrec id :: (Int -> Int) x = id2 x;
+                               id2 :: forall f. (f -> f) x = x;
+                               f :: (Int -> Int -> Bool) x y = (==) (id x) y;
+                        in f 2;
