@@ -5,6 +5,7 @@ import MinHS.Syntax
 import MinHS.Subst
 import MinHS.TCMonad
 
+import Debug.Trace
 import Data.Monoid (Monoid (..), (<>))
 import Data.Foldable (foldMap)
 import Data.List (nub, union, (\\))
@@ -79,15 +80,20 @@ infer program = do (p', _, _) <- runTC $ inferProgram initialGamma program
                    return p'
 
 inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
-inferProgram env [Bind "main" ty [] e] =
-  do (e, t, s) <- (inferExp env e);
-     return ([Bind "main" (Just (generalise env t)) [{-no params-}]
-              (allTypes (substQType s) e)],
-             t,
+inferProgram env [Bind "main" annot [] e] =
+  do (e, ty, s) <- (inferExp env e);
+     ua <- case annot of
+             Nothing -> return emptySubst
+             Just ta -> do freshUnquantified <- freshenTV ta
+                           unifyA freshUnquantified ty
+     let tya = substitute ua ty
+     return ([Bind "main" (Just (generalise env tya)) [{-no params-}]
+              (allTypes (substQType (ua <> s)) e)],
+             tya,
              s)
 
 unify :: Type -> Type -> TC Subst
-unify (TypeVar a) (TypeVar b) = return $ if a == b then emptySubst else (a =: (TypeVar b))
+unify (TypeVar a) (TypeVar b) = return (a =: (TypeVar b))
 unify (Base a) (Base b) = if a == b
                           then return emptySubst
                           else typeError $ TypeMismatch (Base a) (Base b)
@@ -155,7 +161,7 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) =
              u' <> u <> e2s <> e1s <> es)
 inferExp g (Case e _) = typeError MalformedAlternatives
 
-inferExp g (Recfun (Bind f _ params e)) =
+inferExp g (Recfun (Bind f annot params e)) =
   do as <- freshVars (length params)
      a2 <- fresh -- whole function type for recursive binding
 
@@ -165,7 +171,12 @@ inferExp g (Recfun (Bind f _ params e)) =
      let fty = substitute es (foldr (\a b -> (Arrow a b)) t as)
      u <- (substitute es a2) `unify` fty
      let ty = substitute u fty
-     return ((Recfun (Bind f (Just (Ty ty)) params ee)), ty, u <> es)
+     ua <- case annot of
+             Nothing -> return emptySubst
+             Just (Ty ta) -> unifyA ta ty
+             Just (Forall _ _) -> typeError ForallInRecfun
+     let tya = substitute ua ty
+     return ((Recfun (Bind f (Just (Ty tya)) params ee)), tya, ua <> u <> es)
 
 inferExp g (Let binds e) =
   do (bs, ts, s) <- letBindTypes True g binds
@@ -182,33 +193,47 @@ inferExp g (Letrec bindings e) =
 
 letBindTypes :: Bool -> Gamma -> [Bind] -> TC ([Bind], [QType], Subst)
 letBindTypes gen g [] = return ([], [], emptySubst)
-letBindTypes gen g ((Bind x _ [] e):rest) =
+letBindTypes gen g ((Bind x annot [] e):rest) =
   do (ee, t, es) <- inferExp g e
      -- this extra unification is needed by letrec, since g contains fresh vars
      u <- if gen then return emptySubst
           else let (Just (Ty bty)) = E.lookup g x in
                  (substitute es bty) `unify` t
-
-     let gty = if gen then generalise (substGamma (u <> es) g) t
-               else (Ty (substitute u t))
+     -- compute 'unifier' from type annotation
+     let t' = substitute u t
+     ua <- case annot of
+             Nothing -> return emptySubst
+             Just ta -> do freshUnquantified <- (freshenTV ta)
+                           unifyA freshUnquantified t'
+     let tya = substitute ua t'
+     -- TODO don't think UA is needed anymore, since it
+     let gty = if gen then generalise (substGamma (ua <> u <> es) g) tya
+               else (Ty tya)
      -- overwrites env containing letrec free typevars, and compute the rest
-     (bs, ts, ss) <- letBindTypes gen (substGamma (u <> es) (E.add g (x, gty))) rest
-     return $ ((Bind x (Just gty) [] ee):bs, gty:ts, u <> es <> ss)
+     (bs, ts, ss) <- letBindTypes gen (substGamma (ua <> u <> es) (E.add g (x, gty))) rest
+     return $ ((Bind x (Just gty) [] ee):bs, gty:ts, ua <> u <> es <> ss)
 -- let functions
-letBindTypes gen g ((Bind x _ params e):rest) =
+letBindTypes gen g ((Bind x annot params e):rest) =
   do as <- freshVars (length params)
      (ee, t, es) <- inferExp (E.addAll g (zip params (map (\a -> Ty a) as))) e
      let fty = substitute es (foldr (\a b -> (Arrow a b)) t as) in
        -- this extra unification is needed by letrec
        do u <- if gen then return emptySubst
-            else let (Just (Ty bty)) = E.lookup g x in
-                   (substitute es bty) `unify` fty
-
-          let gty = if gen then generalise (substGamma (u <> es) g) (substitute u fty)
-                    else (Ty (substitute u fty))
+               else let (Just (Ty bty)) = E.lookup g x in
+                      (substitute es bty) `unify` fty
+          -- compute 'unifier' from type annotation
+          let fty' = substitute u fty
+          ua <- case annot of
+                  Nothing -> return emptySubst
+                  Just ta -> do freshUnquantified <- (freshenTV ta)
+                                unifyA freshUnquantified fty'
+          let tya = substitute ua fty'
+          -- TODO
+          let gty = if gen then generalise (substGamma (ua <> u <> es) g) tya
+                    else (Ty tya)
            -- recursively compute the rest in order
-          (bs, ts, ss) <- letBindTypes gen (substGamma (u <> es) (E.add g (x, gty))) rest
-          return $ ((Bind x (Just gty) params ee):bs, gty:ts, u <> es <> ss)
+          (bs, ts, ss) <- letBindTypes gen (substGamma (ua <> u <> es) (E.add g (x, gty))) rest
+          return $ ((Bind x (Just gty) params ee):bs, gty:ts, ua <> u <> es <> ss)
 
 generalise :: Gamma -> Type -> QType
 generalise g t = generalise' ((tv t) \\ (tvGamma g)) (Ty t)
@@ -225,3 +250,36 @@ unquantify' i s (Forall x t) = do x' <- fresh
                                   unquantify' (i + 1)
                                               ((show i =: x') <> s)
                                               (substQType (x =: TypeVar (show i)) t)
+
+freshenTV :: QType -> TC Type
+freshenTV t = do let freeTV = tvQ t
+                 vs <- freshVars (length freeTV)
+                 let tmp = map (\x -> (show 0)++x) freeTV
+                 let subst1 = foldl (<>) emptySubst
+                              (zipWith (\a b -> a =: b) freeTV (map TypeVar tmp))
+                 let uniqueTV = substQType subst1 t
+                 let subst2 = foldl (<>) emptySubst (zipWith (\a b -> a =: b) tmp vs)
+                 let fresh = substQType subst2 uniqueTV
+                 unquantify fresh
+
+-- annotation -> inferred type
+unifyA :: Type -> Type -> TC Subst
+unifyA (TypeVar a) (TypeVar b) = return (a =: (TypeVar b))
+unifyA (Base a) (Base b) = if a == b
+                           then return emptySubst
+                           else typeError $ TypeMismatch (Base a) (Base b)
+
+unifyA (Arrow a1 a2) (Arrow b1 b2) = do s1 <- a1 `unifyA` b1
+                                        s2 <- substitute s1 a2 `unifyA` substitute s1 b2
+                                        return $ s1 <> s2
+unifyA (Prod a1 a2) (Prod b1 b2) = do s1 <- a1 `unifyA` b1
+                                      s2 <- substitute s1 a2 `unifyA` substitute s1 b2
+                                      return $ s1 <> s2
+unifyA (Sum a1 a2) (Sum b1 b2) = do s1 <- a1 `unifyA` b1
+                                    s2 <- substitute s1 a2 `unifyA` substitute s1 b2
+                                    return $ s1 <> s2
+-- the other way around is not allowed
+unifyA t (TypeVar v) = case elem v (tv t) of
+                        True -> typeError $ OccursCheckFailed v t
+                        False -> return (v =: t)
+unifyA a b = typeError $ TypeMismatch a b
