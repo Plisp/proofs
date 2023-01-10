@@ -5,9 +5,11 @@ open import types
   random proofs
 -}
 
+-- compile-time tests !
 test-len : (length (1 :: 2 :: [])) == 2
 test-len = refl
 
+-- proof boilerplate
 begin_ : {A : Set} → {x y : A} → x == y → x == y
 begin p = p
 infix 1 begin_
@@ -25,6 +27,7 @@ _=⟨⟩_ : {A : Set} → (x : A) → {y : A} → x == y → x == y
 x =⟨⟩ q = x =⟨ refl ⟩ q
 infixr 2 _=⟨⟩_
 
+-- commutativity of addition
 add-commutes0 : (n : ℕ) → (n + 0) == n
 add-commutes0 0 =
   begin
@@ -67,6 +70,7 @@ add-commutes (suc m) n =
     =⟨ add-commutes-sucr n m ⟩     n + suc m
   end
 
+-- multiples
 data Multiple : ℕ → ℕ → Set where
   div-zero : (k : ℕ) → Multiple k 0
   div-suck : {n k : ℕ} → Multiple k n → Multiple k (n + k) -- wrong order oops!

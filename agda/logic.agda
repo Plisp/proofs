@@ -8,11 +8,17 @@ id a = a
 _◦_ : {A B C : Set} → (B → C) → (A → B) → (A → C)
 g ◦ h = λ x → g (h x)
 
+-- top type (true)
 data ⊤ : Set where
   ⟨⟩ : ⊤
 
+-- bottom type (false)
 data ⊥ : Set where
 
+absurd : {A : Set} → ⊥ → A
+absurd ()
+
+-- product (AND)
 data _×_ (A B : Set) : Set where
   _,_ : A → B → A × B
 infixr 4 _,_
@@ -23,6 +29,7 @@ fst (x , y) = x
 snd : {A B : Set} → A × B → B
 snd (x , y) = y
 
+-- coproduct (OR)
 data _＋_ (A B : Set) : Set where
   left : A → A ＋ B
   right : B → A ＋ B
@@ -35,6 +42,7 @@ case (right b) ac bc = bc b
 lem : {P : Set} -> ((P ＋ (P → ⊥)) → ⊥) → ⊥
 lem f = f (right (λ p → f (left p)))
 
+-- dependent product (there exists)
 data ∑ (A : Set) (B : A -> Set) : Set where
   _,_ : (x : A) → B x → ∑ A B
 
@@ -44,6 +52,7 @@ dfst (x , y) = x
 dsnd : {A : Set} {B : A → Set} → (z : ∑ A B) → B (dfst z)
 dsnd (x , y) = y
 
+-- equality (equality)
 data _==_ {A : Set} : A → A → Set where
   refl : {x : A} → x == x
 
