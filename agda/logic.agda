@@ -31,11 +31,11 @@ snd (x , y) = y
 
 -- coproduct (OR)
 data _＋_ (A B : Set) : Set where
-  left : A → A ＋ B
+  left  : A → A ＋ B
   right : B → A ＋ B
 
 case : {A B C : Set} → (A ＋ B) → (A → C) → (B → C) → C
-case (left a) ac bc = ac a
+case (left a)  ac bc = ac a
 case (right b) ac bc = bc b
 
 -- double negation translation

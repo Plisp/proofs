@@ -78,19 +78,16 @@ data Multiple : ℕ → ℕ → Set where
 test-multiple : Multiple 3 6
 test-multiple = div-suck (div-suck (div-zero 3))
 
-div-transport : {n k : ℕ} → Multiple k (n + k) → Multiple k (k + n)
-div-transport {n} {k} m = subst (Multiple k) (add-commutes n k) m
-
-div-transportr : {a b k : ℕ} → Multiple k (a + b) → Multiple k (b + a)
-div-transportr {a} {b} {k} m = subst (Multiple k) (add-commutes a b) m
+div-coe : {a b k : ℕ} → Multiple k (a + b) → Multiple k (b + a)
+div-coe {a} {b} {k} m = subst (Multiple k) (add-commutes a b) m
 
 div-four→div-two : {n : ℕ} → Multiple 4 n → Multiple 2 n
 div-four→div-two (div-zero .4) = div-zero 2
 div-four→div-two (div-suck {k} {4} p) =
-  (div-transportr {4} {k}
-   (div-transport {2 + k} {2}
+  (div-coe {4} {k}
+   (div-coe {2 + k} {2}
     (div-suck {2 + k} {2}
-     (div-transport {k} {2}
+     (div-coe {k} {2}
       (div-suck {k} {2} (div-four→div-two p))))))
 
 -- functor laws
