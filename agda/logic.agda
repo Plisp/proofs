@@ -53,17 +53,17 @@ dsnd : {A : Set} {B : A → Set} → (z : ∑ A B) → B (dfst z)
 dsnd (x , y) = y
 
 -- equality (equality)
-data _==_ {A : Set} : A → A → Set where
+data _==_ {n : Agda.Primitive.Level} {A : Set n} : A → A → Set n where
   refl : {x : A} → x == x
 
 sym : {A : Set} {x y : A} → x == y → y == x
-sym {A} refl = refl {A}
+sym refl = refl
 
 trans : {A : Set} {x y z : A} → x == y → y == z → x == z
-trans {A} refl refl = refl {A}
+trans refl refl = refl
 
 ap : {A B : Set} {x y : A} → (f : A → B) → x == y → f x == f y
-ap {A} {B} f refl = refl {B}
+ap f refl = refl
 
 subst : {A : Set} {x y : A} (C : A → Set) → x == y → C x → C y
 subst C refl cx = cx

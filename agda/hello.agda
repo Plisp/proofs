@@ -5,6 +5,18 @@ open import types
   random proofs
 -}
 
+-- falsity - if a family can (extensionally) distinguish two terms,
+-- then equality implies void
+data Bad : ℕ → Set where
+  badt : ⊤ → Bad 0
+  badf : ⊥ → Bad 1
+
+destroy : Bad 1 → ⊥
+destroy (badf void) = void
+
+negation : (0 == 1) → ⊥
+negation eq = destroy ((subst Bad eq) (badt ⟨⟩))
+
 -- compile-time tests !
 test-len : (length (1 :: 2 :: [])) == 2
 test-len = refl
