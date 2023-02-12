@@ -42,8 +42,8 @@ zero    * b = zero
 pred : ℕ → ℕ
 pred n = snd (pred' n) where
          pred' : ℕ → ℕ × ℕ
-         pred' zero = zero , zero
-         pred' (suc n) = suc (fst (pred' n)) , fst (pred' n)
+         pred' zero = (zero , zero)
+         pred' (suc n) = (suc (fst (pred' n)) , fst (pred' n))
 
 -- lists
 data List (A : Set) : Set where
