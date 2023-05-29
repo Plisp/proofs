@@ -1,25 +1,39 @@
+{-# OPTIONS --without-K --exact-split #-}
+
+open import Agda.Primitive
+-- implicitly generalize
+variable ℓ ℓ₁ ℓ₂ : Level
+
 {-
   first order logic
 -}
 
-id : {A : Set} → A → A
-id a = a
-
-_◦_ : {A B C : Set} → (B → C) → (A → B) → (A → C)
-g ◦ h = λ x → g (h x)
-
--- top type (true)
+-- 𝟙 (true)
 data ⊤ : Set where
-  ⟨⟩ : ⊤
+  ⋆ : ⊤
+𝟙 = ⊤
 
--- bottom type (false)
+⊤-ind : (A : ⊤ → Set ℓ) → A ⋆ → ((x : ⊤) → A x)
+⊤-ind A a ⋆ = a
+
+⊤-rec : (A : Set ℓ) → A → (⊤ → A) -- a = base case
+⊤-rec A a ⋆ = ⊤-ind (λ _ → A) a ⋆
+
+-- 𝟘 (false)
 data ⊥ : Set where
+𝟘 = ⊤
 
-absurd : {A : Set} → ⊥ → A
-absurd ()
+⊥-ind : (A : ⊥ → Set ℓ) → ((x : ⊥) → A x)
+⊥-ind A ()
+
+⊥-rec : (A : Set ℓ) → (⊥ → A)
+⊥-rec A ()
+
+¬ : Set ℓ → Set ℓ
+¬ X = X → ⊥
 
 -- product (AND)
-data _×_ (A B : Set) : Set where
+data _×_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
   _,_ : A → B → A × B
 infixr 4 _,_
 
@@ -30,40 +44,85 @@ snd : {A B : Set} → A × B → B
 snd (x , y) = y
 
 -- coproduct (OR)
-data _＋_ (A B : Set) : Set where
-  left  : A → A ＋ B
-  right : B → A ＋ B
+data _＋_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
+  inl : A → A ＋ B
+  inr : B → A ＋ B
+
+＋-ind : {A : Set ℓ₁} {B : Set ℓ₂}
+        → (C : A ＋ B → Set ℓ)
+        → ((x : A) → C (inl x)) → ((y : B) → C (inr y))
+        → ((z : A ＋ B) → C z)
+＋-ind C ax ay (inl x) = ax x
+＋-ind C ax ay (inr y) = ay y
+
+＋-rec : {A : Set ℓ₁} {B : Set ℓ₂}
+        → (C : Set ℓ)
+        → (A → C) → (B → C)
+        → ((A ＋ B) → C)
+＋-rec C ac bc = ＋-ind (λ x → C) ac bc
 
 case : {A B C : Set} → (A ＋ B) → (A → C) → (B → C) → C
-case (left a)  ac bc = ac a
-case (right b) ac bc = bc b
+case (inl a) ac bc = ac a
+case (inr b) ac bc = bc b
 
--- double negation translation
-lem : {P : Set} -> ((P ＋ (P → ⊥)) → ⊥) → ⊥
-lem f = f (right (λ p → f (left p)))
+-- bool need
+𝟚 = 𝟙 ＋ 𝟙
+𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
+𝟚-ind A a₀ a₁ = ＋-ind A
+                (⊤-ind (λ (x : 𝟙) → (A (inl x))) a₀)
+                (⊤-ind (λ (x : 𝟙) → (A (inr x))) a₁)
 
--- dependent product (there exists)
-data ∑ (A : Set) (B : A -> Set) : Set where
-  _,_ : (x : A) → B x → ∑ A B
+-- dependent sum (there exists)
+record Σ {A : Set ℓ₁} (B : A → Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
+  constructor _,_
+  field
+    x : A
+    y : B x
 
-dfst : {A : Set} {B : A → Set} → ∑ A B → A
-dfst (x , y) = x
+pr₁ : {A : Set ℓ₁} {B : A → Set ℓ₂} → Σ B → A
+pr₁ (x , y) = x
 
-dsnd : {A : Set} {B : A → Set} → (z : ∑ A B) → B (dfst z)
-dsnd (x , y) = y
+pr₂ : {A : Set ℓ₁} {B : A → Set ℓ₂} → (z : Σ B) → B (pr₁ z)
+pr₂ (x , y) = y
+
+-- \:4
+-Σ : (A : Set ℓ₁) (B : A → Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
+-Σ A B = Σ B
+syntax -Σ A (λ a → b) = Σ a ꞉ A , b
+
+Σ-ind : {A : Set ℓ₁} {B : A → Set ℓ₂}
+        → (C : Σ B → Set ℓ)
+        → ((x : A) (y : B x) → C (x , y))
+        → ((x , y) : Σ B) → C (x , y)
+Σ-ind C f (x , y) = f x y
+
+-- dependent product (forall, implies)
+Π : {X : Set ℓ} (A : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
+Π {ℓ} {ℓ₁} {X} A = (x : X) → A x
+
+-Π : (X : Set ℓ) (Y : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
+-Π X Y = Π Y
+syntax -Π A (λ x → b) = Π x ꞉ A , b
+
+id : {A : Set ℓ} → A → A
+id a = a
+
+_∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}
+      → ((b : B) → C b) → (f : A → B) → ((x : A) → C (f x))
+g ∘ h = λ x → g (h x)
 
 -- equality (equality)
-data _≡_ {n : Agda.Primitive.Level} {A : Set n} : A → A → Set n where
-  refl : {x : A} → x ≡ x
+data _≡_ {A : Set ℓ} : A → A → Set ℓ where
+  refl : (x : A) → x ≡ x
 
 sym : {A : Set} {x y : A} → x ≡ y → y ≡ x
-sym refl = refl
+sym (refl x) = (refl x)
 
 trans : {A : Set} {x y z : A} → x ≡ y → y ≡ z → x ≡ z
-trans refl refl = refl
+trans (refl x) (refl y) = refl x
 
 ap : {A B : Set} {x y : A} → (f : A → B) → x ≡ y → f x ≡ f y
-ap f refl = refl
+ap f (refl x) = refl (f x)
 
-subst : {A : Set} {x y : A} (C : A → Set) → x ≡ y → C x → C y
-subst C refl cx = cx
+J : {A : Set} {x y : A} (C : A → Set) → x ≡ y → C x → C y
+J C (refl x) cx = cx

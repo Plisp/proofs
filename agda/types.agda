@@ -28,16 +28,19 @@ if false then x else y = y
 -- natural numbers
 data ℕ : Set where
   zero : ℕ
-  suc  : ℕ → ℕ
+  suc : ℕ → ℕ
 {-# BUILTIN NATURAL ℕ #-}
 
-_+_ : ℕ → ℕ → ℕ
-zero    + b = b
-(suc a) + b = suc (a + b)
+ℕ-ind : (A : ℕ → Set ℓ) → (A 0) → ((n : ℕ) → A n → A (suc n))
+      → ((x : ℕ) → A x)
+ℕ-ind A a₀ s = h
+  where
+    h : (n : ℕ) → A n
+    h 0 = a₀
+    h (suc n) = s n (h n)
 
-_*_ : ℕ → ℕ → ℕ
-zero    * b = zero
-(suc a) * b = b + (a * b)
+ℕ-rec : (A : Set ℓ) → A → (ℕ → A → A) → (ℕ → A)
+ℕ-rec A a₀ s = ℕ-ind (λ _ → A) a₀ s
 
 pred : ℕ → ℕ
 pred n = snd (pred' n) where
@@ -48,46 +51,18 @@ pred n = snd (pred' n) where
 -- lists
 data List (A : Set) : Set where
   []   : List A
-  _::_ : A → List A → List A
-infixr 5 _::_
-
-data Vec (A : Set) : ℕ → Set where
-  []   : Vec A zero
-  _::_ : {n : ℕ} → A → Vec A n → Vec A (suc n)
-
-_++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
-[]        ++ bs = bs
-(a :: as) ++ bs = a :: (as ++ bs)
-
-append : {A : Set} {n : ℕ} → (x : A) → Vec A n → Vec A (suc n)
-append x []        = x :: []
-append x (a :: as) = a :: (append x as)
-
-iota : (n : ℕ) → Vec ℕ n
-iota zero    = []
-iota (suc n) = append n (iota n)
-
-head : {A : Set} {n : ℕ} → Vec A (suc n) → A
-head (a :: as) = a
-
-tail : {A : Set} {n : ℕ} → Vec A (suc n) → Vec A n
-tail (a :: as) = as
-
-map : {A B : Set} {n : ℕ} → (f : A → B) → Vec A n → Vec B n
-map f []        = []
-map f (a :: as) = (f a) :: (map f as)
-
-length : {A : Set} {n : ℕ} → Vec A n → ℕ
-length {_} {n} _ = n
+  _∷_ : A → List A → List A
+infixr 5 _∷_
+{-# BUILTIN LIST List #-}
 
 -- bounded index for integers below n
 data Fin : ℕ → Set where
   fz : {n : ℕ} → Fin (suc n)
   fs : {n : ℕ} → Fin n → Fin (suc n)
 
-_!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
-(a :: as) !! fz   = a
-(a :: as) !! fs b = as !! b
+fmax : (n : ℕ) → Fin (suc n)
+fmax zero = fz
+fmax (suc n) = fs (fmax n)
 
 -- Martin-Löf's well-founded trees
 data W (A : Set) (B : A → Set) : Set where
@@ -108,4 +83,4 @@ wsuc n = true ◂ (λ _ → n)
 
 wrec : {C : Set} → WNat → C → (WNat → C → C) → C
 wrec (false ◂ _) z _ = z
-wrec (true  ◂ f) z s = s (f (wright ⟨⟩)) (wrec (f (wright ⟨⟩)) z s)
+wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
