@@ -21,7 +21,7 @@ data ⊤ : Set where
 
 -- 𝟘 (false)
 data ⊥ : Set where
-𝟘 = ⊤
+𝟘 = ⊥
 
 ⊥-ind : (A : ⊥ → Set ℓ) → ((x : ⊥) → A x)
 ⊥-ind A ()
@@ -98,7 +98,7 @@ syntax -Σ A (λ a → b) = Σ a ꞉ A , b
 
 -- dependent product (forall, implies)
 Π : {X : Set ℓ} (A : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
-Π {ℓ} {ℓ₁} {X} A = (x : X) → A x
+Π{ℓ}{ℓ₁} {X} A = (x : X) → A x
 
 -Π : (X : Set ℓ) (Y : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
 -Π X Y = Π Y
@@ -112,17 +112,19 @@ _∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}
 g ∘ h = λ x → g (h x)
 
 -- equality (equality)
-data _≡_ {A : Set ℓ} : A → A → Set ℓ where
-  refl : (x : A) → x ≡ x
+data _＝_ {A : Set ℓ} : A → A → Set ℓ where
+  refl : (x : A) → x ＝ x
 
-sym : {A : Set} {x y : A} → x ≡ y → y ≡ x
-sym (refl x) = (refl x)
+-- induction
+ȷ : {A : Set ℓ} {x y : A} (C : A → Set ℓ₁) → x ＝ y → C x → C y
+ȷ C (refl x) cx = cx
 
-trans : {A : Set} {x y z : A} → x ≡ y → y ≡ z → x ≡ z
-trans (refl x) (refl y) = refl x
+sym : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
+sym{ℓ} {A} {x} {y} p = ȷ (λ y → y ＝ x) p (refl x)
 
-ap : {A B : Set} {x y : A} → (f : A → B) → x ≡ y → f x ≡ f y
-ap f (refl x) = refl (f x)
+trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
+trans{ℓ} {A} {x} {y} {z} px = ȷ (λ y → y ＝ z → x ＝ z) px (id{ℓ} {x ＝ z})
 
-J : {A : Set} {x y : A} (C : A → Set) → x ≡ y → C x → C y
-J C (refl x) cx = cx
+--
+decidable : Set ℓ → Set ℓ
+decidable A = A ＋ ¬ A

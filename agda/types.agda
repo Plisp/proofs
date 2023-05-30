@@ -1,4 +1,6 @@
+{-# OPTIONS --without-K --exact-split #-}
 open import logic
+open import eq
 
 {-
   basic data structures
@@ -36,17 +38,32 @@ data ℕ : Set where
 ℕ-ind A a₀ s = h
   where
     h : (n : ℕ) → A n
-    h 0 = a₀
+    h 0       = a₀
     h (suc n) = s n (h n)
 
 ℕ-rec : (A : Set ℓ) → A → (ℕ → A → A) → (ℕ → A)
 ℕ-rec A a₀ s = ℕ-ind (λ _ → A) a₀ s
 
-pred : ℕ → ℕ
-pred n = snd (pred' n) where
-         pred' : ℕ → ℕ × ℕ
-         pred' zero = (zero , zero)
-         pred' (suc n) = (suc (fst (pred' n)) , fst (pred' n))
+-- peano +
+_+_ : ℕ → ℕ → ℕ
+zero    + b = b
+(suc a) + b = suc (a + b)
+
+_*_ : ℕ → ℕ → ℕ
+zero    * b = 0
+(suc a) * b = (a * b) + b
+
+_≤_ _≥_ : ℕ → ℕ → Set
+0     ≤ y      = 𝟙
+suc x ≤ 0      = 𝟘
+suc x ≤ suc y = x ≤ y
+
+x ≥ y = y ≤ x
+infix 10 _≤_ _≥_
+
+-- peano axiom, note pattern lambda!
+suc-neq-zero : (x : ℕ) → suc x ≠ 0
+suc-neq-zero _ p = 𝟙-neq-𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
 
 -- lists
 data List (A : Set) : Set where
@@ -67,20 +84,3 @@ fmax (suc n) = fs (fmax n)
 -- Martin-Löf's well-founded trees
 data W (A : Set) (B : A → Set) : Set where
   _◂_ : (s : A) → ((B s) → (W A B)) → (W A B)
-
-data WNatB : Bool → Set where
-  wleft  : ⊥ → WNatB false
-  wright : ⊤ → WNatB true
-
-WNat : Set
-WNat = W Bool WNatB
-
-wzero : WNat
-wzero = false ◂ (λ {(wleft ())})
-
-wsuc : WNat → WNat
-wsuc n = true ◂ (λ _ → n)
-
-wrec : {C : Set} → WNat → C → (WNat → C → C) → C
-wrec (false ◂ _) z _ = z
-wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
