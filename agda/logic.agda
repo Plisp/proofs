@@ -114,6 +114,7 @@ g ∘ h = λ x → g (h x)
 -- equality (equality)
 data _＝_ {A : Set ℓ} : A → A → Set ℓ where
   refl : (x : A) → x ＝ x
+infix 4 _＝_
 
 -- induction
 ȷ : {A : Set ℓ} {x y : A} (C : A → Set ℓ₁) → x ＝ y → C x → C y

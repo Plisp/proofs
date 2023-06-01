@@ -54,12 +54,12 @@ zero    * b = 0
 (suc a) * b = (a * b) + b
 
 _≤_ _≥_ : ℕ → ℕ → Set
-0     ≤ y      = 𝟙
-suc x ≤ 0      = 𝟘
+0     ≤ y     = 𝟙
+suc x ≤ 0     = 𝟘
 suc x ≤ suc y = x ≤ y
 
 x ≥ y = y ≤ x
-infix 10 _≤_ _≥_
+infix 4 _≤_ _≥_
 
 -- peano axiom, note pattern lambda!
 suc-neq-zero : (x : ℕ) → suc x ≠ 0

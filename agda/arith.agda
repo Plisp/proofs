@@ -4,29 +4,77 @@ open import types
 open import eq
 
 -- lambda style predecessor
-pred : ℕ → ℕ
-pred n = snd (pred' n) where
-         pred' : ℕ → ℕ × ℕ
-         pred' zero = (zero , zero)
-         pred' (suc n) = (suc (fst (pred' n)) , fst (pred' n))
+pred' : ℕ → ℕ
+pred' n = snd (pred'' n) where
+          pred'' : ℕ → ℕ × ℕ
+          pred'' zero = (zero , zero)
+          pred'' (suc n) = (suc (fst (pred'' n)) , fst (pred'' n))
 
--- TODO
+pred : ℕ → ℕ
+pred 0       = 0
+pred (suc n) = n
+
+suc-cancel : {x y : ℕ} → suc x ＝ suc y → x ＝ y
+suc-cancel = ap pred
+
 ℕ-decidable-equality : has-decidable-equality ℕ
-ℕ-decidable-equality =
-  λ a b → ℕ-ind (λ a → ((a ＝ b) ＋ (a ≠ b))) (f b) {!!} a
-    where
-      f = ℕ-ind (λ (b : ℕ) → (0 ＝ b) ＋ (0 ≠ b))
-                (inl (refl 0))
-                (λ (a : ℕ) _ → inr ((suc-neq-zero a) ≠⁻¹))
+ℕ-decidable-equality 0 0       = (inl (refl 0))
+ℕ-decidable-equality 0 (suc b) = inr ((suc-neq-zero b) ≠⁻¹)
+ℕ-decidable-equality (suc a) 0 = inr (suc-neq-zero a)
+ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
+  where
+    f : decidable (a ＝ b) → decidable (suc a ＝ suc b)
+    f = ＋-ind (λ (x : (decidable (a ＝ b))) → decidable (suc a ＝ suc b))
+        (λ (p : a ＝ b) → inl (ap suc p))
+        (λ (f : a ≠ b) → inr (f ∘ suc-cancel))
+
+-- inequality TODO prove this is equivalent to other one
+_≼_ : ℕ → ℕ → Set
+x ≼ y = Σ z ꞉ ℕ , ((x + z) ＝ y)
+
+infix 4 _≼_
+
+-- partial order of ≤
+-- 0     ≤ y     = 𝟙
+-- suc x ≤ 0     = 𝟘
+-- suc x ≤ suc y = x ≤ y
+
+≤-refl : (n : ℕ) → (n ≤ n)
+≤-refl 0       = ⋆
+≤-refl (suc n) = ≤-refl n
+
+≤-trans : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
+≤-trans 0 l n _ _ = ⋆
+≤-trans (suc l) 0       0       p q = p
+≤-trans (suc l) 0       (suc n) p q = ⊥-rec (suc l ≤ suc n) p
+≤-trans (suc l) (suc m) 0       p q = q
+≤-trans (suc l) (suc m) (suc n) p q = ≤-trans l m n p q
+
+≤-anti : (m n : ℕ) → m ≤ n → n ≤ m → m ＝ n
+≤-anti 0       0       p q = refl 0
+≤-anti 0       (suc n) p q = ⊥-rec (0 ＝ suc n) q
+≤-anti (suc m) 0       p q = ⊥-rec (suc m ＝ 0) p
+≤-anti (suc m) (suc n) p q = ap suc (≤-anti m n p q)
+
+-- strict inequality
+_<_ _>_ : ℕ → ℕ → Set
+x < y = suc x ≤ y
+x > y = suc y ≥ x
+infix 4 _<_ _>_
+
+-- associativity of addition
++-assoc : (x y z : ℕ) → ((x + y) + z) ＝ (x + (y + z))
++-assoc 0       y z = refl (y + z)
++-assoc (suc x) y z = ap suc (+-assoc x y z)
 
 -- commutativity of addition
 add-commutes0 : (n : ℕ) → (n + 0) ＝ n
 add-commutes0 0 =
-  Proof
+  begin
     0 + 0 =⟨⟩ 0
   ∎
 add-commutes0 (suc n) =
-  Proof
+  begin
                                   suc n  + 0
     =⟨⟩                           suc (n + 0)
     =⟨ ap suc (add-commutes0 n) ⟩ suc n        -- induction hypothesis
@@ -34,13 +82,13 @@ add-commutes0 (suc n) =
 
 add-commutes-sucr : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
 add-commutes-sucr 0 n =
-  Proof
+  begin
         suc (0 + n)
     =⟨⟩ suc n
     =⟨⟩ 0 + suc n
   ∎
 add-commutes-sucr (suc m) n =
-  Proof
+  begin
                                         suc (suc m  + n)
     =⟨⟩                                 suc (suc (m + n))
     =⟨ ap suc (add-commutes-sucr m n) ⟩ suc (m + suc n)
@@ -49,18 +97,26 @@ add-commutes-sucr (suc m) n =
 
 add-commutes : (m n : ℕ) → (m + n) ＝ (n + m)
 add-commutes 0 n =
-  Proof
+  begin
                               0 + n
     =⟨⟩                       n
     =⟨ (add-commutes0 n) ⁻¹ ⟩ n + 0
   ∎
 add-commutes (suc m) n =
-  Proof
+  begin
                                    suc m  + n
     =⟨⟩                            suc (m + n)
     =⟨ ap suc (add-commutes m n) ⟩ suc (n + m)
     =⟨ add-commutes-sucr n m ⟩     n + suc m
   ∎
+
+-- cancellation
++-cancel : (x y z : ℕ) → (x + y ＝ x + z) → (y ＝ z)
++-cancel 0       y z p = p
++-cancel (suc x) y z p = (+-cancel x y z (ap pred p))
+
+-- subtraction TODO prove inverse theorems
+
 
 -- multiples
 data Multiple : ℕ → ℕ → Set where

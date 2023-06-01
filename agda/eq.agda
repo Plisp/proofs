@@ -27,9 +27,9 @@ _⁻¹ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
 p ⁻¹ = let x = (lhs p) in transport (λ y → y ＝ x) p (refl x)
 
 -- proof boilerplate
-Proof_ : {A : Set} → {x y : A} → x ＝ y → x ＝ y
-Proof p = p
-infix 1 Proof_
+begin_ : {A : Set} → {x y : A} → x ＝ y → x ＝ y
+begin p = p
+infix 1 begin_
 
 _∎ : {A : Set} → (x : A) → x ＝ x
 x ∎ = refl x
