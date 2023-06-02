@@ -2,10 +2,10 @@
 open import logic
 
 lhs : {A : Set ℓ} {x y : A} → (x ＝ y) → A
-lhs {ℓ} {A} {x} {y} p = x
+lhs{ℓ} {A} {x} {y} p = x
 
 rhs : {A : Set ℓ} {x y : A} → (x ＝ y) → A
-rhs {ℓ} {A} {x} {y} p = y
+rhs{ℓ} {A} {x} {y} p = y
 
 ap : {A : Set ℓ} {B : Set ℓ₁} {x y : A}
    → (f : A → B) → (x ＝ y) → (f x ＝ f y)

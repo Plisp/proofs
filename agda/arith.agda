@@ -31,7 +31,7 @@ suc-cancel = ap pred
 
 -- inequality TODO prove this is equivalent to other one
 _≼_ : ℕ → ℕ → Set
-x ≼ y = Σ z ꞉ ℕ , ((x + z) ＝ y)
+x ≼ y = Σ z ꞉ ℕ , (x + z) ＝ y
 
 infix 4 _≼_
 

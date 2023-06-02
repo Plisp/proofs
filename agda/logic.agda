@@ -35,6 +35,7 @@ data ⊥ : Set where
 -- product (AND)
 data _×_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
   _,_ : A → B → A × B
+infixr 2 _×_
 infixr 4 _,_
 
 fst : {A B : Set} → A × B → A
@@ -47,6 +48,7 @@ snd (x , y) = y
 data _＋_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
   inl : A → A ＋ B
   inr : B → A ＋ B
+infixr 1 _＋_
 
 ＋-ind : {A : Set ℓ₁} {B : Set ℓ₂}
         → (C : A ＋ B → Set ℓ)
@@ -58,7 +60,7 @@ data _＋_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
 ＋-rec : {A : Set ℓ₁} {B : Set ℓ₂}
         → (C : Set ℓ)
         → (A → C) → (B → C)
-        → ((A ＋ B) → C)
+        → (A ＋ B → C)
 ＋-rec C ac bc = ＋-ind (λ x → C) ac bc
 
 case : {A B C : Set} → (A ＋ B) → (A → C) → (B → C) → C
@@ -89,6 +91,7 @@ pr₂ (x , y) = y
 -Σ : (A : Set ℓ₁) (B : A → Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
 -Σ A B = Σ B
 syntax -Σ A (λ a → b) = Σ a ꞉ A , b
+infix 0 -Σ
 
 Σ-ind : {A : Set ℓ₁} {B : A → Set ℓ₂}
         → (C : Σ B → Set ℓ)
