@@ -1,7 +1,8 @@
-{-# OPTIONS --without-K --exact-split #-}
+{-# OPTIONS --without-K --exact-split --safe #-}
 open import logic
 open import types
 open import eq
+open import op
 
 -- lambda style predecessor
 pred' : ℕ → ℕ
@@ -63,7 +64,7 @@ x > y = suc y ≥ x
 infix 4 _<_ _>_
 
 -- associativity of addition
-+-assoc : (x y z : ℕ) → ((x + y) + z) ＝ (x + (y + z))
++-assoc : (op-assoc _+_)
 +-assoc 0       y z = refl (y + z)
 +-assoc (suc x) y z = ap suc (+-assoc x y z)
 
@@ -95,7 +96,7 @@ add-commutes-sucr (suc m) n =
     =⟨⟩                                 suc m  + suc n
   ∎
 
-add-commutes : (m n : ℕ) → (m + n) ＝ (n + m)
+add-commutes : (op-commut _+_)
 add-commutes 0 n =
   begin
                               0 + n

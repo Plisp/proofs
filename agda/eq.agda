@@ -1,4 +1,4 @@
-{-# OPTIONS --without-K --exact-split #-}
+{-# OPTIONS --without-K --exact-split --safe #-}
 open import logic
 
 lhs : {A : Set ℓ} {x y : A} → (x ＝ y) → A
