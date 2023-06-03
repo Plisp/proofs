@@ -1,4 +1,9 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
+
+{-
+  operator properties
+-}
+
 open import Agda.Primitive
 open import logic
 open import eq

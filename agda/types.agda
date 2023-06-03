@@ -1,12 +1,12 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
-open import logic
-open import eq
 
 {-
   basic data structures
 -}
 
--- booleans
+open import logic
+open import eq
+
 data Bool : Set where
   true  : Bool
   false : Bool
@@ -27,7 +27,10 @@ if_then_else : {A : Set} → Bool → A → A → A
 if true  then x else y = x
 if false then x else y = y
 
--- natural numbers
+{-
+  natural numbers
+-}
+
 data ℕ : Set where
   zero : ℕ
   suc : ℕ → ℕ
@@ -41,9 +44,6 @@ data ℕ : Set where
     h 0       = a₀
     h (suc n) = s n (h n)
 
-ℕ-rec : (A : Set ℓ) → A → (ℕ → A → A) → (ℕ → A)
-ℕ-rec A a₀ s = ℕ-ind (λ _ → A) a₀ s
-
 -- peano +
 _+_ : ℕ → ℕ → ℕ
 zero    + b = b
@@ -54,7 +54,7 @@ zero    * b = 0
 (suc a) * b = (a * b) + b
 
 _≤_ _≥_ : ℕ → ℕ → Set
-0     ≤ y     = 𝟙
+0 ≤ y     = 𝟙
 suc x ≤ 0     = 𝟘
 suc x ≤ suc y = x ≤ y
 
@@ -64,15 +64,10 @@ infix 4 _≤_ _≥_
 suc-neq-zero : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
 suc-neq-zero _ p = 𝟙-neq-𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
 
--- signed
-data ℤ : Set where
-  pos : (n : ℕ) → ℤ
-  neg : (n : ℕ) → ℤ
-{-# BUILTIN INTEGER ℤ #-}
-{-# BUILTIN INTEGERPOS pos #-}
-{-# BUILTIN INTEGERNEGSUC neg #-}
+{-
+  lists
+-}
 
--- lists
 data List (A : Set) : Set where
   []   : List A
   _∷_ : A → List A → List A
@@ -85,9 +80,12 @@ data Fin : ℕ → Set where
   fs : {n : ℕ} → Fin n → Fin (suc n)
 
 fmax : (n : ℕ) → Fin (suc n)
-fmax zero = fz
+fmax 0       = fz
 fmax (suc n) = fs (fmax n)
 
--- Martin-Löf's well-founded trees
+{-
+  Martin-Löf's well-founded trees
+-}
+
 data W (A : Set) (B : A → Set) : Set where
   _◂_ : (s : A) → ((B s) → (W A B)) → (W A B)

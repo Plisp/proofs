@@ -1,4 +1,9 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
+
+{-
+  number theory
+-}
+
 open import logic
 open import types
 open import eq
@@ -29,7 +34,10 @@ suc-cancel = ap pred
         (λ (p : a ＝ b) → inl (ap suc p))
         (λ (f : a ≠ b) → inr (f ∘ suc-cancel))
 
--- inequality TODO prove this is equivalent to other one
+{-
+  inequality TODO prove this is equivalent to other one
+-}
+
 _≼_ : ℕ → ℕ → Set
 x ≼ y = Σ z ꞉ ℕ , (x + z) ＝ y
 
@@ -63,7 +71,10 @@ x < y = suc x ≤ y
 x > y = suc y ≥ x
 infix 4 _<_ _>_
 
--- associativity of addition
+{-
+  addition
+-}
+
 +-assoc : (op-assoc _+_)
 +-assoc 0       y z = refl (y + z)
 +-assoc (suc x) y z = ap suc (+-assoc x y z)
@@ -116,10 +127,22 @@ add-commutes (suc m) n =
 +-cancel 0       y z p = p
 +-cancel (suc x) y z p = (+-cancel x y z (ap pred p))
 
--- subtraction TODO prove inverse theorems
+{-
+  subtraction TODO prove inverse theorems
+-}
 
+-- signed type needed
+data ℤ : Set where
+  pos : (n : ℕ) → ℤ
+  neg : (n : ℕ) → ℤ
+{-# BUILTIN INTEGER ℤ #-}
+{-# BUILTIN INTEGERPOS pos #-}
+{-# BUILTIN INTEGERNEGSUC neg #-}
 
--- multiples
+{-
+  multiples
+-}
+
 data Multiple : ℕ → ℕ → Set where
   div-zero : (k : ℕ) → Multiple k 0
   div-suck : {n k : ℕ} → Multiple k n → Multiple k (n + k) -- oops!

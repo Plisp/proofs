@@ -1,4 +1,9 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
+
+{-
+  2601 lemmas formalized
+-}
+
 open import Agda.Primitive
 open import logic
 open import eq
@@ -68,7 +73,10 @@ inv-olution G x = unique-inv G (inverse G x) x {!!}
 
 
 
--- trivial group
+{-
+  trivial group
+-}
+
 triv-op : 𝟙 → 𝟙 → 𝟙
 triv-op _ _ = ⋆
 

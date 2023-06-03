@@ -1,13 +1,23 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
-open import logic
-open import eq
-open import types
 
 {-
   random proofs
 -}
 
--- nats are a W-type
+open import logic
+open import eq
+open import types
+
+𝟚 = 𝟙 ＋ 𝟙
+𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
+𝟚-ind A a₀ a₁ = ＋-ind A
+                (⊤-ind (λ (x : 𝟙) → (A (inl x))) a₀)
+                (⊤-ind (λ (x : 𝟙) → (A (inr x))) a₁)
+
+{-
+  nats are a W-type
+-}
+
 data WNatB : Bool → Set where
   wleft  : ⊥ → WNatB false
   wright : ⊤ → WNatB true
@@ -25,11 +35,17 @@ wrec : {C : Set} → WNat → C → (WNat → C → C) → C
 wrec (false ◂ _) z _ = z
 wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
 
--- double negation translation
+{-
+  double negation translation
+-}
+
 lem : {P : Set} → ((P ＋ (P → ⊥)) → ⊥) → ⊥
 lem f = f (inr (λ p → f (inl p)))
 
--- contradiction leads to bottom
+{-
+  contradiction leads to bottom
+-}
+
 data Bad : ℕ → Set where
   badt : ⊤ → Bad 0
   badf : ⊥ → Bad 1
@@ -40,7 +56,10 @@ destroy (badf void) = void
 negation : (0 ＝ 1) → ⊥
 negation eq = destroy ((ȷ Bad eq) (badt ⋆))
 
--- bounded vectors
+{-
+  bounded vectors
+-}
+
 data Vec (A : Set) : ℕ → Set where
   []   : Vec A zero
   _∷_ : {n : ℕ} → A → Vec A n → Vec A (suc n)
@@ -52,7 +71,10 @@ _!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
 (a ∷ as) !! fz   = a
 (a ∷ as) !! fs b = as !! b
 
--- compile-time tests !
+{-
+  compile-time tests !
+-}
+
 test-len : (length (1 ∷ 2 ∷ [])) ＝ 2
 test-len = refl 2
 
@@ -60,7 +82,10 @@ _++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
 []        ++ bs = bs
 (a ∷ as) ++ bs = a ∷ (as ++ bs)
 
--- functor laws for A -> Vec A n
+{-
+  functor laws for A -> Vec A n
+-}
+
 map : {A B : Set} {n : ℕ} → (f : A → B) → Vec A n → Vec B n
 map f []        = []
 map f (a ∷ as) = (f a) ∷ (map f as)
