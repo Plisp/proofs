@@ -38,10 +38,16 @@ data _×_ (A : Set ℓ₁) (B : Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
 infixr 2 _×_
 infixr 4 _,_
 
-fst : {A B : Set} → A × B → A
+×-ind : {A : Set ℓ₁} {B : Set ℓ₂}
+        → (C : A × B → Set ℓ)
+        → ((x : A) → (y : B) → C (x , y))
+        → ((z : A × B) → C z)
+×-ind C f (a , b) = f a b
+
+fst : {A : Set ℓ₁} {B : Set ℓ₂} → A × B → A
 fst (x , y) = x
 
-snd : {A B : Set} → A × B → B
+snd : {A : Set ℓ₁} {B : Set ℓ₂} → A × B → B
 snd (x , y) = y
 
 -- coproduct (OR)
@@ -75,11 +81,14 @@ case (inr b) ac bc = bc b
                 (⊤-ind (λ (x : 𝟙) → (A (inr x))) a₁)
 
 -- dependent sum (there exists)
-record Σ {A : Set ℓ₁} (B : A → Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
-  constructor _,_
-  field
-    x : A
-    y : B x
+data Σ {A : Set ℓ₁} (B : A → Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
+  _,_ : (a : A) → B a → Σ B
+
+Σ-ind : {A : Set ℓ₁} {B : A → Set ℓ₂}
+        → (C : Σ B → Set ℓ)
+        → ((x : A) (y : B x) → C (x , y))
+        → ((z : Σ B) → C z)
+Σ-ind C f (x , y) = f x y
 
 pr₁ : {A : Set ℓ₁} {B : A → Set ℓ₂} → Σ B → A
 pr₁ (x , y) = x
@@ -92,12 +101,6 @@ pr₂ (x , y) = y
 -Σ A B = Σ B
 syntax -Σ A (λ a → b) = Σ a ꞉ A , b
 infix 0 -Σ
-
-Σ-ind : {A : Set ℓ₁} {B : A → Set ℓ₂}
-        → (C : Σ B → Set ℓ)
-        → ((x : A) (y : B x) → C (x , y))
-        → ((x , y) : Σ B) → C (x , y)
-Σ-ind C f (x , y) = f x y
 
 -- dependent product (forall, implies)
 Π : {X : Set ℓ} (A : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)

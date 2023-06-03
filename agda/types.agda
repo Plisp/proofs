@@ -61,9 +61,16 @@ suc x ≤ suc y = x ≤ y
 x ≥ y = y ≤ x
 infix 4 _≤_ _≥_
 
--- peano axiom, note pattern lambda!
-suc-neq-zero : (x : ℕ) → suc x ≠ 0
+suc-neq-zero : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
 suc-neq-zero _ p = 𝟙-neq-𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
+
+-- signed
+data ℤ : Set where
+  pos : (n : ℕ) → ℤ
+  neg : (n : ℕ) → ℤ
+{-# BUILTIN INTEGER ℤ #-}
+{-# BUILTIN INTEGERPOS pos #-}
+{-# BUILTIN INTEGERNEGSUC neg #-}
 
 -- lists
 data List (A : Set) : Set where
