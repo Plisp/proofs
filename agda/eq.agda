@@ -23,28 +23,25 @@ transport{ℓ}{ℓ₁} {A} P {x} {y} p = ȷ (λ y → P x → P y) p (id{ℓ₁}
 _∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
 p ∙ q = transport (λ y → (lhs p) {- x -} ＝ y) q p
 --p ∙ q = transport (λ x → x ＝ (rhs q)) (sym p) q
-
--- doesn't work on ≠ !!
-_⁻¹ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
-p ⁻¹ = let x = (lhs p) in transport (λ y → y ＝ x) p (refl x)
+infixr 5 _∙_
 
 {-
   proof boilerplate
 -}
 
-begin_ : {A : Set} → {x y : A} → x ＝ y → x ＝ y
+begin_ : {A : Set ℓ} → {x y : A} → x ＝ y → x ＝ y
 begin p = p
 infix 1 begin_
 
-_∎ : {A : Set} → (x : A) → x ＝ x
+_∎ : {A : Set ℓ} → (x : A) → x ＝ x
 x ∎ = refl x
 infix 3 _∎
 
-_=⟨_⟩_ : {A : Set} → (x : A) → {y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
+_=⟨_⟩_ : {A : Set ℓ} → (x : A) → {y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
 x =⟨ p ⟩ q = p ∙ q
 infixr 2 _=⟨_⟩_
 
-_=⟨⟩_ : {A : Set} → (x : A) → {y : A} → x ＝ y → x ＝ y
+_=⟨⟩_ : {A : Set ℓ} → (x : A) → {y : A} → x ＝ y → x ＝ y
 x =⟨⟩ q = x =⟨ refl x ⟩ q
 infixr 2 _=⟨⟩_
 
@@ -55,8 +52,8 @@ infixr 2 _=⟨⟩_
 _≠_ : {X : Set ℓ} → X → X → Set ℓ
 x ≠ y = ¬(x ＝ y)
 
-_≠⁻¹ : {A : Set ℓ} {x y : A} → (x ≠ y) → (y ≠ x)
-_≠⁻¹ fp = fp ∘ _⁻¹
+≠-sym : {A : Set ℓ} {x y : A} → (x ≠ y) → (y ≠ x)
+≠-sym fp = fp ∘ sym
 
 𝟙-neq-𝟘 : 𝟙 ≠ 𝟘 -- (𝟙 = 𝟘) → ⊥
 𝟙-neq-𝟘 p = transport id p ⋆

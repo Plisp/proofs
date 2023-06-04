@@ -25,7 +25,7 @@ suc-cancel = ap pred
 
 ℕ-decidable-equality : has-decidable-equality ℕ
 ℕ-decidable-equality 0 0       = (inl (refl 0))
-ℕ-decidable-equality 0 (suc b) = inr ((suc-neq-zero b) ≠⁻¹)
+ℕ-decidable-equality 0 (suc b) = inr (≠-sym (suc-neq-zero b))
 ℕ-decidable-equality (suc a) 0 = inr (suc-neq-zero a)
 ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
   where
@@ -81,27 +81,21 @@ infix 4 _<_ _>_
 
 -- commutativity of addition
 add-commutes0 : (n : ℕ) → (n + 0) ＝ n
-add-commutes0 0 =
-  begin
-    0 + 0 =⟨⟩ 0
-  ∎
+add-commutes0 0 = refl 0
 add-commutes0 (suc n) =
-  begin
-                                  suc n  + 0
+  begin                           suc n  + 0
     =⟨⟩                           suc (n + 0)
     =⟨ ap suc (add-commutes0 n) ⟩ suc n        -- induction hypothesis
   ∎
 
 add-commutes-sucr : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
 add-commutes-sucr 0 n =
-  begin
-        suc (0 + n)
+  begin suc (0 + n)
     =⟨⟩ suc n
     =⟨⟩ 0 + suc n
   ∎
 add-commutes-sucr (suc m) n =
-  begin
-                                        suc (suc m  + n)
+  begin                                 suc (suc m  + n)
     =⟨⟩                                 suc (suc (m + n))
     =⟨ ap suc (add-commutes-sucr m n) ⟩ suc (m + suc n)
     =⟨⟩                                 suc m  + suc n
@@ -109,14 +103,12 @@ add-commutes-sucr (suc m) n =
 
 add-commutes : (op-commut _+_)
 add-commutes 0 n =
-  begin
-                              0 + n
-    =⟨⟩                       n
-    =⟨ (add-commutes0 n) ⁻¹ ⟩ n + 0
+  begin                        0 + n
+    =⟨⟩                        n
+    =⟨ sym (add-commutes0 n) ⟩ n + 0
   ∎
 add-commutes (suc m) n =
-  begin
-                                   suc m  + n
+  begin                            suc m  + n
     =⟨⟩                            suc (m + n)
     =⟨ ap suc (add-commutes m n) ⟩ suc (n + m)
     =⟨ add-commutes-sucr n m ⟩     n + suc m
