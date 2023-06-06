@@ -9,7 +9,7 @@ open import logic
 open import eq
 open import op
 
-record Group {ℓ : Level} (S : Set ℓ) : Set (lsuc ℓ) where
+record Group (S : Set ℓ) : Set (lsuc ℓ) where
   constructor ⟨_,_,_,_,_⟩
   field
     op : S → S → S
@@ -18,6 +18,7 @@ record Group {ℓ : Level} (S : Set ℓ) : Set (lsuc ℓ) where
     idp : op-id e op
     ivp : op-inverse e op
 
+-- TODO how to best represent while reusing Group?
 -- AbelianGroup : (ℓ : Level) → Set (lsuc ℓ)
 -- AbelianGroup ℓ = Σ X ꞉ (Set ℓ) ,
 --                  Σ _·_ ꞉ (X → X → X) ,
@@ -101,7 +102,7 @@ lcancel : {S : Set ℓ} → (G : Group S)
         → (a b c : S)
         → (a ·⟨ G ⟩ b) ＝ (a ·⟨ G ⟩ c)
         → b ＝ c
-lcancel{ℓ} {S} G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
+lcancel G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
   = (sym (lemma2 b)) ∙ lemma1 ∙ (lemma2 c)
   where
     a' = (inverse G a)
@@ -109,14 +110,14 @@ lcancel{ℓ} {S} G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
     lemma1 : (a' · a) · b ＝ (a' · a) · c
     lemma1 = (assoc a' a b) ∙ (ap (λ x → a' · x) p) ∙ (sym (assoc a' a c))
 
-    lemma2 : (d : S) → (a' · a) · d ＝ d
+    lemma2 : ∀ d → (a' · a) · d ＝ d
     lemma2 d = (ap (λ x → x · d) (snd (pr₂ (ivp a)))) ∙ (snd (idp d))
 
 rcancel : {S : Set ℓ} → (G : Group S)
         → (a b c : S)
         → (b ·⟨ G ⟩ a) ＝ (c ·⟨ G ⟩ a)
         → b ＝ c
-rcancel{ℓ} {S} G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
+rcancel G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
   = (sym (lemma2 b)) ∙ lemma1 ∙ (lemma2 c)
   where
     a' = (inverse G a)
@@ -124,7 +125,7 @@ rcancel{ℓ} {S} G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b c p
     lemma1 : b · (a · a') ＝ c · (a · a')
     lemma1 = (sym (assoc b a a')) ∙ (ap (λ x → x · a') p) ∙ (assoc c a a')
 
-    lemma2 : (d : S) → d · (a · a') ＝ d
+    lemma2 : ∀ d → d · (a · a') ＝ d
     lemma2 d = (ap (λ x → d · x) (fst (pr₂ (ivp a)))) ∙ (fst (idp d))
 
 inv-comp : {S : Set ℓ} → (G : Group S)
@@ -156,15 +157,58 @@ inv-comp G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b
         =⟨ (snd (pr₂ (ivp b))) ⟩                         e
       ∎
 
-
-{- TODO
-  modulo group ℤₙ = Fin n
--}
-
-{- TODO
+{-
   bijections (functions with inverses)
 -}
 
+data Bij (S : Set ℓ) : Set ℓ where
+  ♭ : (f : S → S) → (f' : S → S) → (f ∘ f' ＝ id) → (f' ∘ f ＝ id) → Bij S
+
+bij-op : {S : Set ℓ} → Bij S → Bij S → Bij S
+bij-op (♭ f f' fp fq) (♭ g g' gp gq) = ♭ (f ∘ g) (g' ∘ f') left right
+  where
+    left : (f ∘ g) ∘ g' ∘ f' ＝ id
+    left = (ap (λ x → (f ∘ x) ∘ f') gp) ∙ fp
+
+    right : (g' ∘ f') ∘ (f ∘ g) ＝ id
+    right = (ap (λ x → (g' ∘ x) ∘ g) fq) ∙ gq
+
+-- bij-assoc : {S : Set ℓ} → op-assoc{ℓ}{Bij S} bij-op
+-- bij-assoc f g h = {!!}
+
+bij-id : {S : Set ℓ} → Bij S
+bij-id = ♭ id id (refl id) (refl id)
+
+bij-idp : {S : Set ℓ} → op-id{ℓ}{Bij S} bij-id bij-op
+bij-idp{ℓ}{S} B@(♭ f f' p q) = (lemma1 ∙ lemma2 , {!!})
+ where
+   -- rhs is not definitionally ♭ f f' p q
+   lemma1 : bij-op (♭ f f' p q) bij-id ＝ ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q)
+   lemma1 = refl _
+
+   lemma2 : ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q) ＝ ♭ f f' p q
+   lemma2 = {!!}
+
+   lemma3 : (refl (f ∘ f') ∙ p) ＝ p
+   lemma3 = {!!}
+   lemma4 : (ap (λ fn → fn) q) ＝ q
+   lemma4 = {!!}
+
+-- bij-ivp : {S : Set ℓ} → op-inverse{ℓ}{Bij S} bij-id bij-op
+-- bij-ivp (♭ f f' p q) = ((♭ f' f (q , p)) , {!!} , {!!})
+
+-- bij-group : {S : Set ℓ} → Group (Bij S)
+-- bij-group = ⟨ bij-op , bij-id , bij-assoc , bij-idp , bij-ivp ⟩
+
 {- TODO
-  cyclic field ℂₙ
+  modulo group ℤₙ = Fin n is homomorphic to cyclic field ℂₙ
 -}
+
+is-homo : {A : Set ℓ₁} {B : Set ℓ₂}
+        → (GA : Group A) → (GB : Group B) → (A → B) → Set (ℓ₁ ⊔ ℓ₂)
+is-homo GA GB f = ∀ a b → f (a ·⟨ GA ⟩ b) ＝ (f a) ·⟨ GB ⟩ (f b)
+
+data Homomorphism (A : Set ℓ₁) (B : Set ℓ₂) : Set (lsuc (ℓ₁ ⊔ ℓ₂)) where
+  H : {GA : Group A} → {GB : Group B}
+    → (f : A → B)
+    → (is-homo GA GB f) → Homomorphism A B

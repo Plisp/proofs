@@ -4,7 +4,6 @@
   operator properties
 -}
 
-open import Agda.Primitive
 open import logic
 open import eq
 

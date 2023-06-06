@@ -20,19 +20,18 @@ pred : ℕ → ℕ
 pred 0       = 0
 pred (suc n) = n
 
-suc-cancel : {x y : ℕ} → suc x ＝ suc y → x ＝ y
-suc-cancel = ap pred
+cancel-suc : {x y : ℕ} → suc x ＝ suc y → x ＝ y
+cancel-suc = ap pred
 
 ℕ-decidable-equality : has-decidable-equality ℕ
-ℕ-decidable-equality 0 0       = (inl (refl 0))
-ℕ-decidable-equality 0 (suc b) = inr (≠-sym (suc-neq-zero b))
-ℕ-decidable-equality (suc a) 0 = inr (suc-neq-zero a)
+ℕ-decidable-equality 0       0       = (inl (refl 0))
+ℕ-decidable-equality 0       (suc b) = inr (≠-sym (suc-neq-zero b))
+ℕ-decidable-equality (suc a) 0       = inr (suc-neq-zero a)
 ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
   where
-    f : decidable (a ＝ b) → decidable (suc a ＝ suc b)
-    f = ＋-ind (λ (x : (decidable (a ＝ b))) → decidable (suc a ＝ suc b))
+    f = ＋-ind (λ _ → decidable (suc a ＝ suc b))
         (λ (p : a ＝ b) → inl (ap suc p))
-        (λ (f : a ≠ b) → inr (f ∘ suc-cancel))
+        (λ (f : a ≠ b) → inr (f ∘ cancel-suc))
 
 {-
   inequality TODO prove this is equivalent to other one

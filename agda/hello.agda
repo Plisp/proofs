@@ -71,6 +71,10 @@ _!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
 (a ∷ as) !! fz   = a
 (a ∷ as) !! fs b = as !! b
 
+_++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
+[]        ++ bs = bs
+(a ∷ as) ++ bs = a ∷ (as ++ bs)
+
 {-
   compile-time tests !
 -}
@@ -78,9 +82,15 @@ _!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
 test-len : (length (1 ∷ 2 ∷ [])) ＝ 2
 test-len = refl 2
 
-_++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
-[]        ++ bs = bs
-(a ∷ as) ++ bs = a ∷ (as ++ bs)
+equal : ℕ → ℕ → Bool
+equal 0       0       = true
+equal (suc x) 0       = false
+equal 0       (suc y) = false
+equal (suc x) (suc y) = equal x y
+
+-- bad definition
+-- p : ∀ n → (equal n n) ＝ true
+-- p n = refl true
 
 {-
   functor laws for A -> Vec A n

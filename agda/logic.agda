@@ -78,10 +78,6 @@ infixr 1 _＋_
 ＋-ind C ax ay (inl x) = ax x
 ＋-ind C ax ay (inr y) = ay y
 
-case : {A B C : Set} → (A ＋ B) → (A → C) → (B → C) → C
-case (inl a) ac bc = ac a
-case (inr b) ac bc = bc b
-
 {-
   dependent sum (there exists)
 -}
@@ -124,6 +120,7 @@ id a = a
 _∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}
     → ((b : B) → C b) → (f : A → B) → ((x : A) → C (f x))
 g ∘ h = λ x → g (h x)
+infixr 5 _∘_
 
 {-
   equality (equality)
@@ -140,8 +137,8 @@ infix 4 _＝_
 sym : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
 sym{ℓ} {A} {x} {y} p = ȷ (λ y → y ＝ x) p (refl x)
 
-trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
-trans{ℓ} {A} {x} {y} {z} px = ȷ (λ y → y ＝ z → x ＝ z) px (id{ℓ} {x ＝ z})
+-- trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
+-- trans{ℓ} {A} {x} {y} {z} px = ȷ (λ y → y ＝ z → x ＝ z) px (id{ℓ} {x ＝ z})
 
 --
 decidable : Set ℓ → Set ℓ
