@@ -54,7 +54,7 @@ destroy : Bad 1 → ⊥
 destroy (badf void) = void
 
 negation : (0 ＝ 1) → ⊥
-negation eq = destroy ((ȷ Bad eq) (badt ⋆))
+negation eq = destroy (transport Bad eq (badt ⋆))
 
 {-
   bounded vectors

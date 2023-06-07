@@ -4,8 +4,8 @@ open import Agda.Builtin.Unit using (⊤;tt)
 data _＝_ {n} {A : Set n} : A → A → Set n where
   refl : {x : A} → x ＝ x
 
-ȷ : {A : Set} {x y : A} (C : A → Set) → x ＝ y → C x → C y
-ȷ C refl cx = cx
+subst : {A : Set} {x y : A} (C : A → Set) → x ＝ y → C x → C y
+subst C refl cx = cx
 
 data ⊥ : Set where
 
@@ -18,5 +18,5 @@ f (badf ())
 
 -- fails to infer type, using f works
 negation : (0 ＝ 1) -> ⊥
-negation eq = f (ȷ Bad eq (badt tt))
---negation eq = (\ {badf void -> void} ) (ȷ Bad eq (badt tt))
+negation eq = f (subst Bad eq (badt tt))
+--negation eq = (\ {badf void -> void} ) (subst Bad eq (badt tt))

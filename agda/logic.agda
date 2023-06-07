@@ -6,7 +6,7 @@
 
 open import Agda.Primitive
 -- implicitly generalize
-variable ℓ ℓ₁ ℓ₂ : Level
+variable ℓ ℓ₁ ℓ₂ ℓ₃ ℓ₄ : Level
 
 {-
   𝟙 (true)
@@ -131,14 +131,18 @@ data _＝_ {A : Set ℓ} : A → A → Set ℓ where
 infix 4 _＝_
 
 -- induction
-ȷ : {A : Set ℓ} {x y : A} (C : A → Set ℓ₁) → x ＝ y → C x → C y
-ȷ C (refl x) cx = cx
+ȷ : {X : Set ℓ} (C : (x y : X) → (x ＝ y) → Set ℓ₁)
+  → ((x : X) → C x x (refl x))
+  → (x y : X) (p : x ＝ y) → C x y p
+ȷ C f x x (refl x) = f x
 
 sym : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
-sym{ℓ} {A} {x} {y} p = ȷ (λ y → y ＝ x) p (refl x)
+sym{ℓ} {A} {x}{y} p = ȷ (λ (x y : A) _ → y ＝ x) (λ x → refl x) x y p
 
--- trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
--- trans{ℓ} {A} {x} {y} {z} px = ȷ (λ y → y ＝ z → x ＝ z) px (id{ℓ} {x ＝ z})
+trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
+trans{ℓ} {A} {x}{y}{z} p = ȷ (λ (x y : A) _ → y ＝ z → x ＝ z)
+                             (λ x → (ȷ (λ (x z : A) _ → x ＝ z) (λ x → refl x) x z))
+                             x y p
 
 --
 decidable : Set ℓ → Set ℓ

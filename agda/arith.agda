@@ -25,8 +25,8 @@ cancel-suc = ap pred
 
 ℕ-decidable-equality : has-decidable-equality ℕ
 ℕ-decidable-equality 0       0       = (inl (refl 0))
-ℕ-decidable-equality 0       (suc b) = inr (≠-sym (suc-neq-zero b))
-ℕ-decidable-equality (suc a) 0       = inr (suc-neq-zero a)
+ℕ-decidable-equality 0       (suc b) = inr (≠-sym (suc-x≠0 b))
+ℕ-decidable-equality (suc a) 0       = inr (suc-x≠0 a)
 ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
   where
     f = ＋-ind (λ _ → decidable (suc a ＝ suc b))
@@ -79,38 +79,38 @@ infix 4 _<_ _>_
 +-assoc (suc x) y z = ap suc (+-assoc x y z)
 
 -- commutativity of addition
-add-commutes0 : (n : ℕ) → (n + 0) ＝ n
-add-commutes0 0 = refl 0
-add-commutes0 (suc n) =
-  begin                           suc n  + 0
-    =⟨⟩                           suc (n + 0)
-    =⟨ ap suc (add-commutes0 n) ⟩ suc n        -- induction hypothesis
++-idr : (n : ℕ) → (n + 0) ＝ n
++-idr 0 = refl 0
++-idr (suc n) =
+  begin                   suc n  + 0
+    =⟨⟩                   suc (n + 0)
+    =⟨ ap suc (+-idr n) ⟩ suc n        -- induction hypothesis
   ∎
 
-add-commutes-sucr : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
-add-commutes-sucr 0 n =
++-commutes-sucr : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
++-commutes-sucr 0 n =
   begin suc (0 + n)
     =⟨⟩ suc n
     =⟨⟩ 0 + suc n
   ∎
-add-commutes-sucr (suc m) n =
-  begin                                 suc (suc m  + n)
-    =⟨⟩                                 suc (suc (m + n))
-    =⟨ ap suc (add-commutes-sucr m n) ⟩ suc (m + suc n)
-    =⟨⟩                                 suc m  + suc n
++-commutes-sucr (suc m) n =
+  begin                               suc (suc m  + n)
+    =⟨⟩                               suc (suc (m + n))
+    =⟨ ap suc (+-commutes-sucr m n) ⟩ suc (m + suc n)
+    =⟨⟩                               suc m  + suc n
   ∎
 
-add-commutes : (op-commut _+_)
-add-commutes 0 n =
-  begin                        0 + n
-    =⟨⟩                        n
-    =⟨ sym (add-commutes0 n) ⟩ n + 0
++-commutes : (op-commut _+_)
++-commutes 0 n =
+  begin                0 + n
+    =⟨⟩                n
+    =⟨ sym (+-idr n) ⟩ n + 0
   ∎
-add-commutes (suc m) n =
-  begin                            suc m  + n
-    =⟨⟩                            suc (m + n)
-    =⟨ ap suc (add-commutes m n) ⟩ suc (n + m)
-    =⟨ add-commutes-sucr n m ⟩     n + suc m
++-commutes (suc m) n =
+  begin                          suc m  + n
+    =⟨⟩                          suc (m + n)
+    =⟨ ap suc (+-commutes m n) ⟩ suc (n + m)
+    =⟨ +-commutes-sucr n m ⟩     n + suc m
   ∎
 
 -- cancellation
@@ -142,7 +142,7 @@ test-multiple : Multiple 3 6
 test-multiple = div-suck (div-suck (div-zero 3))
 
 div-coe : {a b k : ℕ} → Multiple k (a + b) → Multiple k (b + a)
-div-coe {a} {b} {k} m = ȷ (Multiple k) (add-commutes a b) m
+div-coe {a} {b} {k} m = transport (λ n → Multiple k n) (+-commutes a b) m
 
 div-four→div-two : {n : ℕ} → Multiple 4 n → Multiple 2 n
 div-four→div-two (div-zero .4) = div-zero 2

@@ -61,8 +61,8 @@ suc x ≤ suc y = x ≤ y
 x ≥ y = y ≤ x
 infix 4 _≤_ _≥_
 
-suc-neq-zero : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
-suc-neq-zero _ p = 𝟙-neq-𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
+suc-x≠0 : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
+suc-x≠0 _ p = 𝟙≠𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
 
 {-
   lists

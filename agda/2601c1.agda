@@ -180,22 +180,31 @@ bij-id : {S : Set ℓ} → Bij S
 bij-id = ♭ id id (refl id) (refl id)
 
 bij-idp : {S : Set ℓ} → op-id{ℓ}{Bij S} bij-id bij-op
-bij-idp{ℓ}{S} B@(♭ f f' p q) = (lemma1 ∙ lemma2 , {!!})
- where
-   -- rhs is not definitionally ♭ f f' p q
-   lemma1 : bij-op (♭ f f' p q) bij-id ＝ ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q)
-   lemma1 = refl _
+bij-idp{ℓ}{S} B@(♭ f f' p q) = (lemma1 ∙ lemma2 , lemma3 ∙ lemma4)
+  where
+    -- rhs is not definitionally ♭ f f' p q
+    lemma1 : bij-op (♭ f f' p q) bij-id ＝ ♭ f f' (refl (f ∘ f') ∙ p) (ap id q)
+    lemma1 = refl _
 
-   lemma2 : ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q) ＝ ♭ f f' p q
-   lemma2 = {!!}
+    lemma2 : ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q) ＝ ♭ f f' p q
+    lemma2 = ap2 (♭ f f') (refl∙p＝p p) (ap-id-p＝p q)
 
-   lemma3 : (refl (f ∘ f') ∙ p) ＝ p
-   lemma3 = {!!}
-   lemma4 : (ap (λ fn → fn) q) ＝ q
-   lemma4 = {!!}
+    lemma3 : bij-op bij-id (♭ f f' p q) ＝ ♭ f f' (ap id p) ((refl (f' ∘ f)) ∙ q)
+    lemma3 = refl _
 
--- bij-ivp : {S : Set ℓ} → op-inverse{ℓ}{Bij S} bij-id bij-op
--- bij-ivp (♭ f f' p q) = ((♭ f' f (q , p)) , {!!} , {!!})
+    lemma4 : ♭ f f' (ap id p) (refl (f' ∘ f) ∙ q) ＝ ♭ f f' p q
+    lemma4 = ap2 (♭ f f') (ap-id-p＝p p) (refl∙p＝p q)
+
+bij-ivp : {S : Set ℓ} → op-inverse{ℓ}{Bij S} bij-id bij-op
+bij-ivp (♭ f f' p q) = ((♭ f' f q p) , {!!} , {!!})
+  -- where
+  --   k : ♭ (f ∘ f') (f ∘ f') ((ap (λ x → (f ∘ x) ∘ f') q) ∙ p)
+  --                           ((ap (λ x → (f ∘ x) ∘ f') q) ∙ p)
+  --       ＝ ♭ id id (refl id) (refl id)
+  --   k = {!!}
+
+
+
 
 -- bij-group : {S : Set ℓ} → Group (Bij S)
 -- bij-group = ⟨ bij-op , bij-id , bij-assoc , bij-idp , bij-ivp ⟩
