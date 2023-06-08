@@ -131,9 +131,9 @@ data _＝_ {A : Set ℓ} : A → A → Set ℓ where
 infix 4 _＝_
 
 -- induction
-ȷ : {X : Set ℓ} (C : (x y : X) → (x ＝ y) → Set ℓ₁)
-  → ((x : X) → C x x (refl x))
-  → (x y : X) (p : x ＝ y) → C x y p
+ȷ : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
+  → ((x : A) → C x x (refl x))
+  → (x y : A) (p : x ＝ y) → C x y p
 ȷ C f x x (refl x) = f x
 
 sym : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
@@ -144,6 +144,8 @@ trans{ℓ} {A} {x}{y}{z} p = ȷ (λ (x y : A) _ → y ＝ z → x ＝ z)
                              (λ x → (ȷ (λ (x z : A) _ → x ＝ z) (λ x → refl x) x z))
                              x y p
 
---
-decidable : Set ℓ → Set ℓ
-decidable A = A ＋ ¬ A
+-- based path induction
+ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (x ＝ a) → Set ℓ₁)
+  → C a (refl a)
+  → (x : A) (p : x ＝ a) → C x p
+ⅉ a C ca x (refl x) = ca
