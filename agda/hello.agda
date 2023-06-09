@@ -15,6 +15,26 @@ open import types
                 (⊤-ind (λ (x : 𝟙) → (A (inr x))) a₁)
 
 {-
+  \j the fun way!
+-}
+
+-- ∀ x y equal, choosing a = y, then apply ⅉ, 'coerce' back
+ȷ' : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
+   → ((x : A) → C x x (refl x))
+   → (x y : A) (p : x ＝ y) → C x y p
+ȷ' C f x y p = ⅉ y (λ x p → C x y p) (f y) x p
+
+ⅉ' : {A : Set ℓ} (a : A)
+   → (C : (x : A) → (x ＝ a) → Set ℓ₁)
+   → C a (refl a)
+   → (x : A) (p : x ＝ a) → C x p
+ⅉ' {ℓ}{ℓ₁} {A} a C ca x p -- quantify over ∀!! such predicates and their 'base'
+  = (ȷ (λ x y (q : x ＝ y) → ∀ (D : (x : A) → (x ＝ y) → Set ℓ₁) → D y (refl y) → D x q)
+       (λ x → λ D p → p)
+       x a p) C ca
+
+
+{-
   nats are a W-type
 -}
 
