@@ -20,10 +20,10 @@ record Group (S : Set ℓ) : Set (lsuc ℓ) where
 
 -- TODO how to best represent while reusing Group?
 -- AbelianGroup : (ℓ : Level) → Set (lsuc ℓ)
--- AbelianGroup ℓ = Σ X ꞉ (Set ℓ) ,
---                  Σ _·_ ꞉ (X → X → X) ,
+-- AbelianGroup ℓ = Σ X ∶ (Set ℓ) ,
+--                  Σ _·_ ∶ (X → X → X) ,
 --                    (op-commut _·_) × (op-assoc _·_)
---                  × (Σ e ꞉ X , (op-id e _·_) × (op-inverse e _·_))
+--                  × (Σ e ∶ X , (op-id e _·_) × (op-inverse e _·_))
 
 -- hack? not sure why can't use record accessor
 group-op = Group.op
@@ -164,43 +164,20 @@ inv-comp G@(⟨ _·_ , e , assoc , idp , ivp ⟩) a b
 data Bij (S : Set ℓ) : Set ℓ where
   ♭ : (f : S → S) → (f' : S → S) → (f ∘ f' ＝ id) → (f' ∘ f ＝ id) → Bij S
 
-bij-op : {S : Set ℓ} → Bij S → Bij S → Bij S
-bij-op (♭ f f' fp fq) (♭ g g' gp gq) = ♭ (f ∘ g) (g' ∘ f') left right
-  where
-    left : f ∘ g ∘ g' ∘ f' ＝ id
-    left = (ap (λ x → (f ∘ x) ∘ f') gp) ∙ fp
+-- bij-op : {S : Set ℓ} → Bij S → Bij S → Bij S
+-- bij-op (♭ f f' fp fq) (♭ g g' gp gq) = ?
 
-    right : g' ∘ f' ∘ f ∘ g ＝ id
-    right = (ap (λ x → (g' ∘ x) ∘ g) fq) ∙ gq
+-- bij-id : {S : Set ℓ} → Bij S
+-- bij-id = ?
 
-bij-id : {S : Set ℓ} → Bij S
-bij-id = ♭ id id (refl id) (refl id)
-
-bij-idp : {S : Set ℓ} → op-id{ℓ}{Bij S} bij-id bij-op
-bij-idp{ℓ}{S} (♭ f f' p q) = (lemma1 ∙ lemma2 , lemma3 ∙ lemma4)
-  where
-    lemma1 : bij-op (♭ f f' p q) bij-id ＝ ♭ f f' (refl (f ∘ f') ∙ p) (ap id q)
-    lemma1 = refl _
-
-    lemma2 : ♭ f f' (refl (f ∘ f') ∙ p) (ap (λ fn → fn) q) ＝ ♭ f f' p q
-    lemma2 = ap2 (♭ f f') (refl∙p＝p _ _ p) (ap-id-p＝p _ _ q)
-
-    lemma3 : bij-op bij-id (♭ f f' p q) ＝ ♭ f f' (ap id p) ((refl (f' ∘ f)) ∙ q)
-    lemma3 = refl _
-
-    lemma4 : ♭ f f' (ap id p) (refl (f' ∘ f) ∙ q) ＝ ♭ f f' p q
-    lemma4 = ap2 (♭ f f') (ap-id-p＝p _ _ p) (refl∙p＝p _ _ q)
+-- bij-idp : {S : Set ℓ} → op-id{ℓ}{Bij S} bij-id bij-op
+-- bij-idp{ℓ}{S} (♭ f f' p q) = ?
 
 -- bij-ivp : {S : Set ℓ} → op-inverse{ℓ}{Bij S} bij-id bij-op
--- bij-ivp (♭ f f' p q) = ((♭ f' f q p) , l , {!!})
---   where
---     l : ♭ (f ∘ f') (f ∘ f') ((ap (λ x → (f ∘ x) ∘ f') q) ∙ p)
---                             ((ap (λ x → (f ∘ x) ∘ f') q) ∙ p)
---       ＝ ♭ id id (refl id) (refl id)
---     l = {!!} -- ?? ((ap (λ x → (f ∘ x) ∘ f') q) ∙ p) ＝ refl id
+-- bij-ivp (♭ f f' p q) = ?
 
 -- bij-assoc : {S : Set ℓ} → op-assoc{ℓ}{Bij S} bij-op
--- bij-assoc f g h = {!!}
+-- bij-assoc f g h = ?
 
 -- bij-group : {S : Set ℓ} → Group (Bij S)
 -- bij-group = ⟨ bij-op , bij-id , bij-assoc , bij-idp , bij-ivp ⟩

@@ -100,7 +100,7 @@ pr₂ (x , y) = y
 -- \:4 ?? why agda
 -Σ : (A : Set ℓ₁) (B : A → Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
 -Σ A B = Σ B
-syntax -Σ A (λ a → b) = Σ a ꞉ A , b
+syntax -Σ A (λ a → b) = Σ a ∶ A , b
 infix 0 -Σ
 
 {-
@@ -137,11 +137,13 @@ infix 4 _＝_
 ȷ C f x x (refl x) = f x
 
 sym : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
-sym{ℓ} {A} {x}{y} p = ȷ (λ (x y : A) _ → y ＝ x) (λ x → refl x) x y p
+sym{ℓ} {A} {x}{y} p = ȷ (λ x y _ → y ＝ x) (λ x → refl x) x y p
 
 trans : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
-trans{ℓ} {A} {x}{y}{z} p = ȷ (λ (x y : A) _ → y ＝ z → x ＝ z)
-                             (λ x → (ȷ (λ (x z : A) _ → x ＝ z) (λ x → refl x) x z))
+trans{ℓ} {A} {x}{y}{z} p = ȷ (λ x y _ → y ＝ z → x ＝ z)
+                             (λ x → (ȷ (λ x z _ → x ＝ z)
+                                       (λ x → refl x)
+                                       x z))
                              x y p
 
 -- based path induction

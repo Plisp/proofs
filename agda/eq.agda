@@ -7,12 +7,6 @@
 open import Agda.Primitive
 open import logic
 
-lhs : {A : Set ℓ} {x y : A} → (x ＝ y) → A
-lhs{ℓ} {A} {x}{y} p = x
-
-rhs : {A : Set ℓ} {x y : A} → (x ＝ y) → A
-rhs{ℓ} {A} {x}{y} p = y
-
 transport : {A : Set ℓ} (P : A → Set ℓ₁) {x y : A} → (x ＝ y) → (P x → P y)
 transport{ℓ}{ℓ₁} {A} P {x}{y} p = ȷ (λ x y _ → P x → P y)
                                     (λ x → (id{ℓ₁} {P x}))
@@ -26,8 +20,7 @@ ap{ℓ}{ℓ₁} {A}{B} {x}{y} f p = ȷ (λ x y _ → f x ＝ f y)
 
 -- path notation
 _∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
-p ∙ q = transport (λ y → (lhs p) {- x -} ＝ y) q p
---p ∙ q = transport (λ x → x ＝ (rhs q)) (sym p) q
+_∙_ = trans
 infixr 5 _∙_
 
 apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x) (x y : X)
@@ -105,9 +98,9 @@ p∙iv＝refl = ȷ (λ x y p → p ∙ (sym p) ＝ (refl x)) refl-refl
 sym-volution : {A : Set ℓ} (x y : A) → (p : x ＝ y) → sym (sym p) ＝ p
 sym-volution = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl
 
-∙-trans : {A : Set ℓ} (w x y z : A) → (p : w ＝ x) → (q : x ＝ y) → (r : y ＝ z)
+∙-assoc : {A : Set ℓ} (w x y z : A) → (p : w ＝ x) → (q : x ＝ y) → (r : y ＝ z)
         → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)
-∙-trans w x y z p q r = ⅉ x (λ w (p : w ＝ x) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma w p
+∙-assoc w x y z p q r = ⅉ x (λ w (p : w ＝ x) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma w p
   where
     lemma : (refl x ∙ q) ∙ r ＝ refl x ∙ (q ∙ r)
     lemma = (ap (λ x → x ∙ r) (refl∙p＝p x y q) ∙ sym (refl∙p＝p x z (q ∙ r)))
@@ -129,7 +122,7 @@ infix 5 _~_
 
 -- equivalence
 quasi-equiv : (A : Set ℓ₁) → (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
-quasi-equiv A B = Σ f ꞉ (A → B) , Σ g ꞉ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
+quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
 
 -- lemma 2.4.12
 

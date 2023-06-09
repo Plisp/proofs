@@ -38,7 +38,7 @@ cancel-suc = ap pred
 -}
 
 _≼_ : ℕ → ℕ → Set
-x ≼ y = Σ z ꞉ ℕ , (x + z) ＝ y
+x ≼ y = Σ z ∶ ℕ , (x + z) ＝ y
 
 infix 4 _≼_
 
