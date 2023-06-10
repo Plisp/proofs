@@ -33,7 +33,6 @@ open import types
        (λ x → λ D p → p)
        x a p) C ca
 
-
 {-
   nats are a W-type
 -}

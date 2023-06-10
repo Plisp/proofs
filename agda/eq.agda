@@ -23,8 +23,8 @@ _∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
 _∙_ = trans
 infixr 5 _∙_
 
-apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x) (x y : X)
-      (p : x ＝ y) → transport A p (f x) ＝ f y
+apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x)
+    → (x y : X) (p : x ＝ y) → transport A p (f x) ＝ f y
 apd{ℓ}{ℓ₁} {X}{A} f x y p = ȷ (λ x y p → transport A p (f x) ＝ f y)
                               (λ x → refl (f x))
                               x y p
@@ -33,24 +33,24 @@ apd{ℓ}{ℓ₁} {X}{A} f x y p = ȷ (λ x y p → transport A p (f x) ＝ f y)
   proof boilerplate
 -}
 
-ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
-    → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
-ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
-  = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q) -- f w y ＝ f x y ＝ f x z
+-- ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
+--     → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
+-- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
+--   = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q)
 -- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q = ȷ (λ w x _ → f w y ＝ f x z)
 --                                                (λ x → ȷ (λ y z _ → f x y ＝ f x z)
 --                                                         (λ y → (refl (f x y)))
 --                                                         y z q)
 --                                                 w x p
 
-ap4 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃} {D : Set ℓ₄} {E : Set ℓ}
-    → {a e : A} {b f : B} {c g : C} {d h : D}
-    → (fn : A → B → C → D → E)
-    → (a ＝ e) → (b ＝ f) → (c ＝ g) → (d ＝ h)
-    → (fn a b c d ＝ fn e f g h)
-ap4{ℓ₁}{ℓ₂}{ℓ₃}{ℓ₄}{ℓ} {A}{B}{C}{D}{E} {a}{e}{b}{f}{c}{g}{d}{h} fn p q r s
-  = (ap (λ x → fn x b c d) p) ∙ (ap (λ x → fn e x c d) q) ∙
-    (ap (λ x → fn e f x d) r) ∙ (ap (λ x → fn e f g x) s)
+-- ap4 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃} {D : Set ℓ₄} {E : Set ℓ}
+--     → {a e : A} {b f : B} {c g : C} {d h : D}
+--     → (fn : A → B → C → D → E)
+--     → (a ＝ e) → (b ＝ f) → (c ＝ g) → (d ＝ h)
+--     → (fn a b c d ＝ fn e f g h)
+-- ap4{ℓ₁}{ℓ₂}{ℓ₃}{ℓ₄}{ℓ} {A}{B}{C}{D}{E} {a}{e}{b}{f}{c}{g}{d}{h} fn p q r s
+--   = (ap (λ x → fn x b c d) p) ∙ (ap (λ x → fn e x c d) q) ∙
+--     (ap (λ x → fn e f x d) r) ∙ (ap (λ x → fn e f g x) s)
 
 begin_ : {A : Set ℓ} → {x y : A} → x ＝ y → x ＝ y
 begin p = p
@@ -89,16 +89,16 @@ x ≠ y = ¬(x ＝ y)
 refl-refl : {A : Set ℓ} → (x : A) → refl x ＝ refl x
 refl-refl x = refl (refl x)
 
-refl∙p＝p : {A : Set ℓ} (x y : A) → (p : x ＝ y) → refl x ∙ p ＝ p
+refl∙p＝p : {A : Set ℓ} (x y : A) (p : x ＝ y) → refl x ∙ p ＝ p
 refl∙p＝p = ȷ (λ x y p → refl x ∙ p ＝ p) refl-refl
 
-p∙iv＝refl : {A : Set ℓ} (x y : A) → (p : x ＝ y) → p ∙ (sym p) ＝ (refl x)
+p∙iv＝refl : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ∙ (sym p) ＝ (refl x)
 p∙iv＝refl = ȷ (λ x y p → p ∙ (sym p) ＝ (refl x)) refl-refl
 
-sym-volution : {A : Set ℓ} (x y : A) → (p : x ＝ y) → sym (sym p) ＝ p
+sym-volution : {A : Set ℓ} (x y : A) (p : x ＝ y) → sym (sym p) ＝ p
 sym-volution = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl
 
-∙-assoc : {A : Set ℓ} (w x y z : A) → (p : w ＝ x) → (q : x ＝ y) → (r : y ＝ z)
+∙-assoc : {A : Set ℓ} (w x y z : A) (p : w ＝ x) (q : x ＝ y) (r : y ＝ z)
         → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)
 ∙-assoc w x y z p q r = ⅉ x (λ w (p : w ＝ x) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma w p
   where
@@ -106,13 +106,34 @@ sym-volution = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl
     lemma = (ap (λ x → x ∙ r) (refl∙p＝p x y q) ∙ sym (refl∙p＝p x z (q ∙ r)))
 
 -- lemma 2.2.2
+ap-distrib-∙ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B)
+             → (x y z : A) (p : x ＝ y) (q : y ＝ z)
+             → ap f (p ∙ q) ＝ ap f p ∙ ap f q
+ap-distrib-∙ f x y z p q = ⅉ y (λ x p → ap f (p ∙ q) ＝ ap f p ∙ ap f q)
+                               (ȷ (λ y z q → ap f (refl y ∙ q) ＝ ap f (refl y) ∙ ap f q)
+                                  (λ y → (refl (refl (f y))))
+                                  y z q)
+                               x p
+
+ap-commut-sym : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+              → (x y : A) (p : x ＝ y)
+              → ap f (sym p) ＝ sym (ap f p)
+ap-commut-sym f = ȷ (λ x y p → ap f (sym p) ＝ sym (ap f p))
+                    (λ x → refl (refl (f x)))
+
+ap-distrib-∘ : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → B) (g : B → C)
+             → (x y : A) (p : x ＝ y)
+             → ap g (ap f p) ＝ ap (g ∘ f) p
+ap-distrib-∘ f g = ȷ (λ x y p → ap g (ap f p) ＝ ap (g ∘ f) p)
+                     (λ x → refl (refl ((g ∘ f) x)))
+
 ap-id-p＝p : {A : Set ℓ} (x y : A) → (p : x ＝ y) → ap id p ＝ p
 ap-id-p＝p{ℓ}{A} = ȷ (λ x y p → ap id p ＝ p) refl-refl
 
 -- lemma 2.3.5 - 2.3.11
 
 -- homotopy
-_~_ : {X : Set ℓ} → {A : X → Set ℓ₁} → Π A → Π A → Set (ℓ ⊔ ℓ₁)
+_~_ : {X : Set ℓ} {A : X → Set ℓ₁} → Π A → Π A → Set (ℓ ⊔ ℓ₁)
 f ~ g = ∀ x → (f x ＝ g x)
 infix 5 _~_
 
@@ -121,7 +142,7 @@ infix 5 _~_
 -- lemma 2.4.3 naturality
 
 -- equivalence
-quasi-equiv : (A : Set ℓ₁) → (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
+quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
 quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
 
 -- lemma 2.4.12

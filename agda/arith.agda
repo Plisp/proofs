@@ -58,7 +58,7 @@ infix 4 _≼_
 ≤-trans (suc l) (suc m) 0       p q = q
 ≤-trans (suc l) (suc m) (suc n) p q = ≤-trans l m n p q
 
-≤-anti : (m n : ℕ) → m ≤ n → n ≤ m → m ＝ n
+≤-anti : (m n : ℕ) → (m ≤ n) → (n ≤ m) → (m ＝ n)
 ≤-anti 0       0       p q = refl 0
 ≤-anti 0       (suc n) p q = ⊥-rec (0 ＝ suc n) q
 ≤-anti (suc m) 0       p q = ⊥-rec (suc m ＝ 0) p
