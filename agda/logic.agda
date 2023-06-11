@@ -112,7 +112,8 @@ infix 0 -Σ
 
 -Π : (X : Set ℓ) (Y : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
 -Π X Y = Π Y
-syntax -Π A (λ x → b) = Π x ꞉ A , b
+syntax -Π A (λ x → b) = Π x ∶ A , b
+infix 0 -Π
 
 id : {A : Set ℓ} → A → A
 id a = a
@@ -147,7 +148,7 @@ trans{ℓ} {A} {x}{y}{z} p = ȷ (λ x y _ → y ＝ z → x ＝ z)
                              x y p
 
 -- based path induction
-ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (x ＝ a) → Set ℓ₁)
+ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (a ＝ x) → Set ℓ₁)
   → C a (refl a)
-  → (x : A) (p : x ＝ a) → C x p
+  → (x : A) (p : a ＝ x) → C x p
 ⅉ a C ca x (refl x) = ca

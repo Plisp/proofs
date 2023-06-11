@@ -48,7 +48,7 @@ triv-assoc _ _ _ = refl ⋆
 triv-id : op-id ⋆ triv-op  -- ∀ x → (x·e ＝ x) × (e·x ＝ x)
 triv-id ⋆ = (refl ⋆ , refl ⋆)
 
-triv-inverse : op-inverse ⋆ triv-op -- ∀x → Σ y꞉X, (x·y ＝ e) × (y·x ＝ e)
+triv-inverse : op-inverse ⋆ triv-op -- ∀ x → Σ y꞉X, (x·y ＝ e) × (y·x ＝ e)
 triv-inverse ⋆ = (⋆ , (refl ⋆ , refl ⋆))
 
 triv-group : Group 𝟙

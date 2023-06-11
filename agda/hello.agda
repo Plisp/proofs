@@ -22,14 +22,15 @@ open import types
 ȷ' : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
    → ((x : A) → C x x (refl x))
    → (x y : A) (p : x ＝ y) → C x y p
-ȷ' C f x y p = ⅉ y (λ x p → C x y p) (f y) x p
+ȷ' C f x y p = ⅉ x (λ y p → C x y p) (f x) y p
 
 ⅉ' : {A : Set ℓ} (a : A)
    → (C : (x : A) → (x ＝ a) → Set ℓ₁)
    → C a (refl a)
    → (x : A) (p : x ＝ a) → C x p
 ⅉ' {ℓ}{ℓ₁} {A} a C ca x p -- quantify over ∀!! such predicates and their 'base'
-  = (ȷ (λ x y (q : x ＝ y) → ∀ (D : (x : A) → (x ＝ y) → Set ℓ₁) → D y (refl y) → D x q)
+  = (ȷ (λ x y (q : x ＝ y) → Π D ∶ ((x : A) → (x ＝ y) → Set ℓ₁) ,
+                             (D y (refl y) → D x q))
        (λ x → λ D p → p)
        x a p) C ca
 
