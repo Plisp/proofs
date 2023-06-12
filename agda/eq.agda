@@ -88,11 +88,11 @@ x ≠ y = ¬(x ＝ y)
 refl-refl : {A : Set ℓ} → (x : A) → refl x ＝ refl x
 refl-refl x = refl (refl x)
 
-refl∙p＝p : {A : Set ℓ} (x y : A) (p : x ＝ y) → refl x ∙ p ＝ p
-refl∙p＝p = ȷ (λ x y p → refl x ∙ p ＝ p) refl-refl
+p＝refl∙p : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ＝ refl x ∙ p
+p＝refl∙p = ȷ (λ x y p → p ＝ refl x ∙ p) refl-refl
 
-p＝p∙refl : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ＝ p ∙ refl y
-p＝p∙refl = ȷ (λ x y p → p ＝ p ∙ refl y) refl-refl
+p∙refl＝p : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ∙ refl y ＝ p
+p∙refl＝p = ȷ (λ x y p → p ∙ refl y ＝ p) refl-refl
 
 p∙iv＝refl : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ∙ (sym p) ＝ (refl x)
 p∙iv＝refl = ȷ (λ x y p → p ∙ (sym p) ＝ (refl x)) refl-refl
@@ -108,7 +108,7 @@ sym-volution = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl
 ∙-assoc w x y z p q r = ⅉ y (λ z (r : y ＝ z) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma z r
   where
     lemma : (p ∙ q) ∙ (refl y) ＝ p ∙ (q ∙ refl y)
-    lemma = sym (p＝p∙refl w y (p ∙ q)) ∙ ap (λ q → p ∙ q) (p＝p∙refl x y q)
+    lemma = p∙refl＝p w y (p ∙ q) ∙ ap (λ q → p ∙ q) (sym (p∙refl＝p x y q))
 
 -- ap lemmas
 apf-homo-∙ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B)
@@ -169,9 +169,28 @@ _~_ : {X : Set ℓ} {A : X → Set ℓ₁} → Π A → Π A → Set (ℓ ⊔ �
 f ~ g = ∀ x → (f x ＝ g x)
 infix 5 _~_
 
--- lemma 2.4.2
+-- equivalence relation
+~refl : {A : Set ℓ} {P : A → Set ℓ₁} → (f : Π x ∶ A , P x) → (f ~ f)
+~refl f = λ x → refl (f x)
 
--- lemma 2.4.3 naturality
+~sym : {A : Set ℓ} {P : A → Set ℓ₁} → {f g : Π x ∶ A , P x}
+     → (f ~ g) → (g ~ f)
+~sym hom = λ x → sym (hom x)
+
+~trans : {A : Set ℓ} {P : A → Set ℓ₁} → {f g h : Π x ∶ A , P x}
+       → (f ~ g) → (g ~ h) → (f ~ h)
+~trans homf homg = λ x → trans (homf x) (homg x)
+
+-- naturality
+~nat : {A : Set ℓ} {B : Set ℓ₁}
+     → (f g : A → B) (H : f ~ g) → (x y : A) (p : x ＝ y)
+     → H x ∙ ap g p ＝ ap f p ∙ H y
+~nat f g H = ȷ (λ x y p → H x ∙ ap g p ＝ ap f p ∙ H y)
+               (λ x → p∙refl＝p _ _ (H x) ∙ p＝refl∙p _ _ (H x))
+
+-- ~commut : {A : Set ℓ} → (f : A → A) (H : f ~ id)
+--         → (x : A) → H (f x) ＝ ap f (H x)
+-- ~commut f H x = ~nat f id H (f x) x (H x)
 
 -- equivalence
 quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
