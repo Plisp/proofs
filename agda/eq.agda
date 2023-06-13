@@ -88,58 +88,61 @@ x ≠ y = ¬(x ＝ y)
 refl-refl : {A : Set ℓ} → (x : A) → refl x ＝ refl x
 refl-refl x = refl (refl x)
 
-p＝refl∙p : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ＝ refl x ∙ p
-p＝refl∙p = ȷ (λ x y p → p ＝ refl x ∙ p) refl-refl
+p＝refl∙p : {A : Set ℓ} {x y : A} (p : x ＝ y) → p ＝ refl x ∙ p
+p＝refl∙p{ℓ}{A} {x}{y} = ȷ (λ x y p → p ＝ refl x ∙ p) refl-refl x y
 
-p∙refl＝p : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ∙ refl y ＝ p
-p∙refl＝p = ȷ (λ x y p → p ∙ refl y ＝ p) refl-refl
+p∙refl＝p : {A : Set ℓ} {x y : A} (p : x ＝ y) → p ∙ refl y ＝ p
+p∙refl＝p{ℓ}{A} {x}{y} = ȷ (λ x y p → p ∙ refl y ＝ p) refl-refl x y
 
-p∙iv＝refl : {A : Set ℓ} (x y : A) (p : x ＝ y) → p ∙ (sym p) ＝ (refl x)
-p∙iv＝refl = ȷ (λ x y p → p ∙ (sym p) ＝ (refl x)) refl-refl
+p∙iv＝refl : {A : Set ℓ} {x y : A} (p : x ＝ y) → p ∙ (sym p) ＝ (refl x)
+p∙iv＝refl{ℓ}{A} {x}{y} = ȷ (λ x y p → p ∙ (sym p) ＝ (refl x)) refl-refl x y
 
-iv∙p＝refl : {A : Set ℓ} (x y : A) (p : x ＝ y) → (sym p) ∙ p ＝ (refl y)
-iv∙p＝refl = ȷ (λ x y p → (sym p) ∙ p ＝ (refl y)) refl-refl
+iv∙p＝refl : {A : Set ℓ} {x y : A} (p : x ＝ y) → (sym p) ∙ p ＝ (refl y)
+iv∙p＝refl{ℓ}{A} {x}{y} = ȷ (λ x y p → (sym p) ∙ p ＝ (refl y)) refl-refl x y
 
-sym-volution : {A : Set ℓ} (x y : A) (p : x ＝ y) → sym (sym p) ＝ p
-sym-volution = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl
+sym-volution : {A : Set ℓ} {x y : A} (p : x ＝ y) → sym (sym p) ＝ p
+sym-volution{ℓ}{A} {x}{y} = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl x y
 
-∙-assoc : {A : Set ℓ} (w x y z : A) (p : w ＝ x) (q : x ＝ y) (r : y ＝ z)
+∙-assoc : {A : Set ℓ} {w x y z : A} (p : w ＝ x) (q : x ＝ y) (r : y ＝ z)
         → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)
-∙-assoc w x y z p q r = ⅉ y (λ z (r : y ＝ z) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma z r
+∙-assoc{ℓ}{A} {w}{x}{y}{z} p q r
+  = ⅉ y (λ z (r : y ＝ z) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)) lemma z r
   where
     lemma : (p ∙ q) ∙ (refl y) ＝ p ∙ (q ∙ refl y)
-    lemma = p∙refl＝p w y (p ∙ q) ∙ ap (λ q → p ∙ q) (sym (p∙refl＝p x y q))
+    lemma = p∙refl＝p (p ∙ q) ∙ ap (λ q → p ∙ q) (sym (p∙refl＝p q))
 
 -- ap lemmas
 apf-homo-∙ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B)
-           → (x y z : A) (p : x ＝ y) (q : y ＝ z)
+           → {x y z : A} (p : x ＝ y) (q : y ＝ z)
            → ap f (p ∙ q) ＝ ap f p ∙ ap f q
-apf-homo-∙ f x y z p q = ⅉ y (λ z q → ap f (p ∙ q) ＝ ap f p ∙ ap f q)
-                             (ȷ (λ x y p → ap f (p ∙ refl y)
-                                         ＝ ap f p ∙ ap f (refl y))
-                                (λ x → refl-refl (f x))
-                                x y p)
-                             z q
+apf-homo-∙ f {x}{y}{z} p q = ⅉ y (λ z q → ap f (p ∙ q) ＝ ap f p ∙ ap f q)
+                                 (ȷ (λ x y p → ap f (p ∙ refl y)
+                                             ＝ ap f p ∙ ap f (refl y))
+                                    (λ x → refl-refl (f x))
+                                    x y p)
+                                 z q
 
 ap-commut-sym : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
-              → (x y : A) (p : x ＝ y)
+              → {x y : A} (p : x ＝ y)
               → ap f (sym p) ＝ sym (ap f p)
-ap-commut-sym f = ȷ (λ x y p → ap f (sym p) ＝ sym (ap f p))
-                    (λ x → refl (refl (f x)))
+ap-commut-sym f {x}{y} = ȷ (λ x y p → ap f (sym p) ＝ sym (ap f p))
+                           (λ x → refl (refl (f x)))
+                           x y
 
 ap-homo-∘ : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → B) (g : B → C)
-          → (x y : A) (p : x ＝ y)
+          → {x y : A} (p : x ＝ y)
           → ap (g ∘ f) p ＝ (ap g ∘ ap f) p
-ap-homo-∘ f g = ȷ (λ x y p → ap (g ∘ f) p ＝ ap g (ap f p))
-                  (λ x → refl (refl ((g ∘ f) x)))
+ap-homo-∘ f g {x}{y} = ȷ (λ x y p → ap (g ∘ f) p ＝ ap g (ap f p))
+                         (λ x → refl (refl ((g ∘ f) x)))
+                         x y
 
-ap-id-p＝p : {A : Set ℓ} (x y : A) → (p : x ＝ y) → ap id p ＝ p
-ap-id-p＝p{ℓ}{A} = ȷ (λ x y p → ap id p ＝ p) refl-refl
+ap-id-p＝p : {A : Set ℓ} {x y : A} → (p : x ＝ y) → ap id p ＝ p
+ap-id-p＝p{ℓ}{A} {x}{y} = ȷ (λ x y p → ap id p ＝ p) refl-refl x y
 
 -- transport lemmas
-transport-∙ : {A : Set ℓ} {P : A → Set ℓ₁} → (x y z : A) (p : x ＝ y) (q : y ＝ z)
+transport-∙ : {A : Set ℓ} {P : A → Set ℓ₁} → {x y z : A} (p : x ＝ y) (q : y ＝ z)
             → (u : P x) → transport P q (transport P p u) ＝ transport P (p ∙ q) u
-transport-∙{ℓ}{ℓ₁} {A}{P} x y z p q u
+transport-∙{ℓ}{ℓ₁} {A}{P} {x}{y}{z} p q u
   = ⅉ y (λ z q → transport P q (transport P p u) ＝ transport P (p ∙ q) u)
         (ⅉ x (λ y p → transport P (refl y) (transport P p u)
                     ＝ transport P (p ∙ refl y) u)
@@ -148,18 +151,20 @@ transport-∙{ℓ}{ℓ₁} {A}{P} x y z p q u
         z q
 
 transport-∘ : {A : Set ℓ} {B : Set ℓ₁} {P : B → Set ℓ₂} → (f : A → B)
-            → (x y : A) (p : x ＝ y)
+            → {x y : A} (p : x ＝ y)
             → (u : P (f x)) → transport (P ∘ f) p u ＝ transport P (ap f p) u
-transport-∘{ℓ}{ℓ₁}{ℓ₂} {A}{B}{P} f
+transport-∘{ℓ}{ℓ₁}{ℓ₂} {A}{B}{P} f {x}{y}
   = ȷ (λ x y p → ∀ u → transport (P ∘ f) p u ＝ transport P (ap f p) u)
       (λ x → λ u → refl u)
+      x y
 
 transport-fam : {A : Set ℓ} {P Q : A → Set ℓ₁} → (f : Π x ∶ A , (P x → Q x))
-              → (x y : A) (p : x ＝ y)
+              → {x y : A} (p : x ＝ y)
               → (u : P x) → transport Q p (f x u) ＝ f y (transport P p u)
-transport-fam{ℓ}{ℓ₁} {A}{P}{Q} f
+transport-fam{ℓ}{ℓ₁} {A}{P}{Q} f {x}{y}
   = ȷ (λ x y p → ∀ u → transport Q p (f x u) ＝ f y (transport P p u))
       (λ x → λ u → refl (f x u))
+      x y
 
 {-
   homotopy
@@ -183,14 +188,34 @@ infix 5 _~_
 
 -- naturality
 ~nat : {A : Set ℓ} {B : Set ℓ₁}
-     → (f g : A → B) (H : f ~ g) → (x y : A) (p : x ＝ y)
+     → (f g : A → B) (H : f ~ g) → {x y : A} (p : x ＝ y)
      → H x ∙ ap g p ＝ ap f p ∙ H y
-~nat f g H = ȷ (λ x y p → H x ∙ ap g p ＝ ap f p ∙ H y)
-               (λ x → p∙refl＝p _ _ (H x) ∙ p＝refl∙p _ _ (H x))
+~nat f g H {x}{y} = ȷ (λ x y p → H x ∙ ap g p ＝ ap f p ∙ H y)
+                      (λ x → p∙refl＝p (H x) ∙ p＝refl∙p (H x))
+                      x y
 
--- ~commut : {A : Set ℓ} → (f : A → A) (H : f ~ id)
---         → (x : A) → H (f x) ＝ ap f (H x)
--- ~commut f H x = ~nat f id H (f x) x (H x)
+~commut : {A : Set ℓ} → (f : A → A) (H : f ~ id)
+        → (x : A) → H (f x) ＝ ap f (H x)
+~commut f H x = simplify (~nat f id H {f x} {x} (H x))
+  where
+    lemma1 : H (f x) ∙ (H x) ＝ H (f x) ∙ ap id (H x)
+    lemma1 = ap (λ e → H (f x) ∙ e) (sym (ap-id-p＝p (H x)))
+
+    whisker : H (f x) ∙ (H x) ＝ ap f (H x) ∙ (H x)
+            → H (f x) ∙ (H x) ∙ (sym (H x)) ＝ ap f (H x) ∙ (H x) ∙ (sym (H x))
+    whisker p = sym (∙-assoc (H (f x)) (H x) (sym (H x)))
+              ∙ ap (λ e → e ∙ sym (H x)) p
+              ∙ ∙-assoc (ap f (H x)) (H x) (sym (H x))
+
+    lemma3 : H (f x) ＝ H (f x) ∙ (H x) ∙ (sym (H x))
+    lemma3 = sym (p∙refl＝p (H (f x)))
+           ∙ ap (λ e → H (f x) ∙ e) (sym (p∙iv＝refl (H x)))
+
+    lemma4 : ap f (H x) ∙ (H x) ∙ (sym (H x)) ＝ ap f (H x)
+    lemma4 = ap (λ e → ap f (H x) ∙ e) (p∙iv＝refl (H x)) ∙ (p∙refl＝p (ap f (H x)))
+
+    simplify : H (f x) ∙ ap id (H x) ＝ ap f (H x) ∙ (H x) → _
+    simplify p = lemma3 ∙ whisker (lemma1 ∙ p) ∙ lemma4
 
 -- equivalence
 quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
