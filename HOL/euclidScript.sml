@@ -1,9 +1,4 @@
-(* ∃ reason for both tuples and pairs *)
-(* ∃ diff between single, double quotes *)
-(* ∃ a way to collect a proof *)
-(* ∃ a way to rewrite using a hypothesis *)
-
-(* ocaml, parsed *)
+(* sml embed *)
 (* fun zip(l1,l2) = *)
 (*   if null l1 orelse null l2 then [] *)
 (*   else (hd l2, hd l2) :: zip(tl l1, tl l2); *)
@@ -14,6 +9,7 @@ open arithmeticTheory;
 (*val _ = new_theory "euclid"; *)
 
 Definition divides_def:
+
   divides a b = ∃x. a * x = b
 End
 
@@ -86,17 +82,15 @@ Proof
   rw[divides_def] >> rw[]
 QED
 
+(* M-h p goalstack *)
 Theorem DIVIDES_FACT:
   ∀m n. 0 < m ∧ m ≤ n ⇒ m divides (FACT n)
 Proof
-  ‘∀p m. 0 < m ⇒ m divides (FACT (m+p))’ suffices_by metis_tac[LESS_EQ_EXISTS] >>
-  Induct_on ‘p’ >| [
-    Cases_on ‘m’ >| [
-      fs[], (* simplifies assumptions *)
-      rw[FACT, DIVIDES_LMUL, DIVIDES_REFL]
-    ],
-    rw[FACT, ADD_CLAUSES, DIVIDES_RMUL]
-  ]
+  rpt strip_tac >>
+  gvs[LESS_EQ_EXISTS] >>
+  Induct_on ‘p’ >- (* combinator solves first case using tactic *)
+   ( Cases_on ‘m’ >> fs[FACT, DIVIDES_LMUL, DIVIDES_REFL] ) >- (* applied to both *)
+   ( rw[FACT, ADD_CLAUSES, DIVIDES_RMUL] )
 QED
 
 (* primality *)
@@ -120,8 +114,9 @@ Theorem PRIME_2:
   prime 2
 Proof
   rw[prime_def] >>
-  metis_tac[DIVIDES_LE, DIVIDES_ZERO, DECIDE “2 ≠ 0”,
-            DECIDE “x ≤ 2 ⇔ (x=0) ∨ (x=1) ∨ (x=2)”]
+  drule DIVIDES_LE >>
+  rw[LESS_OR_EQ] >>
+  gvs[DIVIDES_ZERO, DECIDE “x < 2 ⇔ (x=0) ∨ (x=1)”]
 QED
 
 Theorem PRIME_POS:
@@ -137,14 +132,23 @@ Theorem PRIME_FACTOR:
 Proof
   completeInduct_on ‘n’ >> (* strong induction *)
   rw[] >>
-  Cases_on ‘prime n’ >| [
-    metis_tac[DIVIDES_REFL],
-    ‘∃x. x divides n ∧ x≠1 ∧ x≠n’ by metis_tac[prime_def] >>
-    ‘x<n ∨ n=0’ by metis_tac[DIVIDES_LE, LESS_OR_EQ] >| [
-      metis_tac[DIVIDES_TRANS], (* need ind to get factor of x | n *)
-      qexists_tac ‘2’ (* any prime divides 0 *) >> rw[PRIME_2, DIVIDES_0]
-    ]
-  ]
+  Cases_on ‘prime n’ >-
+   (qexists_tac ‘n’ >> rw[DIVIDES_REFL]) >-
+   (‘∃x. x divides n ∧ x≠1 ∧ x≠n’ by metis_tac[prime_def] >>
+    Cases_on ‘n’ >-
+     (qexists_tac ‘2’ >> rw[PRIME_2, DIVIDES_0,prime_def]) >-
+     (drule DIVIDES_LE >>
+      strip_tac >>
+      fs[LESS_OR_EQ] >>
+      last_assum (drule_all) >>
+      strip_tac >>
+      qexists_tac ‘p’ >>
+      rw[] >>
+      irule DIVIDES_TRANS >>
+      qexists_tac ‘x’ >>
+      rw[]
+     )
+   )
 QED
 
 Theorem EUCLID:
