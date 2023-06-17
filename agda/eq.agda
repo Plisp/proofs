@@ -220,15 +220,3 @@ infix 5 _~_
 -- equivalence
 quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
 quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
-
--- lemma 2.4.12
-
-{-
-  hott chapter 3
--}
-
-decidable : Set ℓ → Set ℓ
-decidable A = A ＋ ¬ A
-
-has-decidable-equality : Set ℓ → Set ℓ
-has-decidable-equality A = (x y : A) → decidable (x ＝ y)

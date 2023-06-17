@@ -8,6 +8,7 @@ open import logic
 open import types
 open import eq
 open import op
+open import hott
 
 -- lambda style predecessor
 pred' : ℕ → ℕ
