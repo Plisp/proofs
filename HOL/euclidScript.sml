@@ -1,4 +1,4 @@
-(* sml embed *)
+:(* sml embed *)
 (* fun zip(l1,l2) = *)
 (*   if null l1 orelse null l2 then [] *)
 (*   else (hd l2, hd l2) :: zip(tl l1, tl l2); *)
@@ -9,7 +9,6 @@ open arithmeticTheory;
 (*val _ = new_theory "euclid"; *)
 
 Definition divides_def:
-
   divides a b = ∃x. a * x = b
 End
 
@@ -134,12 +133,12 @@ Proof
   rw[] >>
   Cases_on ‘prime n’ >-
    (qexists_tac ‘n’ >> rw[DIVIDES_REFL]) >-
-   (‘∃x. x divides n ∧ x≠1 ∧ x≠n’ by metis_tac[prime_def] >>
+   (‘∃x. x divides n ∧ x≠1 ∧ x≠n’ by (* by also splits <- into multiple assums *)
+      (gvs[prime_def] >> first_assum $ irule_at $ Pos hd >> simp[]) >>
     Cases_on ‘n’ >-
-     (qexists_tac ‘2’ >> rw[PRIME_2, DIVIDES_0,prime_def]) >-
-     (drule DIVIDES_LE >>
-      strip_tac >>
-      fs[LESS_OR_EQ] >>
+     (qexists_tac ‘2’ >> rw[PRIME_2, DIVIDES_0, prime_def]) >-
+     (drule_then strip_assume_tac DIVIDES_LE >>
+      rfs[LESS_OR_EQ] >>
       last_assum (drule_all) >>
       strip_tac >>
       qexists_tac ‘p’ >>
@@ -150,7 +149,10 @@ Proof
      )
    )
 QED
-
+(* drule_then strip_assume_tac THEOREM *)
+(* mp_tac push theorem as implication before goal *)
+(* conj_tac split on conjunction goal *)
+(* mp elim irule_at (Pos hd) Pos : hd/last/list.nth/Any (conjunct list ) -> position *)
 Theorem EUCLID:
   ∀n. ∃p. n < p ∧ prime p
 Proof
@@ -158,9 +160,15 @@ Proof
   mp_tac (SPEC “FACT n + 1” PRIME_FACTOR) >> (* replaces ∀x.x -> ∀n. fact n + 1 *)
   rw[FACT_LESS, DECIDE “x≠0 ⇔ 0<x”] >> (* DECIDE converts term to theorem *)
   rw[GSYM IMP_DISJ_THM] >> (* ~A ∨ B |- A ⇒ B *)
-  metis_tac[DIVIDES_FACT, DIVIDES_ADDL, DIVIDES_ONE,
-            NOT_PRIME_1, NOT_LESS, PRIME_POS]
-
+  last_x_assum $ drule o ONCE_REWRITE_RULE[DECIDE “(A ⇒ ¬B) ⇔ (B ⇒ ¬A)”] >>
+  rw[NOT_LESS] >>
+  drule_then strip_assume_tac PRIME_POS >>
+  drule_all DIVIDES_FACT >>
+  strip_tac >>
+  spose_not_then strip_assume_tac >>
+  drule_all DIVIDES_ADDL >>
+  strip_tac >>
+  fs[DIVIDES_ONE, NOT_PRIME_1]
 QED
 
 (* val _ = export_theory(); *)
