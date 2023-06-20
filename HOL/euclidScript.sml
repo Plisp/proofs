@@ -1,7 +1,12 @@
-:(* sml embed *)
+(* sml embed *)
 (* fun zip(l1,l2) = *)
 (*   if null l1 orelse null l2 then [] *)
 (*   else (hd l2, hd l2) :: zip(tl l1, tl l2); *)
+
+(* drule_then strip_assume_tac THEOREM *)
+(* mp_tac push theorem as implication before goal *)
+(* conj_tac split on conjunction goal *)
+(* mp elim irule_at (Pos hd) Pos : hd/last/list.nth/Any (conjunct list ) -> position *)
 
 (* open HolKernel boolLib Parse bossLib; *)
 open arithmeticTheory;
@@ -14,7 +19,6 @@ End
 
 val _ = set_fixity "divides" (Infix(NONASSOC, 450));
 
-(* x = 0 ∨ x' = 0 case analysis on x *)
 Theorem DIVIDES_0:
   ∀x. x divides 0
 Proof
@@ -81,7 +85,6 @@ Proof
   rw[divides_def] >> rw[]
 QED
 
-(* M-h p goalstack *)
 Theorem DIVIDES_FACT:
   ∀m n. 0 < m ∧ m ≤ n ⇒ m divides (FACT n)
 Proof
@@ -149,25 +152,21 @@ Proof
      )
    )
 QED
-(* drule_then strip_assume_tac THEOREM *)
-(* mp_tac push theorem as implication before goal *)
-(* conj_tac split on conjunction goal *)
-(* mp elim irule_at (Pos hd) Pos : hd/last/list.nth/Any (conjunct list ) -> position *)
+
+(* infinity of primes *)
 Theorem EUCLID:
   ∀n. ∃p. n < p ∧ prime p
 Proof
-  spose_not_then strip_assume_tac >>
-  mp_tac (SPEC “FACT n + 1” PRIME_FACTOR) >> (* replaces ∀x.x -> ∀n. fact n + 1 *)
+  spose_not_then strip_assume_tac >> (* proof by contradiction *)
+  qspec_then ‘FACT n + 1’ mp_tac PRIME_FACTOR >> (* instantiates ∀x.x *)
   rw[FACT_LESS, DECIDE “x≠0 ⇔ 0<x”] >> (* DECIDE converts term to theorem *)
   rw[GSYM IMP_DISJ_THM] >> (* ~A ∨ B |- A ⇒ B *)
   last_x_assum $ drule o ONCE_REWRITE_RULE[DECIDE “(A ⇒ ¬B) ⇔ (B ⇒ ¬A)”] >>
   rw[NOT_LESS] >>
   drule_then strip_assume_tac PRIME_POS >>
-  drule_all DIVIDES_FACT >>
-  strip_tac >>
+  drule_all_then strip_assume_tac DIVIDES_FACT >>
   spose_not_then strip_assume_tac >>
-  drule_all DIVIDES_ADDL >>
-  strip_tac >>
+  drule_all_then strip_assume_tac DIVIDES_ADDL >>
   fs[DIVIDES_ONE, NOT_PRIME_1]
 QED
 
