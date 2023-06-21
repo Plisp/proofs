@@ -19,9 +19,10 @@ ap{ℓ}{ℓ₁} {A}{B} {x}{y} f p = ȷ (λ x y _ → f x ＝ f y)
                                 x y p
 
 apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x)
-    → (x y : X) (p : x ＝ y) → transport A p (f x) ＝ f y
-apd{ℓ}{ℓ₁} {X}{A} f = ȷ (λ x y p → transport A p (f x) ＝ f y)
-                        (λ x → refl (f x))
+    → {x y : X} (p : x ＝ y) → transport A p (f x) ＝ f y
+apd{ℓ}{ℓ₁} {X}{A} f {x}{y} p = ȷ (λ x y p → transport A p (f x) ＝ f y)
+                                 (λ x → refl (f x))
+                                 x y p
 
 -- path notation
 _∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
@@ -111,6 +112,13 @@ sym-volution{ℓ}{A} {x}{y} = ȷ (λ x y p → sym (sym p) ＝ p) refl-refl x y
     lemma : (p ∙ q) ∙ (refl y) ＝ p ∙ (q ∙ refl y)
     lemma = p∙refl＝p (p ∙ q) ∙ ap (λ q → p ∙ q) (sym (p∙refl＝p q))
 
+∙-lcancel : {A : Set ℓ} {x y z : A} (p : x ＝ y) (q r : y ＝ z)
+          → (p ∙ q ＝ p ∙ r) → (q ＝ r)
+∙-lcancel{ℓ}{A} {x}{y}{z} p q r pqr = lemma q ∙ (ap (λ e → (sym p) ∙ e) pqr) ∙ sym (lemma r)
+  where
+    lemma : (q : y ＝ z) → q ＝ (sym p) ∙ (p ∙ q)
+    lemma q = (p＝refl∙p q) ∙ (ap (λ r → r ∙ q) (sym (iv∙p＝refl p))) ∙ (∙-assoc (sym p) p q)
+
 -- ap lemmas
 apf-homo-∙ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B)
            → {x y z : A} (p : x ＝ y) (q : y ＝ z)
@@ -165,6 +173,13 @@ transport-fam{ℓ}{ℓ₁} {A}{P}{Q} f {x}{y}
   = ȷ (λ x y p → ∀ u → transport Q p (f x u) ＝ f y (transport P p u))
       (λ x → λ u → refl (f x u))
       x y
+
+transportpq＝q∙p : {A : Set ℓ} {a x y : A}
+                → (p : x ＝ y) (q : a ＝ x) → transport (λ x → a ＝ x) p q ＝ q ∙ p
+transportpq＝q∙p {ℓ}{A} {a}{x}{y} p q
+  = ȷ (λ x y p → (q : a ＝ x) → transport (λ x → a ＝ x) p q ＝ q ∙ p)
+      (λ x → λ q → sym (p∙refl＝p q))
+      x y p q
 
 {-
   homotopy

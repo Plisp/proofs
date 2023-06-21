@@ -1,5 +1,6 @@
 {-# OPTIONS --without-K --exact-split --safe #-}
 
+
 {-
   univalent math, hott chapter 3
 -}
@@ -59,7 +60,17 @@ setp = 0-typep
 -}
 
 -1-type→0-type : (X : Set ℓ) → subsingletonp X → setp X
--1-type→0-type X p = {!!}
+-1-type→0-type X ss = proof
+  where
+    g : {x : X} (y : X) → x ＝ y
+    g {x} y = ss x y
+
+    lemma : {x y y' : X} (r : y ＝ y') → (g y) ∙ r ＝ g y'
+    lemma {x}{y} r = (sym (transportpq＝q∙p r (g y))) ∙ (apd (g {x}) r)
+
+    proof : (x y : X) (p q : x ＝ y) → p ＝ q
+    proof x y p q = ∙-lcancel (g {x} x) p q ((lemma p) ∙ sym (lemma q))
+
 
 1-type-eqset : {X : Set ℓ} {x y : X} → 1-typep X → 0-typep (x ＝ y)
 1-type-eqset{ℓ}{X} {x}{y} 1p = λ x y → 1p x y
