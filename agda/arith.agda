@@ -21,8 +21,8 @@ pred : ℕ → ℕ
 pred 0       = 0
 pred (suc n) = n
 
-cancel-suc : {x y : ℕ} → suc x ＝ suc y → x ＝ y
-cancel-suc = ap pred
+suc-cancel : {x y : ℕ} → suc x ＝ suc y → x ＝ y
+suc-cancel = ap pred
 
 ℕ-decidable-equality : has-decidable-equality ℕ
 ℕ-decidable-equality 0       0       = (inl (refl 0))
@@ -30,9 +30,9 @@ cancel-suc = ap pred
 ℕ-decidable-equality (suc a) 0       = inr (suc-x≠0 a)
 ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
   where
-    f = ＋-ind (λ _ → decidable (suc a ＝ suc b))
+    f = ind＋ (λ _ → decidable (suc a ＝ suc b))
         (λ (p : a ＝ b) → inl (ap suc p))
-        (λ (f : a ≠ b) → inr (f ∘ cancel-suc))
+        (λ (f : a ≠ b) → inr (f ∘ suc-cancel))
 
 {-
   inequality TODO prove this is equivalent to other one
@@ -48,22 +48,22 @@ infix 4 _≼_
 -- suc x ≤ 0     = 𝟘
 -- suc x ≤ suc y = x ≤ y
 
-≤-refl : (n : ℕ) → (n ≤ n)
-≤-refl 0       = ⋆
-≤-refl (suc n) = ≤-refl n
+refl-≤ : (n : ℕ) → (n ≤ n)
+refl-≤ 0       = ⋆
+refl-≤ (suc n) = refl-≤ n
 
-≤-trans : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
-≤-trans 0 l n _ _ = ⋆
-≤-trans (suc l) 0       0       p q = p
-≤-trans (suc l) 0       (suc n) p q = ⊥-rec (suc l ≤ suc n) p
-≤-trans (suc l) (suc m) 0       p q = q
-≤-trans (suc l) (suc m) (suc n) p q = ≤-trans l m n p q
+trans-≤ : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
+trans-≤ 0 l n _ _ = ⋆
+trans-≤ (suc l) 0       0       p q = p
+trans-≤ (suc l) 0       (suc n) p q = rec⊥ (suc l ≤ suc n) p
+trans-≤ (suc l) (suc m) 0       p q = q
+trans-≤ (suc l) (suc m) (suc n) p q = trans-≤ l m n p q
 
-≤-anti : (m n : ℕ) → (m ≤ n) → (n ≤ m) → (m ＝ n)
-≤-anti 0       0       p q = refl 0
-≤-anti 0       (suc n) p q = ⊥-rec (0 ＝ suc n) q
-≤-anti (suc m) 0       p q = ⊥-rec (suc m ＝ 0) p
-≤-anti (suc m) (suc n) p q = ap suc (≤-anti m n p q)
+anti-≤ : (m n : ℕ) → (m ≤ n) → (n ≤ m) → (m ＝ n)
+anti-≤ 0       0       p q = refl 0
+anti-≤ 0       (suc n) p q = rec⊥ (0 ＝ suc n) q
+anti-≤ (suc m) 0       p q = rec⊥ (suc m ＝ 0) p
+anti-≤ (suc m) (suc n) p q = ap suc (anti-≤ m n p q)
 
 -- strict inequality
 _<_ _>_ : ℕ → ℕ → Set
@@ -75,49 +75,49 @@ infix 4 _<_ _>_
   addition
 -}
 
-+-assoc : (op-assoc _+_)
-+-assoc 0       y z = refl (y + z)
-+-assoc (suc x) y z = ap suc (+-assoc x y z)
+assoc-+ : (assoc _+_)
+assoc-+ 0       y z = refl (y + z)
+assoc-+ (suc x) y z = ap suc (assoc-+ x y z)
 
 -- commutativity of addition
-+-idr : (n : ℕ) → (n + 0) ＝ n
-+-idr 0 = refl 0
-+-idr (suc n) =
+idr-+ : (n : ℕ) → (n + 0) ＝ n
+idr-+ 0 = refl 0
+idr-+ (suc n) =
   begin                   suc n  + 0
     =⟨⟩                   suc (n + 0)
-    =⟨ ap suc (+-idr n) ⟩ suc n        -- induction hypothesis
+    =⟨ ap suc (idr-+ n) ⟩ suc n        -- induction hypothesis
   ∎
 
-+-commutes-sucr : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
-+-commutes-sucr 0 n =
+commutes-sucr-+ : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
+commutes-sucr-+ 0 n =
   begin suc (0 + n)
     =⟨⟩ suc n
     =⟨⟩ 0 + suc n
   ∎
-+-commutes-sucr (suc m) n =
+commutes-sucr-+ (suc m) n =
   begin                               suc (suc m  + n)
     =⟨⟩                               suc (suc (m + n))
-    =⟨ ap suc (+-commutes-sucr m n) ⟩ suc (m + suc n)
+    =⟨ ap suc (commutes-sucr-+ m n) ⟩ suc (m + suc n)
     =⟨⟩                               suc m  + suc n
   ∎
 
-+-commutes : (op-commut _+_)
-+-commutes 0 n =
-  begin                0 + n
-    =⟨⟩                n
-    =⟨ sym (+-idr n) ⟩ n + 0
+commutes-+ : commut _+_
+commutes-+ 0 n =
+  begin                 0 + n
+    =⟨⟩                 n
+    =⟨ sym＝ (idr-+ n) ⟩ n + 0
   ∎
-+-commutes (suc m) n =
+commutes-+ (suc m) n =
   begin                          suc m  + n
     =⟨⟩                          suc (m + n)
-    =⟨ ap suc (+-commutes m n) ⟩ suc (n + m)
-    =⟨ +-commutes-sucr n m ⟩     n + suc m
+    =⟨ ap suc (commutes-+ m n) ⟩ suc (n + m)
+    =⟨ commutes-sucr-+ n m ⟩     n + suc m
   ∎
 
 -- cancellation
-+-cancel : (x y z : ℕ) → (x + y ＝ x + z) → (y ＝ z)
-+-cancel 0       y z p = p
-+-cancel (suc x) y z p = (+-cancel x y z (ap pred p))
+cancel-+ : (x y z : ℕ) → (x + y ＝ x + z) → (y ＝ z)
+cancel-+ 0       y z p = p
+cancel-+ (suc x) y z p = (cancel-+ x y z (ap pred p))
 
 {-
   subtraction TODO prove inverse theorems
@@ -143,7 +143,7 @@ test-multiple : Multiple 3 6
 test-multiple = div-suck (div-suck (div-zero 3))
 
 div-coe : {a b k : ℕ} → Multiple k (a + b) → Multiple k (b + a)
-div-coe {a} {b} {k} m = transport (λ n → Multiple k n) (+-commutes a b) m
+div-coe {a} {b} {k} m = transport (λ n → Multiple k n) (commutes-+ a b) m
 
 div-four→div-two : {n : ℕ} → Multiple 4 n → Multiple 2 n
 div-four→div-two (div-zero .4) = div-zero 2

@@ -20,7 +20,7 @@ singletonp : Set ℓ → Set ℓ
 singletonp X = Σ c ∶ X , centerp X c
 
 𝟙-singletonp : singletonp 𝟙
-𝟙-singletonp = ⋆ , ⊤-ind (λ x → ⋆ ＝ x) (refl ⋆)
+𝟙-singletonp = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
 
 center : (X : Set ℓ) → singletonp X → X
 center X (c , p) = c
@@ -33,12 +33,12 @@ subsingletonp : Set ℓ → Set ℓ
 subsingletonp X = (x y : X) → x ＝ y
 
 𝟘-subsingletonp : subsingletonp 𝟘
-𝟘-subsingletonp x y = ⊥-ind (λ x → (x ＝ y)) x
+𝟘-subsingletonp x y = ind⊥ (λ x → (x ＝ y)) x
 
 is-prop = subsingletonp
 
 singleton→subsingleton : (X : Set ℓ) → singletonp X → subsingletonp X
-singleton→subsingleton X (c , p) x y = sym (p x) ∙ p y
+singleton→subsingleton X (c , p) x y = sym＝ (p x) ∙ p y
 
 pointed-subsingleton→singleton : (X : Set ℓ) → X → subsingletonp X → singletonp X
 pointed-subsingleton→singleton X x s = (x , s x)
@@ -66,14 +66,14 @@ setp = 0-typep
     g {x} y = ss x y
 
     lemma : {x y y' : X} (r : y ＝ y') → (g y) ∙ r ＝ g y'
-    lemma {x}{y} r = (sym (transportpq＝q∙p r (g y))) ∙ (apd (g {x}) r)
+    lemma {x}{y} r = (sym＝ (transportpq＝q∙p r (g y))) ∙ (apd (g {x}) r)
 
     proof : (x y : X) (p q : x ＝ y) → p ＝ q
-    proof x y p q = ∙-lcancel (g {x} x) p q ((lemma p) ∙ sym (lemma q))
+    proof x y p q = lcancel∙ (g {x} x) p q ((lemma p) ∙ sym＝ (lemma q))
 
 
 1-type-eqset : {X : Set ℓ} {x y : X} → 1-typep X → 0-typep (x ＝ y)
-1-type-eqset{ℓ}{X} {x}{y} 1p = λ x y → 1p x y
+1-type-eqset {ℓ}{X} {x}{y} 1p = λ x y → 1p x y
 
 {-
   decidable

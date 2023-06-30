@@ -7,14 +7,14 @@
 open import logic
 open import eq
 
-op-assoc : {X : Set ℓ} → (X → X → X) → Set ℓ
-op-assoc _·_ = ∀ a b c → (a · b) · c ＝ a · (b · c)
+assoc : {X : Set ℓ} → (X → X → X) → Set ℓ
+assoc _·_ = ∀ a b c → (a · b) · c ＝ a · (b · c)
 
-op-commut : {X : Set ℓ} → (X → X → X) → Set ℓ
-op-commut _·_ = ∀ a b → a · b ＝ b · a
+commut : {X : Set ℓ} → (X → X → X) → Set ℓ
+commut _·_ = ∀ a b → a · b ＝ b · a
 
-op-id : {X : Set ℓ} → X → (X → X → X) → Set ℓ
-op-id e _·_ = ∀ x → (x · e ＝ x) × (e · x ＝ x)
+identity : {X : Set ℓ} → X → (X → X → X) → Set ℓ
+identity e _·_ = ∀ x → (x · e ＝ x) × (e · x ＝ x)
 
-op-inverse : {X : Set ℓ} → X → (X → X → X) → Set ℓ
-op-inverse{ℓ} {X} e _·_ = ∀ x → Σ y ∶ X , (x · y ＝ e) × (y · x ＝ e)
+inverse : {X : Set ℓ} → X → (X → X → X) → Set ℓ
+inverse{ℓ} {X} e _·_ = ∀ x → Σ y ∶ X , (x · y ＝ e) × (y · x ＝ e)
