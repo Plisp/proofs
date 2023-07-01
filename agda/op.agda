@@ -6,6 +6,7 @@
 
 open import logic
 open import eq
+open import hott
 
 assoc : {X : Set ℓ} → (X → X → X) → Set ℓ
 assoc _·_ = ∀ a b c → (a · b) · c ＝ a · (b · c)

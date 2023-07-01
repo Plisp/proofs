@@ -274,7 +274,3 @@ commut~ f H x = simplify (nat~ f id H {f x} {x} (H x))
 
     simplify : H (f x) ∙ ap id (H x) ＝ ap f (H x) ∙ (H x) → _
     simplify p = lemma3 ∙ whisker (lemma1 ∙ p) ∙ lemma4
-
--- equivalence
-quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
-quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
