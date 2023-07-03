@@ -57,14 +57,28 @@ Theorem R_RTC_diamond:
 Proof
   strip_tac >> strip_tac >>
   Induct_on ‘RTC’ >> rw[] >-
-   metis_tac[RTC_rules] >-
+   (qexists_tac `r` >> CONJ_TAC >-
+     (‘RTC R r r’ by rw[RTC_rules] >> drule_all (cj 2 RTC_rules) >> rw[]) >-
+     (rw[RTC_rules])) >-
    (‘∃v. R x' v ∧ R r v’ by metis_tac[diamond_def] >>
     metis_tac[RTC_rules])
+QED
 
+Theorem RTC_RTC:
+  ∀R. RTC R x y ⇒ RTC R y z ⇒ RTC R x z
+Proof
+  strip_tac >>
+  Induct_on ‘RTC’ >> rw[] >>
+  last_x_assum (drule_then strip_assume_tac) >>
+  drule_all (cj 2 RTC_rules) >> rw[]
 QED
 
 Theorem diamond_RTC:
   ∀R. diamond R ⇒ diamond (RTC R)
 Proof
-  cheat
+  rpt strip_tac >> simp[diamond_def] >>
+  Induct_on ‘RTC R x y’ >> rw[] >-
+   metis_tac[RTC_rules] >-
+   (‘∃v. RTC R x' v ∧ RTC R z v’ by metis_tac[R_RTC_diamond] >>
+    metis_tac[RTC_RTC, RTC_rules])
 QED
