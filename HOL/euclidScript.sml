@@ -91,8 +91,8 @@ Proof
   rpt strip_tac >>
   gvs[LESS_EQ_EXISTS] >>
   Induct_on ‘p’ >- (* combinator solves first case using tactic *)
-   ( Cases_on ‘m’ >> fs[FACT, DIVIDES_LMUL, DIVIDES_REFL] ) >- (* applied to both *)
-   ( rw[FACT, ADD_CLAUSES, DIVIDES_RMUL] )
+   (Cases_on ‘m’ >> fs[FACT, DIVIDES_LMUL, DIVIDES_REFL]) >- (* applied to both *)
+   rw[FACT, ADD_CLAUSES, DIVIDES_RMUL]
 QED
 
 (* primality *)
@@ -142,15 +142,12 @@ Proof
      (qexists_tac ‘2’ >> rw[PRIME_2, DIVIDES_0, prime_def]) >-
      (drule_then strip_assume_tac DIVIDES_LE >>
       rfs[LESS_OR_EQ] >>
-      last_assum (drule_all) >>
-      strip_tac >>
+      last_assum (drule_all_then strip_assume_tac) >>
       qexists_tac ‘p’ >>
       rw[] >>
       irule DIVIDES_TRANS >>
       qexists_tac ‘x’ >>
-      rw[]
-     )
-   )
+      rw[]))
 QED
 
 (* infinity of primes *)
