@@ -18,6 +18,17 @@ Proof
   drule_all (cj 2 RTC_rules) >> rw[]
 QED
 
+Theorem RTC_monotone:
+  ∀R S. (∀x y. R x y ⇒ S x y) ⇒ (∀x y. RTC R x y ⇒ RTC S x y)
+Proof
+  strip_tac >> strip_tac >>
+  Induct_on ‘RTC’ >> rw[] >-
+   fs[RTC_rules] >-
+   (fs[] >>
+    pop_assum drule >> strip_tac >>
+    drule_all (cj 2 RTC_rules) >> rw[])
+QED
+
 Definition confluent_def:
   confluent R = ∀ x y z. RTC R x y ∧ RTC R x z ⇒ ∃u. RTC R y u ∧ RTC R z u
 End
@@ -90,11 +101,58 @@ Datatype:
 End
 
 val _ = set_fixity "#" (Infixl 1100);
-val _ = set_mapped_fixity {fixity = Infix(NONASSOC, 450), tok = "-->", term_name = "redn"};
 
+val _ = set_mapped_fixity {fixity = Infix(NONASSOC, 450), tok = "-->", term_name = "redn"};
 Inductive redn:
   (∀x y f. x --> y ⇒ f # x --> f # y) ∧
   (∀f g x. f --> g ⇒ f # x --> g # x) ∧
   (∀x y.   K # x # y --> x) ∧
   (∀f g x. S # f # g # x --> (f # x) # (g # x))
 End
+
+val _ = set_fixity "-->*" (Infix(NONASSOC, 450));
+Overload "-->*" = “RTC redn”;
+
+val _ = set_mapped_fixity {fixity = Infix(NONASSOC, 450), tok = "-|>", term_name = "predn"};
+Inductive predn:
+  (∀x. x -|> x) ∧
+  (∀x y u v. x -|> y ∧ u -|> v ⇒ x # u -|> y # v) ∧
+  (∀x y. K # x # y -|> x) ∧
+  (∀f g x. S # f # g # x -|> (f # x) # (g # x))
+End
+
+val _ = set_fixity "-|>*" (Infix(NONASSOC, 450));
+Overload "-|>*" = “RTC predn”;
+
+Theorem RTCredn_RTCpredn:
+  ∀x y. x -->* y ⇒ x -|>* y
+Proof
+  match_mp_tac RTC_monotone >>
+  Induct_on ‘x --> y’ >>
+  metis_tac[predn_rules] (* big case analysis *)
+QED
+
+Theorem RTC_redn_ap_congruence:
+  ∀x y. x -->* y ⇒ ∀z. (x # z -->* y # z) ∧ (z # x -->* z # y)
+Proof
+  Induct_on ‘x -->* y’ >> rw[RTC_rules] >>
+  pop_assum (qspec_then ‘z’ strip_assume_tac) >>
+  metis_tac[redn_rules, RTC_rules] (* obvious by definition *)
+QED
+
+Theorem predn_RTCredn:
+  ∀x y. x -|> y ⇒ x -->* y
+Proof
+  Induct_on ‘x -|> y’ >> rw[RTC_rules] >-
+   (metis_tac[RTC_RTC, RTC_redn_ap_congruence]) >- (* TODO rewrite *)
+   metis_tac[RTC_cases, redn_rules] >-
+   metis_tac[RTC_cases, redn_rules]
+QED
+
+Theorem RTCpredn_RTCredn:
+  ∀x y. x -|>* y ⇒ x -->* y
+Proof
+  Induct_on ‘RTC’ >> rw[RTC_rules] >>
+  drule predn_RTCredn >> strip_tac >>
+  drule_all RTC_RTC >> rw[]
+QED
