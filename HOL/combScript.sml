@@ -156,3 +156,76 @@ Proof
   drule predn_RTCredn >> strip_tac >>
   drule_all RTC_RTC >> rw[]
 QED
+
+Theorem RTCpredn_EQ_RTCredn:
+  $-|>* = $-->*
+Proof
+  rw[FUN_EQ_THM, EQ_IMP_THM, RTCpredn_RTCredn, RTCredn_RTCpredn]
+QED
+
+(* diamond property *)
+
+fun characterise t = SIMP_RULE (srw_ss()) [] (SPEC t predn_cases);
+
+val K_predn = characterise “K”;
+val S_predn = characterise “S”;
+val Sx_predn0 = characterise “S # x”;
+
+Theorem Sx_predn[local]:
+  ∀x y. S # x -|> y
+⇔ ∃z. y = S # z ∧ x -|> z
+Proof
+  rw[Sx_predn0, predn_rules, S_predn, EQ_IMP_THM]
+QED
+
+Theorem Kx_predn[local]:
+  ∀x y. K # x -|> y ⇔ ∃z. y = K # z ∧ x -|> z
+Proof
+  rw[characterise “K # x”, predn_rules, K_predn, EQ_IMP_THM]
+QED
+
+Theorem Kxy_predn[local]:
+  ∀x y z. K # x # y -|> z
+⇔ (∃u v. z = K # u # v ∧ x -|> u ∧ y -|> v)
+  ∨ z = x
+Proof
+  rw[characterise “K # x # y”, predn_rules, Kx_predn, EQ_IMP_THM]
+QED
+
+Theorem Sxy_predn[local]:
+  ∀x y z. S # x # y -|> z
+⇔ ∃u v. z = S # u # v ∧ x -|> u ∧ y -|> v
+Proof
+  rw[characterise “S # x # y”, predn_rules, Sx_predn, EQ_IMP_THM]
+QED
+
+Theorem Sxyz_predn[local]:
+  ∀w x y z. S # w # x # y -|> z
+⇔ (∃p q r. z = S # p # q # r ∧ w -|> p ∧ x -|> q ∧ y -|> r)
+  ∨ z = (w # y) # (x # y)
+Proof
+  rw[characterise “S # w # x # y”, predn_rules, Sxy_predn, EQ_IMP_THM]
+QED
+
+val x_ap_y_predn = characterise “x # y”;
+
+Theorem predn_diamond_lemma[local]:
+  ∀x y. x -|> y ⇒ ∀z. x -|> z ⇒ ∃u. y -|> u ∧ z -|> u
+Proof
+  cheat
+QED
+
+Theorem predn_diamond[local]:
+  diamond predn
+Proof
+  rw[diamond_def] >>
+  irule predn_diamond_lemma >>
+  qexists_tac ‘x’ >> rw[]
+QED
+
+Theorem confluent_redn:
+  confluent redn
+Proof (* how to rewrite using an equality? *)
+  metis_tac[predn_diamond, RTCpredn_EQ_RTCredn,
+            confluent_predn, confluent_diamond_RTC]
+QED
