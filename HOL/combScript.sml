@@ -8,7 +8,6 @@ Inductive RTC:
   (∀x y z. R x y ∧ RTC R y z ⇒ RTC R x z)
 End
 
-(* what hwppens to free vars in definition?*)
 Theorem RTC_RTC:
   ∀R x y z. RTC R x y ⇒ RTC R y z ⇒ RTC R x z
 Proof
@@ -44,7 +43,7 @@ Proof
   rw[confluent_def] >>
   pop_last_assum (qspecl_then [‘x’,‘y’,‘z’] strip_assume_tac) >>
   pop_assum drule_all >> strip_tac >>
-  fs[normform_def] >> (* fs loops if passed cases? *)
+  fs[normform_def] >> (* fs loops if passed cases *)
   metis_tac[RTC_cases] (* proof is case analysis on RTC *)
 QED
 
@@ -67,7 +66,7 @@ Proof
    (qexists_tac `l` >> CONJ_TAC >-
      (‘RTC R l l’ by rw[RTC_rules] >> drule_all (cj 2 RTC_rules) >> rw[]) >-
      rw[RTC_rules]) >-
-   (fs[diamond_def] >> (* is this normal use of qspec? *)
+   (fs[diamond_def] >>
     pop_last_assum (qspecl_then [‘x’,‘l’,‘x'’] strip_assume_tac) >>
     pop_assum drule_all >> strip_tac >>
     last_x_assum (qspec_then ‘u’ strip_assume_tac) >>
@@ -144,7 +143,11 @@ Theorem predn_RTCredn:
   ∀x y. x -|> y ⇒ x -->* y
 Proof
   Induct_on ‘x -|> y’ >> rw[RTC_rules] >-
-   (metis_tac[RTC_RTC, RTC_redn_ap_congruence]) >- (* TODO rewrite *)
+   (drule (cj 2 RTC_redn_ap_congruence) >> strip_tac >>
+    pop_assum (qspec_then ‘x’ strip_assume_tac) >>
+    rev_drule (cj 1 RTC_redn_ap_congruence) >> strip_tac >>
+    pop_assum (qspec_then ‘y'’ strip_assume_tac) >>
+    drule_all RTC_RTC >> rw[]) >-
    metis_tac[RTC_cases, redn_rules] >-
    metis_tac[RTC_cases, redn_rules]
 QED
@@ -212,7 +215,18 @@ val x_ap_y_predn = characterise “x # y”;
 Theorem predn_diamond_lemma[local]:
   ∀x y. x -|> y ⇒ ∀z. x -|> z ⇒ ∃u. y -|> u ∧ z -|> u
 Proof
-  cheat
+  Induct_on ‘x -|> y’ >> rpt conj_tac >-
+   metis_tac[predn_rules] >-
+   (rw[] >>
+    first_assum (strip_assume_tac o SIMP_RULE(srw_ss())[x_ap_y_predn]) >> rw[] >-
+     metis_tac[predn_rules] >-
+     metis_tac[predn_rules] >-
+     (‘∃w. (y = K # w) ∧ (z -|> w)’ by metis_tac[Kx_predn] >> rw[] >> (* <TODOv *)
+      metis_tac[predn_rules]) >-
+     (‘∃p q. (y = S # p # q) ∧ (f -|> p) ∧ (g -|> q)’ by metis_tac[Sxy_predn] >>
+      rw[] >> metis_tac[predn_rules])) >-
+   (rw[Kxy_predn] >> metis_tac[predn_rules]) >-
+   (rw[Sxyz_predn] >> metis_tac[predn_rules])
 QED
 
 Theorem predn_diamond[local]:
@@ -226,6 +240,6 @@ QED
 Theorem confluent_redn:
   confluent redn
 Proof (* how to rewrite using an equality? *)
-  metis_tac[predn_diamond, RTCpredn_EQ_RTCredn,
-            confluent_predn, confluent_diamond_RTC]
+  rw[confluent_diamond_RTC, GSYM RTCpredn_EQ_RTCredn, (* flip equality *)
+     MATCH_MP diamond_RTC predn_diamond] (* modus ponens *)
 QED
