@@ -221,10 +221,12 @@ Proof
     first_assum (strip_assume_tac o SIMP_RULE(srw_ss())[x_ap_y_predn]) >> rw[] >-
      metis_tac[predn_rules] >-
      metis_tac[predn_rules] >-
-     (‘∃w. (y = K # w) ∧ (z -|> w)’ by metis_tac[Kx_predn] >> rw[] >> (* <TODOv *)
+     (qspecl_then [‘z’,‘y’] strip_assume_tac (iffLR Kx_predn) >> rw[] >>
+      pop_assum drule_all >> strip_tac >>
       metis_tac[predn_rules]) >-
-     (‘∃p q. (y = S # p # q) ∧ (f -|> p) ∧ (g -|> q)’ by metis_tac[Sxy_predn] >>
-      rw[] >> metis_tac[predn_rules])) >-
+     (qspecl_then [‘f’,‘g’,‘y’] strip_assume_tac (iffLR Sxy_predn) >> rw[] >>
+      pop_assum drule_all >> strip_tac >>
+      metis_tac[predn_rules])) >-
    (rw[Kxy_predn] >> metis_tac[predn_rules]) >-
    (rw[Sxyz_predn] >> metis_tac[predn_rules])
 QED
