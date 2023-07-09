@@ -7,6 +7,7 @@
 open import logic
 open import eq
 open import types
+open import hott
 
 𝟚 = 𝟙 ＋ 𝟙
 𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
@@ -14,6 +15,13 @@ open import types
                 (ind⊤ (λ (x : 𝟙) → (A (inl x))) a₀)
                 (ind⊤ (λ (x : 𝟙) → (A (inr x))) a₁)
 
+uniqλ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → f ＝ (λ x → f x)
+uniqλ f = refl f -- eta moment
+
+uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd p)
+uniq× (a , b) = refl (a , b)
+
+uniq⋆ = is-center ⊤ 𝟙-singletonp
 {-
   \j the fun way!
 -}
@@ -92,7 +100,7 @@ _!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
 (a ∷ as) !! fs b = as !! b
 
 _++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
-[]        ++ bs = bs
+[]       ++ bs = bs
 (a ∷ as) ++ bs = a ∷ (as ++ bs)
 
 {-

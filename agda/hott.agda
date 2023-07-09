@@ -25,7 +25,7 @@ singletonp X = Σ c ∶ X , centerp X c
 center : (X : Set ℓ) → singletonp X → X
 center X (c , p) = c
 
-is-center : (X : Set ℓ) (i : singletonp X) (x : X) → center X i ＝ x
+is-center : (X : Set ℓ) (i : singletonp X) → (x : X) → center X i ＝ x
 is-center X (c , p) = p
 
 -- (subtype) singletons but maybe not inhabited

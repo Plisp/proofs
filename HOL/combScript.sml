@@ -241,7 +241,7 @@ QED
 
 Theorem confluent_redn:
   confluent redn
-Proof (* how to rewrite using an equality? *)
+Proof
   rw[confluent_diamond_RTC, GSYM RTCpredn_EQ_RTCredn, (* flip equality *)
      MATCH_MP diamond_RTC predn_diamond] (* modus ponens *)
 QED
