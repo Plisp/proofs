@@ -38,6 +38,9 @@ transport {ℓ}{ℓ₁} {A} P {x}{y} p = ȷ (λ x y _ → P x → P y)
                                      (λ x → (id{ℓ₁} {P x}))
                                      x y p
 
+transport' : {A : Set ℓ} (P : A → Set ℓ₁) {x y : A} → (x ＝ y) → (P x → P y)
+transport' {ℓ}{ℓ₁}{A} P (refl x) = id
+
 ap : {A : Set ℓ} {B : Set ℓ₁} {x y : A}
    → (f : A → B) → (x ＝ y) → (f x ＝ f y)
 ap {ℓ}{ℓ₁} {A}{B} {x}{y} f p = ȷ (λ x y _ → f x ＝ f y)
@@ -223,6 +226,15 @@ transportpq＝q∙p {ℓ} {A} {a}{x}{y} p q
   = ȷ (λ x y p → (q : a ＝ x) → transport (λ x → a ＝ x) p q ＝ q ∙ p)
       (λ x → λ q → sym＝ (p∙refl＝p q))
       x y p q
+
+{-
+  equality in Σ
+-}
+
+-- to-Σ-＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
+--        → (Σ p ∶ (pr₁ σ ＝ pr₁ τ) , transport' A p (pr₂ σ) ＝ pr₂ τ)
+--        → σ ＝ τ
+-- to-Σ-＝ (refl x , refl a) = refl (x , a)
 
 {-
   homotopy

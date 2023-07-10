@@ -22,6 +22,7 @@ uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd 
 uniq× (a , b) = refl (a , b)
 
 uniq⋆ = is-center ⊤ 𝟙-singletonp
+
 {-
   \j the fun way!
 -}

@@ -82,23 +82,23 @@ ind＋ C ax ay (inr y) = ay y
   dependent sum (there exists)
 -}
 
-data Σ {A : Set ℓ₁} (B : A → Set ℓ₂) : Set (ℓ₁ ⊔ ℓ₂) where
+data Σ {A : Set ℓ} (B : A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
   _,_ : (a : A) → B a → Σ B
 
-indΣ : {A : Set ℓ₁} {B : A → Set ℓ₂}
-      → (C : Σ B → Set ℓ)
+indΣ : {A : Set ℓ} {B : A → Set ℓ₁}
+      → (C : Σ B → Set ℓ₂)
       → ((x : A) (y : B x) → C (x , y))
       → ((z : Σ B) → C z)
 indΣ C f (x , y) = f x y
 
-pr₁ : {A : Set ℓ₁} {B : A → Set ℓ₂} → Σ B → A
+pr₁ : {A : Set ℓ} {B : A → Set ℓ₁} → Σ B → A
 pr₁ (x , y) = x
 
-pr₂ : {A : Set ℓ₁} {B : A → Set ℓ₂} → (z : Σ B) → B (pr₁ z)
+pr₂ : {A : Set ℓ} {B : A → Set ℓ₁} → (z : Σ B) → B (pr₁ z)
 pr₂ (x , y) = y
 
 -- \:4 ?? why agda
--Σ : (A : Set ℓ₁) (B : A → Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
+-Σ : (A : Set ℓ) (B : A → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
 -Σ A B = Σ B
 syntax -Σ A (λ a → b) = Σ a ∶ A , b
 infix 0 -Σ
