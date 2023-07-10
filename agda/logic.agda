@@ -82,8 +82,16 @@ ind＋ C ax ay (inr y) = ay y
   dependent sum (there exists)
 -}
 
-data Σ {A : Set ℓ} (B : A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
-  _,_ : (a : A) → B a → Σ B
+-- data Σ {A : Set ℓ} (B : A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
+--   _,_ : (a : A) → B a → Σ B
+
+-- eta rules
+record Σ {X : Set ℓ} (Y : X → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
+  constructor
+   _,_
+  field
+   x : X
+   y : Y x
 
 indΣ : {A : Set ℓ} {B : A → Set ℓ₁}
       → (C : Σ B → Set ℓ₂)
@@ -121,4 +129,4 @@ id a = a
 _∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}
     → ((b : B) → C b) → (f : A → B) → ((x : A) → C (f x))
 g ∘ h = λ x → g (h x)
-infixr 5 _∘_
+infixr 6 _∘_

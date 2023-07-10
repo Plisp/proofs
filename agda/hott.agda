@@ -7,6 +7,7 @@
 
 open import Agda.Primitive
 open import logic
+open import types
 open import eq
 
 {-
@@ -19,8 +20,8 @@ centerp X c = (x : X) → c ＝ x
 singletonp : Set ℓ → Set ℓ
 singletonp X = Σ c ∶ X , centerp X c
 
-𝟙-singletonp : singletonp 𝟙
-𝟙-singletonp = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
+𝟙-is-singleton : singletonp 𝟙
+𝟙-is-singleton = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
 
 center : (X : Set ℓ) → singletonp X → X
 center X (c , p) = c
@@ -32,8 +33,8 @@ is-center X (c , p) = p
 subsingletonp : Set ℓ → Set ℓ
 subsingletonp X = (x y : X) → x ＝ y
 
-𝟘-subsingletonp : subsingletonp 𝟘
-𝟘-subsingletonp x y = ind⊥ (λ x → (x ＝ y)) x
+𝟘-is-subsingleton : subsingletonp 𝟘
+𝟘-is-subsingleton x y = ind⊥ (λ x → (x ＝ y)) x
 
 is-prop = subsingletonp
 
@@ -55,12 +56,16 @@ setp = 0-typep
 1-typep : Set ℓ → Set ℓ
 1-typep X = {x y : X} (p q : x ＝ y) → subsingletonp (p ＝ q)
 
+_is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
+X is-of-hlevel 0       = singletonp X
+X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
+
 {-
-  relationships
+  the levels are upper closed
 -}
 
--1-type→0-type : (X : Set ℓ) → subsingletonp X → setp X
--1-type→0-type X ss = proof
+subsingleton→set : (X : Set ℓ) → subsingletonp X → setp X
+subsingleton→set X ss = proof
   where
     g : {x : X} (y : X) → x ＝ y
     g {x} y = ss x y
@@ -71,8 +76,18 @@ setp = 0-typep
     proof : (x y : X) (p q : x ＝ y) → p ＝ q
     proof x y p q = lcancel∙ (g {x} x) p q (lemma p ∙ sym＝ (lemma q))
 
-1-type-eqset : {X : Set ℓ} {x y : X} → 1-typep X → 0-typep (x ＝ y)
-1-type-eqset {ℓ}{X} {x}{y} 1p = λ x y → 1p x y
+hlevel-suc : (X : Set ℓ) (n : ℕ)
+           → X is-of-hlevel n → X is-of-hlevel (suc n)
+hlevel-suc X 0       = λ h x y →
+                         let k = singleton→subsingleton X h in
+                             (k x y , subsingleton→set X k x y (k x y))
+hlevel-suc X (suc n) = λ h x y → hlevel-suc (x ＝ y) n (h x y)
+
+1-type-eqs-form-set : {X : Set ℓ} {x y : X} → 1-typep X → 0-typep (x ＝ y)
+1-type-eqs-form-set {ℓ}{X} {x}{y} 1p = λ x y → 1p x y
+
+𝟘-is-set : setp 𝟘
+𝟘-is-set = subsingleton→set 𝟘 𝟘-is-subsingleton
 
 {-
   decidable
@@ -96,7 +111,7 @@ LEM' ℓ = (X : Set ℓ) → subsingletonp X → singletonp X ＋ emptyp X
 -}
 
 quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
-quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , (f ∘ g) ~ id × (g ∘ f) ~ id
+quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , f ∘ g ~ id × g ∘ f ~ id
 
 invertible = quasi-equiv
 
@@ -108,9 +123,9 @@ fiber-point : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
             → fiber f y → X
 fiber-point (x , p) = x
 
-fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
-         → (w : fiber f y) → f (fiber-point w) ＝ y
-fiber-id (x , p) = p
+fiber-identity : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
+               → (w : fiber f y) → f (fiber-point w) ＝ y
+fiber-identity (x , p) = p
 
 is-equiv : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
 is-equiv {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , singletonp (fiber f y)
