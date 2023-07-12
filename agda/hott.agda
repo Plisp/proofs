@@ -56,13 +56,10 @@ setp = 0-typep
 1-typep : Set ℓ → Set ℓ
 1-typep X = {x y : X} (p q : x ＝ y) → subsingletonp (p ＝ q)
 
+
 _is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
 X is-of-hlevel 0       = singletonp X
 X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
-
-{-
-  the levels are upper closed
--}
 
 subsingleton→set : (X : Set ℓ) → subsingletonp X → setp X
 subsingleton→set X ss = proof
@@ -76,18 +73,44 @@ subsingleton→set X ss = proof
     proof : (x y : X) (p q : x ＝ y) → p ＝ q
     proof x y p q = lcancel∙ (g {x} x) p q (lemma p ∙ sym＝ (lemma q))
 
+-- the levels are upper closed
 hlevel-suc : (X : Set ℓ) (n : ℕ)
            → X is-of-hlevel n → X is-of-hlevel (suc n)
-hlevel-suc X 0       = λ h x y →
+hlevel-suc X 0       = λ h → λ x y →
                          let k = singleton→subsingleton X h in
                              (k x y , subsingleton→set X k x y (k x y))
-hlevel-suc X (suc n) = λ h x y → hlevel-suc (x ＝ y) n (h x y)
+-- lift H (suc n) X using X = (x＝y) in ind (H n T -> H (suc n) T)
+hlevel-suc X (suc n) = λ h → λ x y → hlevel-suc (x ＝ y) n (h x y)
 
-1-type-eqs-form-set : {X : Set ℓ} {x y : X} → 1-typep X → 0-typep (x ＝ y)
-1-type-eqs-form-set {ℓ}{X} {x}{y} 1p = λ x y → 1p x y
+-- equalities are of a hlevel that's one less
+hlevel-eq : {X : Set ℓ} {n : ℕ}
+          → X is-of-hlevel (suc n)
+          → (x y : X) → (x ＝ y) is-of-hlevel n
+hlevel-eq {ℓ}{X} {n} p x y = p x y
 
 𝟘-is-set : setp 𝟘
 𝟘-is-set = subsingleton→set 𝟘 𝟘-is-subsingleton
+
+{-
+  retracts ? bookmark
+-}
+
+-- right inverse
+has-section : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
+has-section {ℓ}{ℓ₁} {X}{Y} f = Σ g ∶ (Y → X) , f ∘ g ~ id
+
+-- retract
+_◁_ : Set ℓ → Set ℓ₁ → Set (ℓ ⊔ ℓ₁)
+X ◁ Y = Σ f ∶ (Y → X) , has-section f
+
+retraction : {X : Set ℓ} {Y : Set ℓ₁} → X ◁ Y → (Y → X)
+retraction (r , s , η) = r
+
+section : {X : Set ℓ} {Y : Set ℓ₁} → X ◁ Y → (X → Y)
+section (r , s , η) = s
+
+is-retract : {X : Set ℓ} {Y : Set ℓ₁} → (p : X ◁ Y) → retraction p ∘ section p ~ id
+is-retract (r , s , η) = η
 
 {-
   decidable
