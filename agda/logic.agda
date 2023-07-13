@@ -85,7 +85,7 @@ ind＋ C ax ay (inr y) = ay y
 -- data Σ {A : Set ℓ} (B : A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
 --   _,_ : (a : A) → B a → Σ B
 
--- eta rules
+-- gives eta (uniqueness) rules
 record Σ {X : Set ℓ} (Y : X → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
   constructor
    _,_
@@ -105,10 +105,9 @@ pr₁ (x , y) = x
 pr₂ : {A : Set ℓ} {B : A → Set ℓ₁} → (z : Σ B) → B (pr₁ z)
 pr₂ (x , y) = y
 
--- \:4 ?? why agda
 -Σ : (A : Set ℓ) (B : A → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
 -Σ A B = Σ B
-syntax -Σ A (λ a → b) = Σ a ∶ A , b
+syntax -Σ A (λ a → b) = Σ a ∶ A , b -- \:1
 infix 0 -Σ
 
 {-
