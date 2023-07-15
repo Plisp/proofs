@@ -191,6 +191,13 @@ ap-id-p＝p : {A : Set ℓ} {x y : A} → (p : x ＝ y) → ap id p ＝ p
 ap-id-p＝p {ℓ} {A} {x}{y} = ȷ (λ x y p → ap id p ＝ p) refl-refl x y
 
 -- transport lemmas
+transport-const : {A : Set ℓ} {B : Set ℓ₁} (b : B)
+                → {x y : A} (p : x ＝ y)
+                → transport (λ _ → B) p b ＝ b
+transport-const {ℓ}{ℓ₁} {A}{B} b {x}{y} = ȷ (λ x y p → transport (λ _ → B) p b ＝ b)
+                                            (λ x → refl b)
+                                            x y
+
 transport∙ : {A : Set ℓ} {P : A → Set ℓ₁} → {x y z : A} (p : x ＝ y) (q : y ＝ z)
            → (u : P x) → transport P q (transport P p u) ＝ transport P (p ∙ q) u
 transport∙ {ℓ}{ℓ₁} {A}{P} {x}{y}{z} p q u

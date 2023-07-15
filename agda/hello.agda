@@ -21,7 +21,7 @@ uniqλ f = refl f -- eta moment
 uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd p)
 uniq× (a , b) = refl (a , b)
 
-uniq⋆ = is-center ⊤ 𝟙-singletonp
+uniq⋆ = is-center ⊤ 𝟙-is-singleton
 
 {-
   \j the fun way!
@@ -70,6 +70,18 @@ wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
 
 lem : {P : Set} → ((P ＋ (P → ⊥)) → ⊥) → ⊥
 lem f = f (inr (λ p → f (inl p)))
+
+proof-by-negation : {P : Set} → P → ((P → ⊥) → ⊥)
+proof-by-negation p f = f p
+
+triple-elim : {P : Set} → (((P → ⊥) → ⊥) → ⊥) → (P → ⊥)
+triple-elim f p = f (proof-by-negation p)
+
+lem→proof-by-contradiction : {P : Set} → (P ＋ (P → ⊥)) → ((P → ⊥) → ⊥) → P
+lem→proof-by-contradiction {P} lem nnp = ind＋ (λ _ → P) id lemma lem
+  where
+    lemma : (P → ⊥) → P
+    lemma = λ np → ind⊥ (λ _ → P) (nnp np)
 
 {-
   contradiction leads to bottom
