@@ -56,7 +56,6 @@ setp = 0-typep
 1-typep : Set ℓ → Set ℓ
 1-typep X = {x y : X} (p q : x ＝ y) → subsingletonp (p ＝ q)
 
-
 _is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
 X is-of-hlevel 0       = singletonp X
 X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)

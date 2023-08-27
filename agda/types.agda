@@ -44,6 +44,22 @@ indℕ A a₀ s = h
     h 0       = a₀
     h (suc n) = s n (h n)
 
+recℕ : {C : Set} → C → (ℕ → C → C) → (ℕ → C)
+recℕ z f zero    = z
+recℕ z f (suc n) = f n (recℕ z f n)
+
+plus : ℕ → ℕ → ℕ  -- 0-plus and vv a-plus → a+1 plus
+plus = recℕ (λ b → b) (λ a plus-a → λ b → suc (plus-a b))
+
+ackermann : ℕ → ℕ → ℕ
+ackermann = recℕ mzero msucc
+  where
+    mzero : ℕ → ℕ
+    mzero = λ n → suc n
+    -- from ackermann m _, produce ackermann (suc m) _
+    msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
+    msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
+
 -- peano +
 _+_ : ℕ → ℕ → ℕ
 zero    + b = b

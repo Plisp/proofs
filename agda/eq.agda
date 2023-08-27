@@ -18,7 +18,7 @@ infix 4 _＝_
 ȷ C f x x (refl x) = f x
 
 sym＝ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
-sym＝ {ℓ} {A} {x}{y} p = ȷ (λ x y _ → y ＝ x) (λ x → refl x) x y p
+sym＝ {ℓ} {A} {x}{y} p = ȷ (λ x y _ → y ＝ x) (λ y → refl y) x y p
 
 trans＝ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
 trans＝ {ℓ} {A} {x}{y}{z} p = ȷ (λ x y _ → y ＝ z → x ＝ z)

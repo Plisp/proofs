@@ -50,9 +50,9 @@ infixr 2 _×_
 infixr 4 _,_
 
 ind× : {A : Set ℓ₁} {B : Set ℓ₂}
-      → (C : A × B → Set ℓ)
-      → ((x : A) → (y : B) → C (x , y))
-      → ((z : A × B) → C z)
+     → (C : A × B → Set ℓ)
+     → ((x : A) → (y : B) → C (x , y))
+     → ((z : A × B) → C z)
 ind× C f (a , b) = f a b
 
 -- pattern matching projections, generally more convenient
