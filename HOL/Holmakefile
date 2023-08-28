@@ -1,0 +1,9 @@
+CAKEMLDIR = /home/plisp/devel/cakeml
+INCLUDES = $(CAKEMLDIR)/pancake/\
+		   $(CAKEMLDIR)/pancake/parser/\
+           $(CAKEMLDIR)/pancake/semantics
+
+all: testItreeScript.sml
+.PHONY: all
+
+DIRS = $(wildcard */)
