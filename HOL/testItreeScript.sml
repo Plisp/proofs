@@ -1,11 +1,16 @@
 open stringLib helperLib;
 open finite_mapTheory; (* flookup_thm *)
-
 open itreeTauTheory;
-open panPtreeConversionTheory;
+
+open asmTheory; (* word_cmp_def *)
+open wordsTheory; (* n2w_def *)
+open wordLangTheory; (* word_op_def *)
+open panPtreeConversionTheory; (* parse_funs_to_ast *)
 open panLangTheory; (* size_of_shape_def *)
 open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
+
+(* open bitstringTheory;*)
 
 (* itree_unfold thm is the final (coinductive) arrow to Ret/Tau/Vis algebra *)
 
@@ -49,6 +54,7 @@ Definition ibind_cb_def[simp]:
   ∧ ibind_cb k (INR (Vis e' g')) = Vis' e' (INR ∘ g')
 End
 
+(* manual unrolling hack to get the cb simp to fire *)
 Theorem itree_bind_alt1:
   itree_bind t k = itree_unfold (ibind_cb k) (INL t)
 Proof
@@ -59,20 +65,62 @@ Proof
   rw[DefnBase.one_line_ify NONE ibind_cb_def]
 QED
 
-(* manual unrolling hack to get the cb simp to fire *)
+(* this is not safe as a simp due to the infinite Tau case *)
+Theorem itree_bind_alt2:
+  itree_unfold (ibind_cb k) (INL t) =
+  case ibind_cb k (INL t) of
+    Ret' r => Ret r
+  | Tau' s => Tau (itree_unfold (ibind_cb k) s)
+  | Vis' e g => Vis e (itree_unfold (ibind_cb k) ∘ g)
+Proof
+  rw[Once itree_unfold]
+QED
+
 Theorem itree_bind_alt:
   itree_bind t k = case ibind_cb k (INL t) of
                      Ret' r => Ret r
                    | Tau' s => Tau (itree_unfold (ibind_cb k) s)
                    | Vis' e g => Vis e (itree_unfold (ibind_cb k) ∘ g)
 Proof
-  CONV_TAC $ LHS_CONV $ ONCE_REWRITE_CONV[itree_bind_alt1] >>
+  rw[itree_bind_alt1, itree_bind_alt2]
+QED
+
+(* decreases depth of redexes, as the ibind_cb won't compute *)
+Theorem itree_bind_Vis[simp]:
+  itree_bind (Vis e g) k = Vis e (itree_unfold (ibind_cb k) ∘ (INL ∘ g))
+Proof
+  rw[itree_bind_alt]
+QED
+
+(* TODO when to use simps? it's like proving strong normalization?!*)
+Theorem itree_unfold_ibind_INR_Ret[simp]:
+  itree_unfold (ibind_cb k) (INR (Ret r)) = Ret r
+Proof
   rw[Once itree_unfold]
 QED
 
-(* won't loop because (ibind_cb (INR Ret)) only produces Ret *)
-Theorem itree_unfold_ibind_INR_Ret:
-  itree_unfold (ibind_cb k) (INR (Ret r)) = Ret r
+Theorem itree_unfold_ibind_INR_Vis[simp]:
+  itree_unfold (ibind_cb k) (INR (Vis e g))
+  = Vis e (itree_unfold (ibind_cb k) ∘ INR ∘ g)
+Proof
+  rw[Once itree_unfold]
+QED
+
+Theorem itree_unfold_ibind_INL_Vis[simp]:
+  itree_unfold (ibind_cb k) (INL (Vis e g))
+  = Vis e (itree_unfold (ibind_cb k) ∘ INL ∘ g)
+Proof
+  rw[Once itree_unfold]
+QED
+
+Theorem itree_unfold_ibind_INR_Tau:
+  itree_unfold (ibind_cb k) (INR (Tau t)) = Tau (itree_unfold (ibind_cb k) (INR t))
+Proof
+  rw[Once itree_unfold]
+QED
+
+Theorem itree_unfold_ibind_INL_Tau:
+  itree_unfold (ibind_cb k) (INL (Tau t)) =  Tau (itree_unfold (ibind_cb k) (INL t))
 Proof
   rw[Once itree_unfold]
 QED
@@ -106,14 +154,21 @@ Proof
   rw[Once itree_unfold]
 QED
 
+(* not a safe simp as kr may produce Ret (INL r') *)
 Theorem itree_unfold_iiter_Ret_INL:
   itree_unfold (iiter_cb k) (Ret (INL r)) = Tau (itree_unfold (iiter_cb k) (k r))
 Proof
   rw[Once itree_unfold]
 QED
 
-Theorem itree_unfold_iiter_Ret_INR:
+Theorem itree_unfold_iiter_Ret_INR[simp]:
   itree_unfold (iiter_cb k) (Ret (INR r)) = Ret r
+Proof
+  rw[Once itree_unfold]
+QED
+
+Theorem itree_unfold_iiter_Vis_INL:
+  itree_unfold (iiter_cb k) (Vis e g) = Vis e (itree_unfold (iiter_cb k) ∘ g)
 Proof
   rw[Once itree_unfold]
 QED
@@ -122,23 +177,27 @@ QED
 (* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
 -> Vis sem_vis_event (FFI_result -> itree) *)
 
-Definition massage_def[simp]:
-    massage (INL (Ret (res, s))) = Ret' res
-  ∧ massage (INR (Ret (res',s'))) = Ret' res'
-  ∧ massage (INL (Tau t)) = Tau' (INL t)
-  ∧ massage (INR (Tau t')) = Tau' (INR t')
-  ∧ massage (INL (Vis (e,k) g)) = Vis' e (λr. INR (k r))
-  ∧ massage (INR (Vis e'    g')) = Vis' e' (INR ∘ g')
+Definition massage_cb_def[simp]:
+    massage_cb (INL (Ret (res, s))) = Ret' res
+  ∧ massage_cb (INR (Ret (res',s'))) = Ret' res'
+  ∧ massage_cb (INL (Tau t)) = Tau' (INL t)
+  ∧ massage_cb (INR (Tau t')) = Tau' (INR t')
+  ∧ massage_cb (INL (Vis (e,k) g)) = Vis' e (λr. INR (k r))
+  ∧ massage_cb (INR (Vis e' g')) = Vis' e' (INR ∘ g')
+End
+
+Definition massage_def:
+  massage x = itree_unfold massage_cb (INL x)
 End
 
 Theorem itree_evaluate_alt:
-  itree_evaluate p s = itree_unfold massage (INL (itree_mrec h_prog (p,s)))
+  itree_evaluate p s = massage (itree_mrec h_prog (p,s))
 Proof
-  rw[itree_evaluate_def] >>
+  rw[itree_evaluate_def, massage_def] >>
   AP_THM_TAC >> (* same fn => same on same arg, backwards *)
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE massage_def]
+  rw[DefnBase.one_line_ify NONE massage_cb_def]
 QED
 
 Definition mrec_cb_def[simp]:
@@ -191,20 +250,21 @@ Theorem itree_mrec_test:
   mrec_test s = Tau (Tau (Ret (SOME (Return (ValWord 42w)))))
 Proof
   rw[mrec_test_def, itree_evaluate_alt] >>
-  rw[itree_mrec_alt, h_prog_def] >>
-  rw[h_prog_rule_seq_def] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
+  (* Seq expanded, proceed with iter *)
   rw[itree_iter_alt] >>
+  (* reduce the callback first *)
   rw[h_prog_def] >>
-  rw[itree_bind_alt] >>
   rw[itree_trigger_def] >>
-  (* return *)
-  rw[h_prog_def,h_prog_rule_return_def,size_of_shape_def,shape_of_def,eval_def] >>
-  rw[itree_bind_alt, itree_unfold_ibind_INR_Ret] >>
-  rw[itree_unfold_iiter_Ret_INL] >>
-  rw[itree_unfold_iiter_Ret_INR] >>
-  rw[Once itree_unfold, massage_def] >>
-  rw[Once itree_unfold, massage_def] >>
-  rw[Once itree_unfold, massage_def]
+  (* execute skip and unfold further *)
+  rw[Once itree_bind_alt] >> (* Once: another bind is produced from Vis INL *)
+  rw[h_prog_def, h_prog_rule_return_def] >>
+  rw[size_of_shape_def, shape_of_def, eval_def] >>
+  (* execute return *)
+  rw[itree_bind_alt] >>
+  (* massage return type and expand *)
+  rw[massage_def] >>
+  rpt (rw[Once itree_unfold])
 QED
 
 (* pancake programs *)
@@ -226,6 +286,8 @@ fun parse_pancake q =
     EVAL “parse_funs_to_ast ^code”
 end
 
+(* the obligatory, even though the earlier one was way more involved *)
+
 val hello_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
   return 42;
@@ -241,19 +303,20 @@ End
 Theorem hello_thm:
   hello_sem s = Ret (SOME (Return (ValWord 42w)))
 Proof
-  rw[hello_sem_def, itree_semantics_def, itree_evaluate_def] >>
-  rw[Once itree_mrec_def, h_prog_def, h_prog_rule_return_def] >>
+  rw[hello_sem_def, itree_semantics_def, itree_evaluate_alt] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_return_def] >>
   rw[eval_def, size_of_shape_def, shape_of_def] >>
-  rw[Once itree_iter_def] >>
-  rw[Once itree_unfold] >>
+  rw[itree_iter_alt] >>
+  rw[massage_def] >>
   rw[Once itree_unfold]
 QED
 
-(* itree_iter *)
+(* manual loop unrolling isn't too bad with rewrites *)
+
 val loop_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
-  var x = 1;
-  while (x < 3) {
+  var x = 0;
+  while (x < 1) {
       x = x + 1;
   }
   return x;
@@ -264,26 +327,75 @@ Definition loop_sem_def:
   itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s
 End
 
+(* TODO extra parameter r? how to reshape case *)
+Definition h_prog_whilebody_cb_def[simp]:
+    h_prog_whilebody_cb p r (SOME Break) s' = Ret (INR (NONE,s'))
+  ∧ h_prog_whilebody_cb p r (SOME Continue) s' = Ret (INL (p,s'))
+  ∧ h_prog_whilebody_cb p r NONE s' = Ret (INL (p,s'))
+    (* nice! this syntax is valid *)
+  ∧ h_prog_whilebody_cb p r res s' = Ret (INR (r,s'))
+End
+
+Definition h_prog_while_cb_def[simp]:
+    h_prog_while_cb seed p s NONE = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb seed p s (SOME (ValWord w))
+    = (if (w ≠ 0w)
+       then Vis (INL seed) (λ(res,s'). h_prog_whilebody_cb p res res s')
+       else Ret (INR (NONE,s)))
+  ∧ h_prog_while_cb seed p s (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb seed p s (SOME (Struct _)) = Ret (INR (SOME Error,s))
+End
+
+Theorem h_prog_rule_while_alt:
+  h_prog_rule_while g p s =
+  itree_iter (λseed. (h_prog_while_cb seed p s (eval s g))) (p,s)
+Proof
+  rw[h_prog_rule_while_def] >>
+  AP_THM_TAC >>
+  AP_TERM_TAC >>
+  rw[FUN_EQ_THM] >>
+  rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >>
+  rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def]
+QED
+
+(* TODO *)
+Theorem cheat1:
+  0w < 1w
+Proof
+  cheat
+QED
+
 Theorem loop_thm:
   loop_sem s = ARB
 Proof
   rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  rw[Once itree_mrec_def, h_prog_def, h_prog_rule_dec_def] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >>
   rw[eval_def] >>
-  rw[itree_iter_def] >>
+  rw[itree_iter_alt] >> (* TODO is Vis INL so internal bind works? *)
+  (* seq *)
   rw[h_prog_def, h_prog_rule_seq_def] >>
-  (*qmatch_goalsub_abbrev_tac ‘INL(itree_unfold a1 a2)’ >>
-  qunabbrev_tac ‘a1’*)
+  rw[itree_trigger_def] >> (* TODO indentation of ∘ composed functions *)
+  (* while *)
+  rw[h_prog_def, h_prog_rule_while_alt] >>
+  rw[eval_def, word_cmp_def] >>
+  rw[FLOOKUP_UPDATE, cheat1] >>
 
-  CONV_TAC $ LHS_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV [itree_unfold] >>
-  rw[] >>
-  rw[Once itree_unfold] >>
-  rw[itree_bind_thm] >>
-  your_face >>
-  rw[] >>
-  rw[h_prog_def, h_prog_rule_seq_def] >>
-  rw[h_prog_rule_while_def] >>
-  rw[itree_bind_def] >>
-  PURE_ONCE_REWRITE_TAC [itree_unfold] >>
-  cheat
+  rw[itree_iter_alt] >>
+  rw[itree_unfold_iiter_Ret_INL] >>
+  (* first loop body assignment. Note: conts for scope exit and return *)
+  rw[h_prog_def, h_prog_rule_assign_def] >>
+  rw[eval_def, FLOOKUP_UPDATE] >>
+  rw[word_op_def, FLOOKUP_UPDATE, is_valid_value_def, shape_of_def] >>
+  (* got * (Ret (NONE,s with locals := s.locals |+ («x»,ValWord 1w))) *)
+  (* TODO lots of continuations *)
+  rw[Once itree_bind_def] >>
+  CONV_TAC $ LHS_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV[itree_unfold] >> rw[] >>
+  (* TODO why doesn't qabbrev work *)
+  rw[itree_unfold_iiter_Ret_INL] >>
+  rw[itree_unfold_iiter_Vis_INL] >>
+  rw[itree_unfold_ibind_INR_Tau] >>
+  rw[itree_unfold_ibind_INL_Tau] >>
+  rw[itree_unfold_iiter_Ret_INL] >>
+  rw[itree_unfold_ibind_INR_Vis] >>
+  rw[itree_unfold_ibind_INL_Vis] >>
 QED
