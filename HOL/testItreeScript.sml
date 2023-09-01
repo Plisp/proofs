@@ -10,8 +10,6 @@ open panLangTheory; (* size_of_shape_def *)
 open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
 
-(* open bitstringTheory;*)
-
 (* itree_unfold thm is the final (coinductive) arrow to Ret/Tau/Vis algebra *)
 
 Theorem spin_unfold:
@@ -92,7 +90,7 @@ Proof
   rw[itree_bind_alt]
 QED
 
-(* TODO when to use simps? it's like proving strong normalization?!*)
+(* when to use simps? it's like proving strong normalization?!*)
 Theorem itree_unfold_ibind_INR_Ret[simp]:
   itree_unfold (ibind_cb k) (INR (Ret r)) = Ret r
 Proof
@@ -127,6 +125,8 @@ QED
 
 (* itree iter *)
 
+(* (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
+                     (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
 Definition iiter_cb_def[simp]:
     iiter_cb body (Ret (INL cont)) = Tau' (body cont)
   ∧ iiter_cb body (Ret (INR r))    = Ret' r
@@ -152,6 +152,12 @@ Theorem itree_iter_alt:
 Proof
   CONV_TAC $ LHS_CONV $ ONCE_REWRITE_CONV[itree_iter_alt1] >>
   rw[Once itree_unfold]
+QED
+
+Theorem itree_iter_collapse[simp]:
+  itree_unfold (iiter_cb body) (body seed) = itree_iter body seed
+Proof
+  CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_alt1] >> rw[]
 QED
 
 (* not a safe simp as kr may produce Ret (INL r') *)
@@ -200,6 +206,7 @@ Proof
   rw[DefnBase.one_line_ify NONE massage_cb_def]
 QED
 
+(* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog ⋆ k)) *)
 Definition mrec_cb_def[simp]:
   mrec_cb rh (Ret r) = Ret (INR r) ∧
   mrec_cb rh (Tau t) = Ret (INL t) ∧
@@ -217,55 +224,51 @@ Proof
   rw[DefnBase.one_line_ify NONE mrec_cb_def]
 QED
 
-(* Theorem itree_mrec_dec: *)
-(*   itree_mrec ((Dec x exp prog),s) = *)
-(*   case eval s exp of *)
-(*     NONE => Ret(SOME Error) *)
-(*   | SOME value => *)
-(*       (Tau (itree_mrec prog (s with locals := s.locals |+ (x,value)))) *)
+(* abstract nonsense *)
+
+(* TODO I should probably use itree_bind_thm some places like above *)
+Theorem itree_bind_tau:
+  itree_bind (Tau t) k = Tau (itree_bind t k)
+Proof
+  rw[itree_bind_thm]
+QED
+
+(* TODO fix this statement *)
+(* Theorem itree_iter_bind_param: *)
+(*   ∀rh t k. itree_iter rh (⋆ t k) = ⋆ (itree_iter rh t) k *)
 (* Proof *)
-(*   rw[itree_semantics_def, itree_evaluate_alt] >> *)
-(*   rw[Once itree_mrec_def, h_prog_def, h_prog_rule_dec_def] >> *)
-(*   BasicProvers.PURE_TOP_CASE_TAC >> *)
-(*   gvs[itree_iter_def] >- *)
-(*    (rw[Once itree_unfold] >> *)
-(*     rw[Once itree_unfold]) >> *)
-
-(*   rw[Once itree_mrec_def] >> *)
-(*   rw[itree_iter_def] >> *)
-
-(*   unfold_inner >> rw[] >> *)
-(*   CONV_TAC $ LHS_CONV $ SIMP_CONV std_ss[Once itree_unfold, massage_def] >> rw[] >> *)
-(*   (* internal itree type doesn't match *) *)
+(*   cheat *)
 (* QED *)
 
-(* RAND_CONV : f x (unfold) -> x *)
-
-Definition mrec_test_def:
-  mrec_test (s:('a,'ffi) panSem$state)
-  = itree_evaluate (Seq Skip (Return (Const 42w))) s
+Definition revert_binding_def:
+  revert_binding name old_s
+  = (λ(res,s').
+       Ret
+       (res,
+        s' with locals :=
+        res_var s'.locals (name,FLOOKUP old_s.locals name)))
 End
 
-Theorem itree_mrec_test:
-  mrec_test s = Tau (Tau (Ret (SOME (Return (ValWord 42w)))))
-Proof
-  rw[mrec_test_def, itree_evaluate_alt] >>
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
-  (* Seq expanded, proceed with iter *)
-  rw[itree_iter_alt] >>
-  (* reduce the callback first *)
-  rw[h_prog_def] >>
-  rw[itree_trigger_def] >>
-  (* execute skip and unfold further *)
-  rw[Once itree_bind_alt] >> (* Once: another bind is produced from Vis INL *)
-  rw[h_prog_def, h_prog_rule_return_def] >>
-  rw[size_of_shape_def, shape_of_def, eval_def] >>
-  (* execute return *)
-  rw[itree_bind_alt] >>
-  (* massage return type and expand *)
-  rw[massage_def] >>
-  rpt (rw[Once itree_unfold])
-QED
+(* Theorem dec_thm: *)
+(*   (eval s e = SOME k) ⇒ *)
+(*   (itree_mrec h_prog (Dec name e p,s)) *)
+(*   = ⋆ (Tau (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))) *)
+(*       (revert_binding name s) *)
+(* Proof *)
+(*   rw[] >> *)
+(*   CONV_TAC $ LHS_CONV $ ONCE_REWRITE_CONV[itree_mrec_alt] >> *)
+(*   rw[h_prog_def, h_prog_rule_dec_def] >> *)
+(*   rw[Once itree_iter_alt] >> *)
+(*   rw[itree_mrec_alt] >> *)
+(*   rw[GSYM revert_binding_def] >> *)
+(*   rw[itree_bind_tau] >> *)
+(*   qspecl_then [‘(mrec_cb h_prog)’, *)
+(*                ‘(h_prog (p,s with locals := s.locals |+ (name,k)))’, *)
+(*                ‘(revert_binding name s)’] *)
+(*               strip_assume_tac *)
+(*               itree_iter_bind_param *)
+(*   rw[itree_iter_bind_param] *)
+(* QED *)
 
 (* pancake programs *)
 
@@ -286,7 +289,7 @@ fun parse_pancake q =
     EVAL “parse_funs_to_ast ^code”
 end
 
-(* the obligatory, even though the earlier one was way more involved *)
+(* obligatory *)
 
 val hello_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
@@ -327,20 +330,26 @@ Definition loop_sem_def:
   itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s
 End
 
-(* TODO extra parameter r? how to reshape case *)
+(* TODO ask Gordon about this *)
+Theorem cheat1:
+  0w < 1w
+Proof
+  cheat
+QED
+
 Definition h_prog_whilebody_cb_def[simp]:
-    h_prog_whilebody_cb p r (SOME Break) s' = Ret (INR (NONE,s'))
-  ∧ h_prog_whilebody_cb p r (SOME Continue) s' = Ret (INL (p,s'))
-  ∧ h_prog_whilebody_cb p r NONE s' = Ret (INL (p,s'))
+    h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
+  ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
+  ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
     (* nice! this syntax is valid *)
-  ∧ h_prog_whilebody_cb p r res s' = Ret (INR (r,s'))
+  ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
 End
 
 Definition h_prog_while_cb_def[simp]:
     h_prog_while_cb seed p s NONE = Ret (INR (SOME Error,s))
   ∧ h_prog_while_cb seed p s (SOME (ValWord w))
     = (if (w ≠ 0w)
-       then Vis (INL seed) (λ(res,s'). h_prog_whilebody_cb p res res s')
+       then Vis (INL seed) (λ(res,s'). h_prog_whilebody_cb p res s')
        else Ret (INR (NONE,s)))
   ∧ h_prog_while_cb seed p s (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
   ∧ h_prog_while_cb seed p s (SOME (Struct _)) = Ret (INR (SOME Error,s))
@@ -355,14 +364,8 @@ Proof
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
   rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >>
-  rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def]
-QED
-
-(* TODO *)
-Theorem cheat1:
-  0w < 1w
-Proof
-  cheat
+  rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >>
+  rpt (BasicProvers.PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
 QED
 
 Theorem loop_thm:
@@ -371,31 +374,35 @@ Proof
   rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >>
   rw[eval_def] >>
-  rw[itree_iter_alt] >> (* TODO is Vis INL so internal bind works? *)
-  (* seq *)
-  rw[h_prog_def, h_prog_rule_seq_def] >>
-  rw[itree_trigger_def] >> (* TODO indentation of ∘ composed functions *)
-  (* while *)
-  rw[h_prog_def, h_prog_rule_while_alt] >>
+  rw[Once itree_iter_alt] >>
+  (* seq produces Vis INL, bind >> mrec simp *)
+  rw[Once h_prog_def, h_prog_rule_seq_def, itree_trigger_def] >>
+  rw[Once itree_iter_alt] >>
+  (* remove bound variables, free variables are substituted *)
+  (* qmatch_goalsub_abbrev_tac ‘Tau' (Vis (INL seed) a1)’ *)
+  qmatch_goalsub_abbrev_tac
+    ‘(itree_unfold (ibind_cb res_binding) ∘ INL ∘ seq_return_cb)’
+  (* while comparision *)
+  rw[Once h_prog_def, h_prog_rule_while_alt] >>
   rw[eval_def, word_cmp_def] >>
   rw[FLOOKUP_UPDATE, cheat1] >>
-
-  rw[itree_iter_alt] >>
-  rw[itree_unfold_iiter_Ret_INL] >>
-  (* first loop body assignment. Note: conts for scope exit and return *)
+  qmatch_goalsub_abbrev_tac ‘Vis (INL _) next_loop_cont’ >>
+  rw[Once itree_iter_alt] >>
+  rw[Once itree_iter_alt] >>
+  (* first loop body assignment. Things are already wacky *)
   rw[h_prog_def, h_prog_rule_assign_def] >>
   rw[eval_def, FLOOKUP_UPDATE] >>
   rw[word_op_def, FLOOKUP_UPDATE, is_valid_value_def, shape_of_def] >>
   (* got * (Ret (NONE,s with locals := s.locals |+ («x»,ValWord 1w))) *)
-  (* TODO lots of continuations *)
-  rw[Once itree_bind_def] >>
+  (* and some highly weird callback *)
+  rw[itree_bind_def] >>
+  qunabbrev_tac ‘next_loop_cont’ >>
   CONV_TAC $ LHS_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV[itree_unfold] >> rw[] >>
-  (* TODO why doesn't qabbrev work *)
-  rw[itree_unfold_iiter_Ret_INL] >>
+  rw[itree_unfold_iiter_Ret_INL, itree_unfold_ibind_INL_Tau] >>
   rw[itree_unfold_iiter_Vis_INL] >>
-  rw[itree_unfold_ibind_INR_Tau] >>
-  rw[itree_unfold_ibind_INL_Tau] >>
+  CONV_TAC $ LHS_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV[itree_unfold] >> rw[] >>
+  (* expand iter and the problem becomes clear *)
+  rw[Once itree_iter_alt] >>
   rw[itree_unfold_iiter_Ret_INL] >>
-  rw[itree_unfold_ibind_INR_Vis] >>
-  rw[itree_unfold_ibind_INL_Vis] >>
+  (* h_prog running second assignment? where's the check *)
 QED
