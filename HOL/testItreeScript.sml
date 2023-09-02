@@ -1,3 +1,4 @@
+open HolKernel boolLib bossLib BasicProvers;
 open stringLib helperLib;
 open finite_mapTheory; (* flookup_thm *)
 open itreeTauTheory;
@@ -9,6 +10,9 @@ open panPtreeConversionTheory; (* parse_funs_to_ast *)
 open panLangTheory; (* size_of_shape_def *)
 open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
+
+val _ = set_mapped_fixity
+        {fixity = Infix(NONASSOC, 450), tok = "≈", term_name = "itree_wbisim"};
 
 (* itree_unfold thm is the final (coinductive) arrow to Ret/Tau/Vis algebra *)
 
@@ -40,149 +44,6 @@ QED
 
 (* utilities *)
 
-Definition ibind_cb_def[simp]:
-    ibind_cb k (INL (Ret r)) = itree_CASE (k r)
-                                          (λs. Ret' s)
-                                          (λt. Tau' (INR t))
-                                          (λe g. Vis' e (INR ∘ g))
-  ∧ ibind_cb k (INL (Tau t)) = Tau' (INL t)
-  ∧ ibind_cb k (INL (Vis e g)) = Vis' e (INL ∘ g)
-  ∧ ibind_cb k (INR (Ret r')) = Ret' r'
-  ∧ ibind_cb k (INR (Tau t')) = Tau' (INR t')
-  ∧ ibind_cb k (INR (Vis e' g')) = Vis' e' (INR ∘ g')
-End
-
-(* manual unrolling hack to get the cb simp to fire *)
-Theorem itree_bind_alt1:
-  itree_bind t k = itree_unfold (ibind_cb k) (INL t)
-Proof
-  rw[itree_bind_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE ibind_cb_def]
-QED
-
-(* this is not safe as a simp due to the infinite Tau case *)
-Theorem itree_bind_alt2:
-  itree_unfold (ibind_cb k) (INL t) =
-  case ibind_cb k (INL t) of
-    Ret' r => Ret r
-  | Tau' s => Tau (itree_unfold (ibind_cb k) s)
-  | Vis' e g => Vis e (itree_unfold (ibind_cb k) ∘ g)
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_bind_alt:
-  itree_bind t k = case ibind_cb k (INL t) of
-                     Ret' r => Ret r
-                   | Tau' s => Tau (itree_unfold (ibind_cb k) s)
-                   | Vis' e g => Vis e (itree_unfold (ibind_cb k) ∘ g)
-Proof
-  rw[itree_bind_alt1, itree_bind_alt2]
-QED
-
-(* decreases depth of redexes, as the ibind_cb won't compute *)
-Theorem itree_bind_Vis[simp]:
-  itree_bind (Vis e g) k = Vis e (itree_unfold (ibind_cb k) ∘ (INL ∘ g))
-Proof
-  rw[itree_bind_alt]
-QED
-
-(* when to use simps? it's like proving strong normalization?!*)
-Theorem itree_unfold_ibind_INR_Ret[simp]:
-  itree_unfold (ibind_cb k) (INR (Ret r)) = Ret r
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_ibind_INR_Vis[simp]:
-  itree_unfold (ibind_cb k) (INR (Vis e g))
-  = Vis e (itree_unfold (ibind_cb k) ∘ INR ∘ g)
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_ibind_INL_Vis[simp]:
-  itree_unfold (ibind_cb k) (INL (Vis e g))
-  = Vis e (itree_unfold (ibind_cb k) ∘ INL ∘ g)
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_ibind_INR_Tau:
-  itree_unfold (ibind_cb k) (INR (Tau t)) = Tau (itree_unfold (ibind_cb k) (INR t))
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_ibind_INL_Tau:
-  itree_unfold (ibind_cb k) (INL (Tau t)) =  Tau (itree_unfold (ibind_cb k) (INL t))
-Proof
-  rw[Once itree_unfold]
-QED
-
-(* itree iter *)
-
-(* (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
-                     (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
-Definition iiter_cb_def[simp]:
-    iiter_cb body (Ret (INL cont)) = Tau' (body cont)
-  ∧ iiter_cb body (Ret (INR r))    = Ret' r
-  ∧ iiter_cb body (Tau t) = Tau' t
-  ∧ iiter_cb body (Vis e g) = Vis' e g
-End
-
-Theorem itree_iter_alt1:
-  itree_iter body seed = itree_unfold (iiter_cb body) (body seed)
-Proof
-  rw[itree_iter_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE iiter_cb_def]
-QED
-
-Theorem itree_iter_alt:
-  itree_iter body seed = case iiter_cb body (body seed) of
-                           Ret' r => Ret r
-                         | Tau' s => Tau (itree_unfold (iiter_cb body) s)
-                         | Vis' e g => Vis e (itree_unfold (iiter_cb body) ∘ g)
-Proof
-  CONV_TAC $ LHS_CONV $ ONCE_REWRITE_CONV[itree_iter_alt1] >>
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_iter_collapse[simp]:
-  itree_unfold (iiter_cb body) (body seed) = itree_iter body seed
-Proof
-  CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_alt1] >> rw[]
-QED
-
-(* not a safe simp as kr may produce Ret (INL r') *)
-Theorem itree_unfold_iiter_Ret_INL:
-  itree_unfold (iiter_cb k) (Ret (INL r)) = Tau (itree_unfold (iiter_cb k) (k r))
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_iiter_Ret_INR[simp]:
-  itree_unfold (iiter_cb k) (Ret (INR r)) = Ret r
-Proof
-  rw[Once itree_unfold]
-QED
-
-Theorem itree_unfold_iiter_Vis_INL:
-  itree_unfold (iiter_cb k) (Vis e g) = Vis e (itree_unfold (iiter_cb k) ∘ g)
-Proof
-  rw[Once itree_unfold]
-QED
-
-(* massage Ret type from (η x state) -> η *)
-(* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
--> Vis sem_vis_event (FFI_result -> itree) *)
-
 Definition massage_cb_def[simp]:
     massage_cb (INL (Ret (res, s))) = Ret' res
   ∧ massage_cb (INR (Ret (res',s'))) = Ret' res'
@@ -192,9 +53,22 @@ Definition massage_cb_def[simp]:
   ∧ massage_cb (INR (Vis e' g')) = Vis' e' (INR ∘ g')
 End
 
+(* massage Ret type from (η x state) -> η *)
+(* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
+-> Vis sem_vis_event (FFI_result -> itree) *)
 Definition massage_def:
   massage x = itree_unfold massage_cb (INL x)
 End
+
+(* TODO can the INR case be split out so Vis is nicer *)
+Theorem massage_thm:
+  massage (Ret (res, s)) = Ret res
+  ∧ massage (Tau t) = Tau (massage t)
+Proof
+  rw[massage_def] >-
+   rw[Once itree_unfold] >-
+   (rw[Once itree_unfold] >> rw[GSYM massage_def])
+QED
 
 Theorem itree_evaluate_alt:
   itree_evaluate p s = massage (itree_mrec h_prog (p,s))
@@ -206,6 +80,8 @@ Proof
   rw[DefnBase.one_line_ify NONE massage_cb_def]
 QED
 
+(* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
+                           (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
 (* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog ⋆ k)) *)
 Definition mrec_cb_def[simp]:
   mrec_cb rh (Ret r) = Ret (INR r) ∧
@@ -226,19 +102,18 @@ QED
 
 (* abstract nonsense *)
 
-(* TODO I should probably use itree_bind_thm some places like above *)
-Theorem itree_bind_tau:
-  itree_bind (Tau t) k = Tau (itree_bind t k)
+(* TODO itree_wbisim_tau is overloaded! fix so I can use that instead *)
+Theorem itree_wbisim_add_tau:
+  ∀ t. Tau t ≈ t
 Proof
-  rw[itree_bind_thm]
+  qspecl_then [‘λa b. a = Tau b’] strip_assume_tac itree_wbisim_strong_coind >>
+  strip_tac >>
+  pop_assum irule >>
+  rw[] >>
+  Cases_on ‘t'’ >> rw[] >>
+  disj2_tac >>
+  rw[itree_wbisim_refl]
 QED
-
-(* TODO fix this statement *)
-(* Theorem itree_iter_bind_param: *)
-(*   ∀rh t k. itree_iter rh (⋆ t k) = ⋆ (itree_iter rh t) k *)
-(* Proof *)
-(*   cheat *)
-(* QED *)
 
 Definition revert_binding_def:
   revert_binding name old_s
@@ -249,26 +124,74 @@ Definition revert_binding_def:
         res_var s'.locals (name,FLOOKUP old_s.locals name)))
 End
 
-(* Theorem dec_thm: *)
-(*   (eval s e = SOME k) ⇒ *)
-(*   (itree_mrec h_prog (Dec name e p,s)) *)
-(*   = ⋆ (Tau (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))) *)
-(*       (revert_binding name s) *)
-(* Proof *)
-(*   rw[] >> *)
-(*   CONV_TAC $ LHS_CONV $ ONCE_REWRITE_CONV[itree_mrec_alt] >> *)
-(*   rw[h_prog_def, h_prog_rule_dec_def] >> *)
-(*   rw[Once itree_iter_alt] >> *)
-(*   rw[itree_mrec_alt] >> *)
-(*   rw[GSYM revert_binding_def] >> *)
-(*   rw[itree_bind_tau] >> *)
-(*   qspecl_then [‘(mrec_cb h_prog)’, *)
-(*                ‘(h_prog (p,s with locals := s.locals |+ (name,k)))’, *)
-(*                ‘(revert_binding name s)’] *)
-(*               strip_assume_tac *)
-(*               itree_iter_bind_param *)
-(*   rw[itree_iter_bind_param] *)
-(* QED *)
+val dec_step_tac = rw[Once itree_iter_thm, itree_bind_thm] >>
+CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >> rw[] >>
+rw[itree_bind_thm];
+
+Theorem iterbind_lemma:
+  ∀rh k. (∀a. ∃p s. (k a) = (Ret (p, s))) ⇒
+         ∀t. (itree_iter (mrec_cb h_prog) (⋆ t k)) ≈ (⋆ (itree_iter (mrec_cb h_prog) t) k)
+Proof
+  qspecl_then [‘λa b. ∃rh t k.
+                 (∀a. ∃r. rh (k a) = Ret (INR r)) ∧
+                 a = (itree_iter rh (⋆ t k)) ∧
+                 b = ⋆ (itree_iter rh t) k’]
+              strip_assume_tac itree_wbisim_strong_coind >>
+  rw[] >>
+  last_assum irule >>
+  rw[] >>
+  Cases_on ‘t''’ >-
+   (disj2_tac >>
+    disj2_tac >>
+    pop_assum (qspec_then ‘x’ strip_assume_tac) >>
+    qexists_tac ‘r’ >>
+    rw[Once itree_iter_thm, itree_bind_thm] >>
+    fs[]
+   )
+QED
+
+(* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
+(* also applies to while and cond! *)
+Theorem dec_lemma:
+  ∀ t name s.
+    itree_iter (mrec_cb h_prog) (⋆ t (revert_binding name s))
+  ≈ ⋆ (itree_iter (mrec_cb h_prog) t) (revert_binding name s)
+Proof
+  (* rw[revert_binding_def] >> *)
+  (* Cases_on ‘t’ >- *)
+  (*  (* ret *) *)
+  (*  (Cases_on ‘x’ >> rw[itree_bind_thm] >> dec_step_tac) >- *)
+  (*  (* tau *) *)
+  (*  (dec_step_tac >> *)
+  (*   Cases_on ‘u’ >- *)
+  (*    (Cases_on ‘x’ >> dec_step_tac) >- *)
+  (*    (dec_step_tac >> *)
+  (*     rw[GSYM revert_binding_def] >> *)
+  (*     cheat) >- (* TODO holds under wbisim *) *)
+  (*    (Cases_on ‘a’ >- (* TODO iter f (tt ⋆ k) = ⋆ (iter f tt) k is not true *) *)
+  (*      (dec_step_tac >> *)
+  (*       rw[GSYM itree_bind_assoc, GSYM revert_binding_def] >> *)
+  (*       cheat) >- (* TODO same here..but! it's true for revert_binding → Ret *) *)
+  (*      (dec_step_tac >> *)
+  (*       rw[FUN_EQ_THM] >> *)
+  (*       rw[GSYM revert_binding_def] >> *)
+  (*       cheat))) >- *)
+   cheat
+QED
+
+Theorem dec_thm:
+  (eval s e = SOME k) ⇒
+  (itree_mrec h_prog (Dec name e p,s)) ≈
+  (itree_bind
+   (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))
+   (revert_binding name s))
+Proof
+  rw[itree_mrec_alt] >>
+  rw[h_prog_def, h_prog_rule_dec_def] >>
+  rw[Once itree_iter_thm, itree_bind_thm] >>
+  rw[GSYM revert_binding_def] >>
+  metis_tac[dec_lemma, itree_wbisim_add_tau, itree_wbisim_trans]
+QED
 
 (* pancake programs *)
 
@@ -320,9 +243,8 @@ val loop_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
   var x = 0;
   while (x < 1) {
-      x = x + 1;
+    x = x + 1;
   }
-  return x;
 }’;
 
 Definition loop_sem_def:
@@ -365,7 +287,7 @@ Proof
   rw[FUN_EQ_THM] >>
   rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >>
   rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >>
-  rpt (BasicProvers.PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
+  rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
 QED
 
 Theorem loop_thm:
@@ -375,18 +297,11 @@ Proof
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >>
   rw[eval_def] >>
   rw[Once itree_iter_alt] >>
-  (* seq produces Vis INL, bind >> mrec simp *)
-  rw[Once h_prog_def, h_prog_rule_seq_def, itree_trigger_def] >>
-  rw[Once itree_iter_alt] >>
-  (* remove bound variables, free variables are substituted *)
-  (* qmatch_goalsub_abbrev_tac ‘Tau' (Vis (INL seed) a1)’ *)
-  qmatch_goalsub_abbrev_tac
-    ‘(itree_unfold (ibind_cb res_binding) ∘ INL ∘ seq_return_cb)’
   (* while comparision *)
   rw[Once h_prog_def, h_prog_rule_while_alt] >>
-  rw[eval_def, word_cmp_def] >>
-  rw[FLOOKUP_UPDATE, cheat1] >>
+  rw[eval_def, word_cmp_def, FLOOKUP_UPDATE, cheat1] >>
   qmatch_goalsub_abbrev_tac ‘Vis (INL _) next_loop_cont’ >>
+  (* wanna expand the inner one, the outer iter collapses itself *)
   rw[Once itree_iter_alt] >>
   rw[Once itree_iter_alt] >>
   (* first loop body assignment. Things are already wacky *)
