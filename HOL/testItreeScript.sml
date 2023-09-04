@@ -1,28 +1,22 @@
 open HolKernel boolLib bossLib BasicProvers;
-open stringLib helperLib;
-open finite_mapTheory; (* flookup_thm *)
 open itreeTauTheory;
-
-open asmTheory; (* word_cmp_def *)
-open wordsTheory; (* n2w_def *)
-open wordLangTheory; (* word_op_def *)
-open panPtreeConversionTheory; (* parse_funs_to_ast *)
-open panLangTheory; (* size_of_shape_def *)
 open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
 
-val _ = set_mapped_fixity
-        {fixity = Infix(NONASSOC, 450), tok = "≈", term_name = "itree_wbisim"};
+(* open monadsyntax; *)
+(* Overload monad_bind[local] = “itree_bind”; *)
+(* Overload return[local] = “Ret”; *)
 
-(* these are useful for bisimulation TODO how to do higher numbers? *)
+(* these are useful ONLY for bisimulation *)
 val or1_tac = disj1_tac
 val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
 
+
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the capital algebra
    where f = structure map (into primed itree), seed = itree algebra instance
-*)
+ *)
 
 Theorem spin_unfold:
   spin = Tau spin
@@ -52,7 +46,7 @@ QED
 
 (*/ basic rephrasings
    not sure whether this should be kept around but lemmas use it atm
-*)
+ *)
 
 (* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
                            (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
@@ -86,11 +80,11 @@ End
 
 (*/ various abstract nonsense
    just to have a richer equational theory, unfold continuations suck to read
-*)
+ *)
 
-(* TODO itree_wbisim_tau is overloaded! fix so I can use that instead *)
+(* TODO itree_wbisim_tau is overloaded! *)
 Theorem itree_wbisim_add_tau:
-  ∀ t. Tau t ≈ t
+  ∀ t. ≈ (Tau t) t
 Proof
   qspecl_then [‘λa b. a = Tau b’] strip_assume_tac itree_wbisim_strong_coind >>
   strip_tac >>
@@ -101,77 +95,69 @@ Proof
   rw[itree_wbisim_refl]
 QED
 
-(* TODO this should be a theorem! *)
-Theorem strip_tau_retvis_refl:
-  ∀t. (∃e g. t = Vis e g) ∨ (∃r. t = Ret r) ⇒ strip_tau t t
-Proof
-  metis_tac[strip_tau_cases]
-QED
-
-(* TODO type variable error? *)
+(* f, f' type vars instantiated differently xD *)
+(* TODO, this is probably actually strong bisimulation (equality) *)
 Theorem iterbind_lemma:
-  ∀rh k. (∀a. ∃p s. (k a) = (Ret (p, s))) ⇒
-         ∀t. (itree_iter (mrec_cb h_prog) (⋆ t k))
-             ≈ (⋆ (itree_iter (mrec_cb h_prog) t) k)
+  ∀rh f f'.
+  (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒
+  ∀t. (itree_iter (mrec_cb h_prog) (⋆ t f)) =
+      (⋆ (itree_iter (mrec_cb h_prog) t) f')
 Proof
-  ?
+  cheat
 QED
 
 (* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
 (* also applies to while and cond! *)
 Theorem dec_lemma:
   ∀ t name s.
-    itree_iter (mrec_cb h_prog) (⋆ t (revert_binding name s))
-  ≈ ⋆ (itree_iter (mrec_cb h_prog) t) (revert_binding name s)
+    ≈ (itree_iter (mrec_cb h_prog) (⋆ t (revert_binding name s)))
+      (⋆ (itree_iter (mrec_cb h_prog) t) (revert_binding name s))
 Proof
   qspecl_then
   [‘λa b. ∃t name s.
      a = (itree_iter (mrec_cb h_prog) (⋆ t (revert_binding name s))) ∧
      b = (⋆ (itree_iter (mrec_cb h_prog) t) (revert_binding name s))’]
-              strip_assume_tac itree_wbisim_strong_coind >>
-  rw[] >>
+  strip_assume_tac itree_wbisim_strong_coind >>
+  rpt strip_tac >>
   pop_assum irule >>
-  rw[] >> (* TODO does soemthing different interactively? *)
-  Cases_on ‘t''’ >-
-   (or3_tac >> (* Ret produces Ret, doesn't affect iter. easy! *)
-    Cases_on ‘x’ >>
-    rw[revert_binding_def] >>
-    rw[Once itree_iter_thm, itree_bind_thm] >>
-    rw[Once itree_iter_thm, itree_bind_thm]) >-
-   (* Tau case is clear *)
-   (or1_tac >>
-    rw[Once itree_iter_thm, itree_bind_thm] >>
-    rw[Once itree_iter_thm, itree_bind_thm] >>
-    or1_tac >>
-    metis_tac[]) >-
-   (* Vis case is a bit tricky, depends on whether the event is silent *)
-   (Cases_on ‘a’ >-
+  rw[] >-
+   (Cases_on ‘t''’ >-
+     (or3_tac >> (* Ret produces Ret, doesn't affect iter. easy! *)
+      Cases_on ‘x’ >>
+      rw[revert_binding_def] >>
+      rw[Once itree_iter_thm, itree_bind_thm] >>
+      rw[Once itree_iter_thm, itree_bind_thm]) >-
+     (* Tau case is clear *)
      (or1_tac >>
       rw[Once itree_iter_thm, itree_bind_thm] >>
       rw[Once itree_iter_thm, itree_bind_thm] >>
-      or1_tac >>
-      rw[GSYM itree_bind_assoc] >>
       metis_tac[]) >-
-     (or2_tac >>
-      rw[Once itree_iter_thm, itree_bind_thm] >>
-      rw[Once itree_iter_thm, itree_bind_thm] >>
-      or1_tac >>
-      qexistsl_tac [‘Tau (g r)’, ‘name’, ‘s’] >>
-      CONJ_TAC >-
-       (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
-        CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-        rw[itree_bind_thm]) >-
-       (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-        rw[itree_bind_thm]))) >>
-  metis_tac[]
+     (* Vis case is a bit tricky, depends on whether the event is silent *)
+     (Cases_on ‘a’ >-
+       (or1_tac >>
+        rw[Once itree_iter_thm, itree_bind_thm] >>
+        rw[Once itree_iter_thm, itree_bind_thm] >>
+        metis_tac[GSYM itree_bind_assoc]) >-
+       (or2_tac >>
+        rw[Once itree_iter_thm, itree_bind_thm] >>
+        rw[Once itree_iter_thm, itree_bind_thm] >>
+        or1_tac >>
+        qexistsl_tac [‘Tau (g r)’, ‘name’, ‘s’] >>
+        CONJ_TAC >-
+         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
+          CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
+          rw[itree_bind_thm]) >-
+         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
+          rw[itree_bind_thm])))) >-
+   metis_tac[]
 QED
 
 Theorem dec_thm:
   (eval s e = SOME k) ⇒
-  (itree_mrec h_prog (Dec name e p,s)) ≈
-  (itree_bind
-   (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))
-   (revert_binding name s))
+  ≈ (itree_mrec h_prog (Dec name e p,s))
+    (⋆
+     (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))
+     (revert_binding name s))
 Proof
   rw[itree_mrec_alt] >>
   rw[h_prog_def, h_prog_rule_dec_def] >>
@@ -200,9 +186,8 @@ Definition massage_def:
   massage x = itree_unfold massage_cb (INL x)
 End
 
-(* TODO can the INR case be split out so Vis is nicer *)
 Theorem massage_thm:
-  massage (Ret (res, s)) = Ret res
+    massage (Ret (res, s)) = Ret res
   ∧ massage (Tau t) = Tau (massage t)
 Proof
   rw[massage_def] >-
@@ -222,7 +207,16 @@ QED
 
 (*/ pancake programs
    & parsing utilities
-*)
+ *)
+
+open stringLib helperLib;
+open finite_mapTheory; (* flookup_thm *)
+
+open asmTheory; (* word_cmp_def *)
+open wordLangTheory; (* word_op_def *)
+open wordsTheory; (* n2w_def *)
+open panLangTheory; (* size_of_shape_def *)
+open panPtreeConversionTheory; (* parse_funs_to_ast *)
 
 local
   val f =
@@ -282,9 +276,8 @@ Definition loop_sem_def:
   itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s
 End
 
-(* TODO ask Gordon about this *)
 Theorem cheat1:
-  0w < 1w
+  (0w:4 word) < 1w
 Proof
   cheat
 QED
@@ -293,7 +286,7 @@ Definition h_prog_whilebody_cb_def[simp]:
     h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
   ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
   ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
-    (* nice! this syntax is valid *)
+  (* nice! this syntax is valid *)
   ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
 End
 
