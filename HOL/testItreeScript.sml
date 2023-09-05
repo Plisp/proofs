@@ -82,7 +82,7 @@ End
    just to have a richer equational theory, unfold continuations suck to read
  *)
 
-(* TODO itree_wbisim_tau is overloaded! *)
+(* TODO itree_wbisim_tau is overloaded! Remind Johannes to update *)
 Theorem itree_wbisim_add_tau:
   ∀ t. ≈ (Tau t) t
 Proof
@@ -95,15 +95,58 @@ Proof
   rw[itree_wbisim_refl]
 QED
 
-(* f, f' type vars instantiated differently xD *)
-(* TODO, this is probably actually strong bisimulation (equality) *)
-Theorem iterbind_lemma:
-  ∀rh f f'.
+(* f, f' type vars instantiated differently smh *)
+Theorem mrec_bind_lemma:
+  ∀f f'.
   (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒
   ∀t. (itree_iter (mrec_cb h_prog) (⋆ t f)) =
       (⋆ (itree_iter (mrec_cb h_prog) t) f')
 Proof
-  cheat
+  rpt strip_tac >>
+  qspecl_then [‘itree_iter (mrec_cb h_prog) (⋆ t f)’,
+               ‘⋆ (itree_iter (mrec_cb h_prog) t) f'’]
+              strip_assume_tac itree_bisimulation >>
+  fs[EQ_IMP_THM] >>
+  qpat_x_assum ‘_ ⇒ ∃R. _’ kall_tac >>
+  pop_assum irule >>
+  qexists_tac
+  ‘λa b. ∃t name s.
+    a = (itree_iter (mrec_cb h_prog) (⋆ t f)) ∧
+    b = (⋆ (itree_iter (mrec_cb h_prog) t) f')’ >>
+  rw[] >-
+   metis_tac[] >- (* base case *)
+   (* ret *)
+   (Cases_on ‘t'’ >-
+     (fs[Once itree_iter_thm, itree_bind_thm] >>
+      last_assum (qspec_then ‘x'’ strip_assume_tac) >>
+      fs[itree_bind_thm]) >-
+     (fs[Once itree_iter_thm, itree_bind_thm]) >-
+     (Cases_on ‘a’ >-
+       fs[Once itree_iter_thm, itree_bind_thm] >-
+       fs[Once itree_iter_thm, itree_bind_thm])) >-
+   (* tau *)
+   (Cases_on ‘t'’ >-
+     (fs[Once itree_iter_thm, itree_bind_thm] >>
+      last_assum (qspec_then ‘x’ strip_assume_tac) >>
+      fs[itree_bind_thm]) >-
+     (fs[Once itree_iter_thm, itree_bind_thm] >>
+      metis_tac[]) >-
+     (Cases_on ‘a’ >-
+       (fs[Once itree_iter_thm, itree_bind_thm] >>
+        metis_tac[GSYM itree_bind_assoc]) >-
+       fs[Once itree_iter_thm, itree_bind_thm])) >-
+   (* vis *)
+   (Cases_on ‘t'’ >-
+     (fs[Once itree_iter_thm, itree_bind_thm] >>
+      last_assum (qspec_then ‘x’ strip_assume_tac) >>
+      fs[itree_bind_thm]) >-
+     fs[Once itree_iter_thm, itree_bind_thm] >-
+     (Cases_on ‘a'’ >-
+       fs[Once itree_iter_thm, itree_bind_thm] >-
+       (fs[Once itree_iter_thm, itree_bind_thm] >>
+        strip_tac >>
+        (* TODO stuck on extra Tau from iter on (Ret INL) from (Vis INR) *)
+       )))
 QED
 
 (* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
@@ -167,7 +210,7 @@ Proof
 QED
 
 (*/ massaging into ffi itree
-   this doesn't have a nice equational theory, but simps should do most of the work
+   this doesn't have a nice theory but simps should do most of the work
  *)
 
 Definition massage_cb_def[simp]:
@@ -175,7 +218,7 @@ Definition massage_cb_def[simp]:
   ∧ massage_cb (INR (Ret (res',s'))) = Ret' res'
   ∧ massage_cb (INL (Tau t)) = Tau' (INL t)
   ∧ massage_cb (INR (Tau t')) = Tau' (INR t')
-  ∧ massage_cb (INL (Vis (e,k) g)) = Vis' e (λr. INR (k r))
+  ∧ massage_cb (INL (Vis (e,k) g)) = Vis' e (λr. INR (⋆ (k r) g))
   ∧ massage_cb (INR (Vis e' g')) = Vis' e' (INR ∘ g')
 End
 
@@ -213,10 +256,11 @@ open stringLib helperLib;
 open finite_mapTheory; (* flookup_thm *)
 
 open asmTheory; (* word_cmp_def *)
-open wordLangTheory; (* word_op_def *)
-open wordsTheory; (* n2w_def *)
+open miscTheory; (* read_bytearray *)
 open panLangTheory; (* size_of_shape_def *)
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
+open wordLangTheory; (* word_op_def *)
+open wordsTheory; (* n2w_def *)
 
 local
   val f =
@@ -235,33 +279,43 @@ fun parse_pancake q =
     EVAL “parse_funs_to_ast ^code”
 end
 
-(* obligatory *)
+(* ffi test *)
 
-val hello_ast = rhs $ concl $ parse_pancake ‘
+val ffi_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
-  return 42;
+  #num_clients(0, 0, 0, 0);
+  #num_clients(0, 0, 0, 0);
 }’;
 
-Definition hello_sem_def:
-  hello_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate
-  (SND $ SND $ HD $ THE ^hello_ast)
-  s
+Definition ffi_sem_def:
+  ffi_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD $ THE ^ffi_ast) s
 End
 
-(* TODO fix this and do while *)
-Theorem hello_thm:
-  hello_sem s = Ret (SOME (Return (ValWord 42w)))
+Theorem ffi_sem_thm:
+  ffi_sem s = ARB
 Proof
-  rw[hello_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_return_def] >>
-  rw[eval_def, size_of_shape_def, shape_of_def] >>
-  rw[itree_iter_alt] >>
+  rw[ffi_sem_def, itree_semantics_def, itree_evaluate_alt] >>
+  (* Seq *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
+  rw[Once itree_iter_thm, Once itree_bind_thm] >>
+  (* extcall *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[eval_def, FLOOKUP_UPDATE] >>
+  rw[read_bytearray_def] >>
+  rw[Once itree_bind_thm] >>
+  rw[Once itree_iter_thm] >>
+  rw[Once itree_bind_thm] >>
+  (* inner thing *)
+  rw[Once itree_bind_thm] >>
+  rw[Once itree_bind_thm] >>
+  (* TODO massage bug! (not yet fixed, update when done) *)
   rw[massage_def] >>
+  rw[Once itree_unfold, massage_thm] >>
   rw[Once itree_unfold]
 QED
 
-(* manual loop unrolling isn't too bad with rewrites *)
+(* manual loop unrolling isn't too bad with equational rewrites *)
 
 val loop_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
@@ -320,27 +374,6 @@ Proof
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >>
   rw[eval_def] >>
   rw[Once itree_iter_alt] >>
-  (* while comparision *)
+  (* TODO while comparision *)
   rw[Once h_prog_def, h_prog_rule_while_alt] >>
-  rw[eval_def, word_cmp_def, FLOOKUP_UPDATE, cheat1] >>
-  qmatch_goalsub_abbrev_tac ‘Vis (INL _) next_loop_cont’ >>
-  (* wanna expand the inner one, the outer iter collapses itself *)
-  rw[Once itree_iter_alt] >>
-  rw[Once itree_iter_alt] >>
-  (* first loop body assignment. Things are already wacky *)
-  rw[h_prog_def, h_prog_rule_assign_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[word_op_def, FLOOKUP_UPDATE, is_valid_value_def, shape_of_def] >>
-  (* got * (Ret (NONE,s with locals := s.locals |+ («x»,ValWord 1w))) *)
-  (* and some highly weird callback *)
-  rw[itree_bind_def] >>
-  qunabbrev_tac ‘next_loop_cont’ >>
-  CONV_TAC $ LHS_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV[itree_unfold] >> rw[] >>
-  rw[itree_unfold_iiter_Ret_INL, itree_unfold_ibind_INL_Tau] >>
-  rw[itree_unfold_iiter_Vis_INL] >>
-  CONV_TAC $ LHS_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ RAND_CONV $ PURE_ONCE_REWRITE_CONV[itree_unfold] >> rw[] >>
-  (* expand iter and the problem becomes clear *)
-  rw[Once itree_iter_alt] >>
-  rw[itree_unfold_iiter_Ret_INL] >>
-  (* h_prog running second assignment? where's the check *)
 QED
