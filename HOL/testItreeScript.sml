@@ -68,6 +68,7 @@ Proof
 QED
 
 (* Dec cleanup *)
+
 Definition revert_binding_def:
   revert_binding name old_s
   = (λ(res,s').
@@ -76,6 +77,17 @@ Definition revert_binding_def:
         s' with locals :=
         res_var s'.locals (name,FLOOKUP old_s.locals name)))
 End
+
+Theorem h_prog_rule_dec_alt:
+  h_prog_rule_dec vname e p s =
+  case eval s e of
+    NONE => Ret (SOME Error,s)
+  | SOME value =>
+      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
+          (revert_binding vname s)
+Proof
+  rw[h_prog_rule_dec_def, revert_binding_def]
+QED
 
 (*/ various abstract nonsense
    just to have a richer equational theory, unfold continuations suck to read
@@ -93,6 +105,91 @@ Proof
   disj2_tac >>
   rw[itree_wbisim_refl]
 QED
+
+(* TODO does this even hold*)
+(* Theorem itree_wbisim_stronger_coind: *)
+(*   !R. *)
+(*     (!t t'. *)
+(*        R t t' ==> *)
+(*        (?t2 t3. t = Tau t2 /\ t' = Tau t3 /\ (R t2 t3 \/ itree_wbisim t2 t3)) \/ *)
+(*        (?e k k'. *)
+(*           strip_tau t (Vis e k) /\ strip_tau t' (Vis e k') /\ *)
+(*           !r. R (k r) (k' r) \/ itree_wbisim(k r) (k' r)) \/ *)
+(*        (?r. strip_tau t (Ret r) /\ strip_tau t' (Ret r)) ∨ *)
+(*        itree_wbisim t t') ==> *)
+(*     !t t'. R t t' ==> itree_wbisim t t' *)
+(* Proof *)
+(*   rpt strip_tac \\ *)
+(*   Q.SUBGOAL_THEN ‘R t t' \/ itree_wbisim t t'’ mp_tac THEN1 simp[] \\ *)
+(*   pop_assum kall_tac \\ *)
+(*   MAP_EVERY qid_spec_tac [‘t'’,‘t’] \\ *)
+(*   ho_match_mp_tac itree_wbisim_coind \\ *)
+(*   rw[] \\ *)
+(*   res_tac \\ *)
+(*   gvs[] \\ *)
+(*   pop_assum (strip_assume_tac o ONCE_REWRITE_RULE[itree_wbisim_cases]) \\ *)
+(*   metis_tac[] *)
+(* QED *)
+
+(* here's a nicer proof *)
+Theorem itree_bind_resp_wbisim_ret_ret:
+  ∀a b. (≈ a b) ∧ (∃ra rb. (a = Ret ra) ∧ (b = Ret rb))
+        ⇒ ∀k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
+Proof
+  rw[itree_bind_thm] >>
+  rw[itree_bind_thm] >>
+  ‘ra = rb’ by fs[Once itree_wbisim_cases] >>
+  rw[]
+QED
+
+Theorem itree_bind_resp_wbisim:
+  ∀a b. (≈ a b) ⇒ ∀k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
+Proof
+  rpt strip_tac >>
+  qspecl_then [‘λa b. ∃t1 t2. (≈ t1 t2) ∧ a = (⋆ t1 k1) ∧ b = (⋆ t2 k2)’]
+              strip_assume_tac itree_wbisim_strong_coind >>
+  pop_assum irule >>
+  rw[] >-
+   (last_x_assum kall_tac >>
+    Cases_on ‘t1’ >>
+    Cases_on ‘t2’ >-
+     cheat >- (* Ret Ret TODO how to strengthen the IH? *)
+     (* Ret Tau TODO extract and flip this by symmetry *)
+     cheat >-
+     (* Ret Vis is impossible *)
+     fs[Once itree_wbisim_cases] >-
+     (* Tau Ret *)
+     cheat >-
+     (* Tau Tau *)
+     (or1_tac >>
+      rw[itree_bind_thm] >>
+      ‘≈ u u'’ by metis_tac[itree_wbisim_tau, itree_wbisim_sym] >>
+      metis_tac[itree_bind_resp_wbisim_ret_ret]) >-
+     (* Tau Vis *)
+     cheat >-
+     (* Vis Ret impossible. duplicated but trivial *)
+     fs[Once itree_wbisim_cases] >-
+     (* Vis Tau *)
+     cheat >-
+     (* Vis Vis annoying to rewrite, requires wbisim *)
+     (or2_tac >>
+      rw[itree_bind_thm] >-
+       fs[Once itree_wbisim_cases] >-
+       (qspecl_then [‘(Vis a g)’, ‘(Vis a' g')’]
+                    strip_assume_tac itree_wbisim_cases >>
+        fs[] >>
+        metis_tac[itree_bind_resp_wbisim_ret_ret])))
+  >- metis_tac[]
+QED
+
+(* Theorem itree_iter_resp_wbisim: *)
+(*   ∀a b rh1 rh2 seed1 seed2. *)
+(*   ≈ seed1 seed2 *)
+(*   ∧ ∀s. (≈ (rh1 s) (rh2 s)) *)
+(*   ⇒ (≈ (itree_iter rh1 seed1) (itree_iter rh2 seed2)) *)
+(* Proof *)
+(*   (* TODO! *) *)
+(* QED *)
 
 (* f, f' type vars instantiated differently smh *)
 Theorem mrec_bind_lemma:
@@ -329,12 +426,6 @@ Definition loop_sem_def:
   itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s
 End
 
-Theorem cheat1:
-  0w < 1w (* supposed to be :4 word but w/e *)
-Proof
-  cheat
-QED
-
 Definition h_prog_whilebody_cb_def[simp]:
     h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
   ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
@@ -369,11 +460,17 @@ Proof
   (* rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM]) *)
 QED
 
+Theorem cheat1:
+  0w < 1w (* supposed to be :4 word but w/e *)
+Proof
+  cheat
+QED
+
 Theorem loop_thm:
   loop_sem s = Tau (Tau (Tau (Ret NONE)))
 Proof
   rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_alt] >>
   rw[eval_def] >>
   rw[Once itree_iter_thm, itree_bind_thm] >>
   (* while *)
@@ -391,6 +488,7 @@ Proof
   rw[Once itree_iter_thm] >>
   rw[Once itree_iter_thm] >>
   rw[eval_def, FLOOKUP_UPDATE, word_cmp_def] >>
+  rw[revert_binding_def] >>
   rw[Once itree_iter_thm, itree_bind_thm] >>
   (* massage *)
   rw[massage_thm]
