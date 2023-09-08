@@ -11,6 +11,7 @@ open panItreeSemTheory;
 val or1_tac = disj1_tac
 val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
+val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
 
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the capital algebra
@@ -106,30 +107,36 @@ Proof
   rw[itree_wbisim_refl]
 QED
 
-(* TODO does this even hold*)
-(* Theorem itree_wbisim_stronger_coind: *)
-(*   !R. *)
-(*     (!t t'. *)
-(*        R t t' ==> *)
-(*        (?t2 t3. t = Tau t2 /\ t' = Tau t3 /\ (R t2 t3 \/ itree_wbisim t2 t3)) \/ *)
-(*        (?e k k'. *)
-(*           strip_tau t (Vis e k) /\ strip_tau t' (Vis e k') /\ *)
-(*           !r. R (k r) (k' r) \/ itree_wbisim(k r) (k' r)) \/ *)
-(*        (?r. strip_tau t (Ret r) /\ strip_tau t' (Ret r)) ∨ *)
-(*        itree_wbisim t t') ==> *)
-(*     !t t'. R t t' ==> itree_wbisim t t' *)
-(* Proof *)
-(*   rpt strip_tac \\ *)
-(*   Q.SUBGOAL_THEN ‘R t t' \/ itree_wbisim t t'’ mp_tac THEN1 simp[] \\ *)
-(*   pop_assum kall_tac \\ *)
-(*   MAP_EVERY qid_spec_tac [‘t'’,‘t’] \\ *)
-(*   ho_match_mp_tac itree_wbisim_coind \\ *)
-(*   rw[] \\ *)
-(*   res_tac \\ *)
-(*   gvs[] \\ *)
-(*   pop_assum (strip_assume_tac o ONCE_REWRITE_RULE[itree_wbisim_cases]) \\ *)
-(*   metis_tac[] *)
-(* QED *)
+Theorem itree_wbisim_coind_upto_equiv:
+  ≈ t t' ⇒ (∃t2 t3. t = Tau t2 ∧ t' = Tau t3 ∧ (R t2 t3 ∨ ≈ t2 t3)) ∨
+           (∃e k k'.
+             strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
+             ∀r. R (k r) (k' r) ∨ ≈ (k r) (k' r)) ∨
+           (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r))
+Proof
+  metis_tac[itree_wbisim_cases]
+QED
+
+(* coinduction but allows proof of subtrees using a separate wbisim *)
+Theorem itree_wbisim_coind_upto:
+  ∀R.
+    (∀t t'.
+       R t t' ⇒
+       (∃t2 t3. t = Tau t2 ∧ t' = Tau t3 ∧ (R t2 t3 ∨ itree_wbisim t2 t3)) ∨
+       (∃e k k'.
+          strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
+          ∀r. R (k r) (k' r) ∨ itree_wbisim(k r) (k' r)) ∨
+       (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r))
+       ∨ itree_wbisim t t')
+    ⇒ ∀t t'. R t t' ⇒ itree_wbisim t t'
+Proof
+  rpt strip_tac >>
+  irule itree_wbisim_strong_coind >>
+  qexists_tac ‘R’ >>
+  fs[] >>
+  pop_assum kall_tac >>
+  metis_tac[itree_wbisim_coind_upto_equiv]
+QED
 
 (* here's a nicer proof *)
 Theorem itree_bind_resp_wbisim_ret_ret:
@@ -142,24 +149,68 @@ Proof
   rw[]
 QED
 
+Theorem itree_bind_strip_tau:
+  ∀u u' k1 k2. strip_tau u u' ⇒ (∀r. ≈ (k1 r) (k2 r)) ⇒ ≈ (⋆ u k1) (⋆ u' k2)
+Proof
+  cheat
+QED
+
+Theorem itree_bind_resp_wbisim_tau_ret:
+  ∀a b. (≈ a b) ∧ (∃u r. (a = Tau u) ∧ (b = Ret r))
+        ⇒ ∀k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
+Proof
+  rw[itree_bind_thm] >>
+  ‘strip_tau u (Ret r)’ by fs[Once itree_wbisim_cases] >>
+  CONV_TAC $ RATOR_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
+  ‘≈ (⋆ u k1) (⋆ (Ret r) k2) ⇒ ≈ (Tau (⋆ u k1)) (⋆ (Ret r) k2)’
+    by metis_tac[itree_wbisim_trans, itree_wbisim_sym, itree_wbisim_add_tau] >>
+  pop_assum irule >>
+  qspecl_then [‘u’, ‘Ret r’, ‘k1’, ‘k2’] drule_all itree_bind_strip_tau >>
+  fs[]
+QED
+
+Theorem itree_bind_resp_wbisim_tau_vis:
+  ∀a b. (≈ a b) ∧ (∃u e g. (a = Tau u) ∧ (b = Vis e g))
+        ⇒ ∀k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
+Proof
+  rw[itree_bind_thm] >>
+  qspecl_then [‘Tau u’, ‘Vis e g’] strip_assume_tac itree_wbisim_cases >>
+  fs[] >>
+  pop_assum kall_tac >>
+  CONV_TAC $ RATOR_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
+  ‘≈ (⋆ u k1) (⋆ (Vis e g) k2) ⇒ ≈ (Tau (⋆ u k1)) (⋆ (Vis e g) k2)’
+    by metis_tac[itree_wbisim_trans, itree_wbisim_sym, itree_wbisim_add_tau] >>
+  pop_assum irule >>
+  cheat
+QED
+
 Theorem itree_bind_resp_wbisim:
   ∀a b. (≈ a b) ⇒ ∀k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
 Proof
   rpt strip_tac >>
   qspecl_then [‘λa b. ∃t1 t2. (≈ t1 t2) ∧ a = (⋆ t1 k1) ∧ b = (⋆ t2 k2)’]
-              strip_assume_tac itree_wbisim_strong_coind >>
+              strip_assume_tac itree_wbisim_coind_upto >>
   pop_assum irule >>
   rw[] >-
    (last_x_assum kall_tac >>
     Cases_on ‘t1’ >>
     Cases_on ‘t2’ >-
-     cheat >- (* Ret Ret TODO how to strengthen the IH? *)
-     (* Ret Tau TODO extract and flip this by symmetry *)
-     cheat >-
+     (* Ret Ret using upto *)
+     (or4_tac >>
+      irule itree_bind_resp_wbisim_ret_ret >>
+      rw[]) >-
+     (* Ret Tau using sym upto *)
+     (or4_tac >>
+      irule itree_wbisim_sym >>
+      irule itree_bind_resp_wbisim_tau_ret >>
+      last_assum $ qspec_then ‘r’ strip_assume_tac >>
+      rw[itree_wbisim_sym]) >-
      (* Ret Vis is impossible *)
      fs[Once itree_wbisim_cases] >-
      (* Tau Ret *)
-     cheat >-
+     (or4_tac >>
+      irule itree_bind_resp_wbisim_tau_ret >>
+      rw[]) >-
      (* Tau Tau *)
      (or1_tac >>
       rw[itree_bind_thm] >>
