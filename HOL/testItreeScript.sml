@@ -206,7 +206,7 @@ Proof
        (fs[itree_bind_thm] >> metis_tac[])) >-
      (* Vis Ret impossible. duplicated but trivial *)
      fs[Once itree_wbisim_cases] >-
-     (* Vis Tau this is kinda duplicated except I need sym at the end*)
+     (* Vis Tau this is kinda duplicated except I need sym at the end *)
      (or2_tac >>
       fs[Once itree_wbisim_cases, itree_bind_thm] >>
       fs[Once $ GSYM itree_wbisim_cases] >>
@@ -243,6 +243,72 @@ Theorem itree_bind_resp_wbisim:
   ∀a b k1 k2. (≈ a b) ⇒ (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
 Proof
   metis_tac[itree_bind_resp_t_wbisim, itree_bind_resp_k_wbisim, itree_wbisim_trans]
+QED
+
+Theorem itree_iter_resp_wbisim:
+  ∀t k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (itree_iter k1 t) (itree_iter k2 t))
+Proof
+  rpt strip_tac >>
+  qspecl_then [‘λia ib.
+                  ∃sa sb x. (≈ sa sb) ∧
+                            ia = ⋆ sa
+                                   (λx. case x of
+                                          INL a => Tau (itree_iter k1 a)
+                                        | INR b => Ret b) ∧
+                            ib = ⋆ sb
+                                   (λx. case x of
+                                          INL a => Tau (itree_iter k2 a)
+                                        | INR b => Ret b)’]
+              strip_assume_tac itree_wbisim_strong_coind >>
+  pop_assum irule >>
+  rw[] >-
+   (qabbrev_tac
+    ‘iter_k1 = (λx. case x of INL a => Tau (itree_iter k1 a) | INR b => Ret b)’ >>
+    qabbrev_tac
+    ‘iter_k2 = (λx. case x of INL a => Tau (itree_iter k2 a) | INR b => Ret b)’ >>
+    Cases_on ‘sa’ >>
+    Cases_on ‘sb’ >-
+     (* ret ret *)
+     (‘x' = x’ by fs[Once itree_wbisim_cases] >>
+      gvs[] >>
+      Cases_on ‘x’ >-
+       (or1_tac >> (* Ret INL by wbisim *)
+        qexistsl_tac [‘⋆ (k1 x') iter_k1’, ‘⋆ (k2 x') iter_k2’] >>
+        qunabbrev_tac ‘iter_k1’ >>
+        qunabbrev_tac ‘iter_k2’ >>
+        simp[Once itree_iter_thm, itree_bind_thm] >>
+        simp[Once itree_iter_thm, itree_bind_thm] >>
+        metis_tac[]) >-
+       (or3_tac >> (* Ret INR by equality *)
+        qunabbrev_tac ‘iter_k1’ >>
+        qunabbrev_tac ‘iter_k2’ >>
+        gvs[Once itree_iter_thm, itree_bind_thm])) >-
+     (* ret tau *)
+     cheat >-
+     (* ret vis *)
+     (fs[Once itree_wbisim_cases]) >-
+     (* tau ret *)
+     cheat >-
+     (* tau tau *)
+     (or1_tac >>
+      rw[itree_bind_thm] >>
+      ‘≈ u u'’
+        by metis_tac[itree_wbisim_add_tau, itree_wbisim_sym, itree_wbisim_trans] >>
+      metis_tac[]) >-
+     (* tau vis *)
+     cheat >-
+     (* vis ret *)
+     (fs[Once itree_wbisim_cases]) >-
+     (* vis tau *)
+     cheat >-
+     (* vis vis *)
+     (or2_tac >>
+      simp[Once itree_bind_thm] >>
+      simp[Once itree_bind_thm] >>
+      fs[Once itree_wbisim_cases] >>
+      fs[GSYM $ Once itree_wbisim_cases] >>
+      metis_tac[]))
+  >- metis_tac[itree_iter_thm]
 QED
 
 (* f, f' type vars instantiated differently smh *)
