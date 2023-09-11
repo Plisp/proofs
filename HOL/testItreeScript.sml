@@ -44,58 +44,51 @@ Proof
   rw[FUN_EQ_THM, Once itree_unfold]
 QED
 
-(*/ basic rephrasings
-   not sure whether this should be kept around but lemmas use it atm
- *)
+(* coinduction *)
 
-(* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
-                           (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
-(* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog ⋆ k)) *)
-Definition mrec_cb_def[simp]:
-  mrec_cb rh (Ret r) = Ret (INR r) ∧
-  mrec_cb rh (Tau t) = Ret (INL t) ∧
-  mrec_cb rh (Vis (INL state_res) k) = Ret (INL (⋆ (rh state_res) k)) ∧
-  mrec_cb rh (Vis (INR ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
+CoInductive noret:
+  (noret t ==> noret (Tau t)) /\
+  !e k.(!r. noret (k r)) ==> noret (Vis e k)
 End
 
-Theorem itree_mrec_alt:
-  itree_mrec rh seed = itree_iter (mrec_cb rh) (rh seed)
+Definition vis_spin:
+  vis_spin = itree_unfold (\s. Vis' s I) 0
+End
+
+CoInductive allvis:
+  !e k. (!r. allvis (k r)) ==> allvis (Vis e k)
+End
+
+Theorem allvis_vis_spin:
+  allvis vis_spin
 Proof
-  rw[itree_mrec_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE mrec_cb_def]
+  irule allvis_coind >>
+  simp[vis_spin] >>
+  simp[Once itree_unfold] >>
+  qexists_tac `\t. ?k. t = Vis k (itree_unfold (λs. Vis' s I))` >>
+  simp[] >>
+  rpt strip_tac >>
+  fs[] >>
+  simp[Once itree_unfold]
 QED
 
-(* Dec cleanup *)
-
-Definition revert_binding_def:
-  revert_binding name old_s
-  = (λ(res,s').
-       Ret
-       (res,
-        s' with locals :=
-        res_var s'.locals (name,FLOOKUP old_s.locals name)))
-End
-
-Theorem h_prog_rule_dec_alt:
-  h_prog_rule_dec vname e p s =
-  case eval s e of
-    NONE => Ret (SOME Error,s)
-  | SOME value =>
-      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
-          (revert_binding vname s)
+Theorem noret_vis_spin:
+  noret vis_spin
 Proof
-  rw[h_prog_rule_dec_def, revert_binding_def]
+  irule noret_coind >>
+  qexists_tac `allvis` >>
+  simp[allvis_vis_spin] >>
+  rpt strip_tac >>
+  disj2_tac >>
+  metis_tac[allvis_cases]
 QED
 
 (*/ various abstract nonsense
-   just to have a richer equational theory, unfold continuations suck to read
+   just to have a richer equational theory for wbisim
  *)
 
 (* TODO itree_wbisim_tau is overloaded! merged. change later *)
-Triviality itree_wbisim_add_tau:
+Theorem itree_wbisim_add_tau:
   ∀ t. ≈ (Tau t) t
 Proof
   qspecl_then [‘λa b. a = Tau b’] strip_assume_tac itree_wbisim_strong_coind >>
@@ -139,6 +132,7 @@ Proof
   metis_tac[itree_wbisim_coind_upto_equiv]
 QED
 
+(* Q.AP_TERM or AP_THM to lift eq *)
 Theorem itree_bind_strip_tau_wbisim:
   ∀u u' k. strip_tau u u' ⇒ ≈ (⋆ u k) (⋆ u' k)
 Proof
@@ -160,6 +154,28 @@ Proof
   Induct_on ‘strip_tau’ >>
   rpt strip_tac >>
   rw[itree_bind_thm]
+QED
+
+Triviality itree_bind_vis_tau_wbisim:
+  ≈ (Vis a g) (Tau u) ⇒
+  (∃e k' k''.
+    strip_tau (⋆ (Vis a g) k) (Vis e k') ∧
+    strip_tau (⋆ (Tau u) k) (Vis e k'') ∧
+    ∀r. (∃t1 t2. ≈ t1 t2 ∧ k' r = ⋆ t1 k ∧ k'' r = ⋆ t2 k) ∨
+        ≈ (k' r) (k'' r))
+Proof
+  rpt strip_tac >>
+  fs[Once itree_wbisim_cases, itree_bind_thm] >>
+  fs[Once $ GSYM itree_wbisim_cases] >>
+  Cases_on ‘u’ >-
+   fs[Once strip_tau_cases] >-
+   (rw[itree_bind_thm] >>
+    qexists_tac ‘(λx. ⋆ (k' x) k)’ >>
+    CONJ_TAC >-
+     (fs[] >> (* strip Tau' *)
+      irule itree_bind_vis_strip_tau >> metis_tac[]) >-
+     metis_tac[]) >-
+   (fs[itree_bind_thm] >> metis_tac[])
 QED
 
 Theorem itree_bind_resp_t_wbisim:
@@ -192,33 +208,11 @@ Proof
       ‘≈ u u'’ by metis_tac[itree_wbisim_tau, itree_wbisim_sym] >>
       metis_tac[]) >-
      (* Tau Vis *)
-     (or2_tac >>
-      fs[Once itree_wbisim_cases, itree_bind_thm] >>
-      fs[Once $ GSYM itree_wbisim_cases] >>
-      Cases_on ‘u’ >-
-       fs[Once strip_tau_cases] >-
-       (rw[itree_bind_thm] >>
-        qexists_tac ‘(λx. ⋆ (k' x) k)’ >>
-        CONJ_TAC >-
-         (fs[] >> (* strip Tau' *)
-          irule itree_bind_vis_strip_tau >> metis_tac[]) >-
-         metis_tac[]) >-
-       (fs[itree_bind_thm] >> metis_tac[])) >-
+     (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
      (* Vis Ret impossible. duplicated but trivial *)
-     fs[Once itree_wbisim_cases] >-
+     (fs[Once itree_wbisim_cases]) >-
      (* Vis Tau this is kinda duplicated except I need sym at the end *)
-     (or2_tac >>
-      fs[Once itree_wbisim_cases, itree_bind_thm] >>
-      fs[Once $ GSYM itree_wbisim_cases] >>
-      Cases_on ‘u’ >-
-       fs[Once strip_tau_cases] >-
-       (rw[itree_bind_thm] >>
-        qexists_tac ‘(λx. ⋆ (k' x) k)’ >>
-        CONJ_TAC >-
-         (fs[] >> (* strip Tau' *)
-          irule itree_bind_vis_strip_tau >> metis_tac[itree_wbisim_sym]) >-
-         metis_tac[]) >-
-       (fs[itree_bind_thm] >> metis_tac[])) >-
+     (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
      (* Vis Vis *)
      (fs[itree_bind_thm, Once itree_wbisim_cases] >> metis_tac[]))
   >- metis_tac[]
@@ -244,6 +238,8 @@ Theorem itree_bind_resp_wbisim:
 Proof
   metis_tac[itree_bind_resp_t_wbisim, itree_bind_resp_k_wbisim, itree_wbisim_trans]
 QED
+
+(* itree iter *)
 
 Theorem itree_iter_resp_wbisim:
   ∀t k1 k2. (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (itree_iter k1 t) (itree_iter k2 t))
@@ -311,6 +307,52 @@ Proof
   >- metis_tac[itree_iter_thm]
 QED
 
+(*/ basic rephrasings
+   not sure whether this should be kept around but lemmas use it atm
+ *)
+
+(* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
+                           (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
+(* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog ⋆ k)) *)
+Definition mrec_cb_def[simp]:
+  mrec_cb rh (Ret r) = Ret (INR r) ∧
+  mrec_cb rh (Tau t) = Ret (INL t) ∧
+  mrec_cb rh (Vis (INL state_res) k) = Ret (INL (⋆ (rh state_res) k)) ∧
+  mrec_cb rh (Vis (INR ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
+End
+
+Theorem itree_mrec_alt:
+  itree_mrec rh seed = itree_iter (mrec_cb rh) (rh seed)
+Proof
+  rw[itree_mrec_def] >>
+  AP_THM_TAC >>
+  AP_TERM_TAC >>
+  rw[FUN_EQ_THM] >>
+  rw[DefnBase.one_line_ify NONE mrec_cb_def]
+QED
+
+(* Dec cleanup *)
+
+Definition revert_binding_def:
+  revert_binding name old_s
+  = (λ(res,s').
+       Ret
+       (res,
+        s' with locals :=
+        res_var s'.locals (name,FLOOKUP old_s.locals name)))
+End
+
+Theorem h_prog_rule_dec_alt:
+  h_prog_rule_dec vname e p s =
+  case eval s e of
+    NONE => Ret (SOME Error,s)
+  | SOME value =>
+      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
+          (revert_binding vname s)
+Proof
+  rw[h_prog_rule_dec_def, revert_binding_def]
+QED
+
 (* f, f' type vars instantiated differently smh *)
 Theorem mrec_bind_lemma:
   ∀f f'.
@@ -349,7 +391,7 @@ Proof
       metis_tac[]) >-
      (Cases_on ‘a’ >-
        (fs[Once itree_iter_thm, itree_bind_thm] >>
-        metis_tac[GSYM itree_bind_assoc]) >-
+        metis_tac[itree_bind_assoc]) >-
        fs[Once itree_iter_thm, itree_bind_thm])) >-
    (* vis *)
    (Cases_on ‘t'’ >-
@@ -396,7 +438,7 @@ Proof
        (or1_tac >>
         rw[Once itree_iter_thm, itree_bind_thm] >>
         rw[Once itree_iter_thm, itree_bind_thm] >>
-        metis_tac[GSYM itree_bind_assoc]) >-
+        metis_tac[itree_bind_assoc]) >-
        (or2_tac >>
         rw[Once itree_iter_thm, itree_bind_thm] >>
         rw[Once itree_iter_thm, itree_bind_thm] >>
