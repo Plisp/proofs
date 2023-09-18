@@ -1,8 +1,34 @@
 (*
  * Coinductive semantics with interaction trees!
+ *
+ * Directly express an infinite tree semantic structure via continuations.
+ * In the spirit of the "Propositions as Types" principle, by encoding programs
+ * as data rather than theorems, we may write *programs* to act as *proofs*,
+ * potentially allowing the automation of simple algebraic reasoning.
+ *
+ * By developing an algebra, reasoning can be mostly done above the Tau level,
+ * which are convenient for expressing silent program steps which may differ,
+ * depending on context.
+ *
+ * Since they are the greatest fixpoint, they may also encode general recursive
+ * data types using appropriate event data - e.g. W-trees.
+ *
+ * In comparision to the clock approach in cakeML's FBS semantics, the clock
+ * becomes implicit in the structure of the itree, which is simpler for reasoning.
+ * Oracle queries are encoded by events, and 'evaluating' in a context where the
+ * responses are limited, we can simulate interaction with the external world.
+ *
+ * One possible reasoning method:
+ * 1. express a clear (tauless) decomposition of the spec w/ conditions on FFI
+ * 3. prove equivalence to the actual program semantics via weak bisimulation
+ *
+ * future work: ideally we want some way of automatically unfolding/executing a
+ * program, to easily show facts about its interaction tree directly. This should
+ * also allow for automated removal of Tau nodes. Could this be easier with types?
  *)
 
 open HolKernel boolLib bossLib BasicProvers;
+open arithmeticTheory;
 open itreeTauTheory;
 open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
@@ -54,41 +80,73 @@ QED
 
 (* coinduction *)
 
+(* finite on all paths *)
+CoInductive itree_fin:
+  (itree_fin t ⇒ itree_fin (Tau t)) ∧
+  (∀e k. (∀r. itree_fin (k r)) ⇒ itree_fin (Vis e k)) ∧
+  itree_fin (Ret r)
+End
+
+(* infinite on all paths *)
 CoInductive itree_inf:
-  (itree_inf t ==> itree_inf (Tau t)) /\
-  !e k.(!r. itree_inf (k r)) ==> itree_inf (Vis e k)
+  (itree_inf t ⇒ itree_inf (Tau t)) ∧
+  ∀e k. (∀r. itree_inf (k r)) ⇒ itree_inf (Vis e k)
 End
 
-Definition vis_spin:
-  vis_spin = itree_unfold (\s. Vis' s I) 0
-End
-
-CoInductive allvis:
-  !e k. (!r. allvis (k r)) ==> allvis (Vis e k)
-End
-
-Theorem allvis_vis_spin:
-  allvis vis_spin
+Theorem ret_fin:
+  itree_fin (Tau (Ret r))
 Proof
-  irule allvis_coind >>
-  simp[vis_spin] >>
-  simp[Once itree_unfold] >>
-  qexists_tac `\t. ?k. t = Vis k (itree_unfold (λs. Vis' s I))` >>
-  simp[] >>
-  rpt strip_tac >>
-  fs[] >>
-  simp[Once itree_unfold]
+  rw[Once itree_fin_cases] >>
+  rw[Once itree_fin_cases]
 QED
 
+Theorem spin_inf:
+  itree_inf spin
+Proof
+  irule itree_inf_coind >>
+  qexists_tac ‘λt. t = (Tau t)’ >>
+  rw[] >-
+   rw[spin_unfold] >-
+   metis_tac[]
+QED
+
+Definition vis_spin_def:
+  vis_spin = itree_unfold (λs. Vis' s I) 0
+End
 Theorem vis_spin_inf:
   itree_inf vis_spin
 Proof
   irule itree_inf_coind >>
-  qexists_tac `allvis` >>
-  simp[allvis_vis_spin] >>
-  rpt strip_tac >>
-  disj2_tac >>
-  metis_tac[allvis_cases]
+  qexists_tac ‘λt. ∃k. t = Vis k (itree_unfold (λs. Vis' s I))’ >>
+  rw[vis_spin_def] >>
+  rw[Once itree_unfold]
+QED
+
+(* looping vis nodes *)
+
+Definition itree_loop_def:
+  itree_loop emit succ zero =
+  itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
+End
+
+Definition even_spec:
+  even_spec k = itree_loop (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
+End
+
+(* backwards extensionality TODO proof that k = k+2 *)
+Theorem itree_loop:
+  ∀k. EVEN k ⇒ even_spec k = Vis "even" (λ_. Vis "odd" (λ_. even_spec (2 + k)))
+Proof
+  rw[even_spec] >>
+  CONV_TAC $ LHS_CONV $ REWRITE_CONV[itree_loop_def] >>
+  rw[itree_unfold] >>
+  rw[combinTheory.o_DEF] >>
+  rw[FUN_EQ_THM] >>
+  rw[itree_unfold] >-
+   (cheat (* metis_tac[cj 2 EVEN, SUC_ONE_ADD, EQ_IMP_THM] *)
+   )
+   (rw[combinTheory.o_DEF] >>
+    rw[itree_loop_def])
 QED
 
 (*/ misc abstract nonsense
@@ -403,6 +461,7 @@ Proof
 QED
 
 (* (* f, f' type vars instantiated differently smh *) *)
+(* TODO prove wbisim version *)
 (* Theorem mrec_bind_lemma: *)
 (*   ∀f f'. *)
 (*   (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒ *)
