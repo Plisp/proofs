@@ -82,15 +82,15 @@ QED
 
 (* finite on all paths *)
 CoInductive itree_fin:
-  (itree_fin t ⇒ itree_fin (Tau t)) ∧
+  (∀t. itree_fin t ⇒ itree_fin (Tau t)) ∧
   (∀e k. (∀r. itree_fin (k r)) ⇒ itree_fin (Vis e k)) ∧
-  itree_fin (Ret r)
+  (∀r. itree_fin (Ret r))
 End
 
 (* infinite on all paths *)
 CoInductive itree_inf:
-  (itree_inf t ⇒ itree_inf (Tau t)) ∧
-  ∀e k. (∀r. itree_inf (k r)) ⇒ itree_inf (Vis e k)
+  (∀t. itree_inf t ⇒ itree_inf (Tau t)) ∧
+  (∀e k. (∀r. itree_inf (k r)) ⇒ itree_inf (Vis e k))
 End
 
 Theorem ret_fin:
@@ -129,24 +129,66 @@ Definition itree_loop_def:
   itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
 
-Definition even_spec:
+Definition even_spec_def:
   even_spec k = itree_loop (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
 End
 
-(* backwards extensionality TODO proof that k = k+2 *)
-Theorem itree_loop:
+Theorem even_add1:
+  EVEN k ⇔ ¬EVEN (k+1)
+Proof
+  metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM]
+QED
+
+(* backwards extensionality *)
+Theorem even_spec_unfold:
   ∀k. EVEN k ⇒ even_spec k = Vis "even" (λ_. Vis "odd" (λ_. even_spec (2 + k)))
 Proof
-  rw[even_spec] >>
+  rw[even_spec_def] >>
   CONV_TAC $ LHS_CONV $ REWRITE_CONV[itree_loop_def] >>
   rw[itree_unfold] >>
   rw[combinTheory.o_DEF] >>
   rw[FUN_EQ_THM] >>
   rw[itree_unfold] >-
-   (cheat (* metis_tac[cj 2 EVEN, SUC_ONE_ADD, EQ_IMP_THM] *)
-   )
+   (metis_tac[even_add1]) >-
    (rw[combinTheory.o_DEF] >>
     rw[itree_loop_def])
+QED
+
+Theorem even_add2:
+  EVEN (n+2) ⇔ EVEN n
+Proof
+  ‘EVEN (n+1+1) ⇔ EVEN (n+2)’ suffices_by metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM] >>
+  rw[]
+QED
+
+Theorem even_spec_plus2:
+  ∀k. even_spec (2+k) = even_spec k
+Proof
+  strip_tac >>
+  qspecl_then [‘even_spec (2+k)’, ‘even_spec k’]
+              strip_assume_tac itree_bisimulation >>
+  fs[EQ_IMP_THM] >>
+  pop_assum irule >>
+  pop_assum kall_tac >>
+  qexists_tac ‘λa b. ∃n. a = even_spec (2+n) ∧ b = even_spec n’ >>
+  rw[] >> gvs[even_spec_def, itree_loop_def, Once itree_unfold] >-
+   (qexists_tac ‘k’ >>
+    simp[] >>
+    CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_unfold] >>
+    rw[]) >-
+   (simp[Once itree_unfold] >>
+    CONJ_TAC >-
+     (rw[Once even_add2]) >-
+     (qexists_tac ‘n+1’ >> rw[]))
+QED
+
+Theorem even_spec_thm:
+  even_spec 0 = Vis "even" (λ_. Vis "odd" (λ_. even_spec 0))
+Proof
+  rw[Once even_spec_unfold] >>
+  rw[FUN_EQ_THM] >>
+  qspec_then ‘0’ mp_tac even_spec_plus2 >>
+  rw[]
 QED
 
 (*/ misc abstract nonsense
