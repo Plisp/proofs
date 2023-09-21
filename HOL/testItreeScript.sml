@@ -25,6 +25,10 @@
  * future work: ideally we want some way of automatically unfolding/executing a
  * program, to easily show facts about its interaction tree directly. This should
  * also allow for automated removal of Tau nodes. Could this be easier with types?
+ *
+ * note: programs/simps/rewrites getting stuck in general is hard to predict and
+ * annoying, proving strong normalization is the only way out.
+ * note: don't worry about the itree repr
  *)
 
 open HolKernel boolLib bossLib BasicProvers;
@@ -124,13 +128,13 @@ QED
 
 (* looping vis nodes *)
 
-Definition itree_loop_def:
-  itree_loop emit succ zero =
+Definition iterate_def:
+  iterate emit succ zero =
   itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
 
 Definition even_spec_def:
-  even_spec k = itree_loop (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
+  even_spec k = iterate (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
 End
 
 Theorem even_add1:
@@ -144,14 +148,14 @@ Theorem even_spec_unfold:
   ∀k. EVEN k ⇒ even_spec k = Vis "even" (λ_. Vis "odd" (λ_. even_spec (2 + k)))
 Proof
   rw[even_spec_def] >>
-  CONV_TAC $ LHS_CONV $ REWRITE_CONV[itree_loop_def] >>
+  CONV_TAC $ LHS_CONV $ REWRITE_CONV[iterate_def] >>
   rw[itree_unfold] >>
   rw[combinTheory.o_DEF] >>
   rw[FUN_EQ_THM] >>
   rw[itree_unfold] >-
    (metis_tac[even_add1]) >-
    (rw[combinTheory.o_DEF] >>
-    rw[itree_loop_def])
+    rw[iterate_def])
 QED
 
 Theorem even_add2:
@@ -171,7 +175,7 @@ Proof
   pop_assum irule >>
   pop_assum kall_tac >>
   qexists_tac ‘λa b. ∃n. a = even_spec (2+n) ∧ b = even_spec n’ >>
-  rw[] >> gvs[even_spec_def, itree_loop_def, Once itree_unfold] >-
+  rw[] >> gvs[even_spec_def, iterate_def, Once itree_unfold] >-
    (qexists_tac ‘k’ >>
     simp[] >>
     CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_unfold] >>
@@ -341,7 +345,7 @@ Proof
 QED
 
 Theorem itree_bind_resp_wbisim:
-  ∀a b k1 k2. (≈ a b) ⇒ (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
+  ∀a b k1 k2. (≈ a b) ∧ (∀r. ≈ (k1 r) (k2 r)) ⇒ (≈ (⋆ a k1) (⋆ b k2))
 Proof
   metis_tac[itree_bind_resp_t_wbisim, itree_bind_resp_k_wbisim, itree_wbisim_trans]
 QED
@@ -419,19 +423,16 @@ Proof
      (irule itree_iter_ret_tau_wbisim >> metis_tac[]) >-
      (fs[Once itree_wbisim_cases]) >-
      (‘≈ (Ret x) (Tau u)’ by fs[itree_wbisim_sym] >>
-      ‘(∃t2 t3.
-         ⋆ (Ret x) itcb2 = Tau t2 ∧ ⋆ (Tau u) itcb1 = Tau t3 ∧
-         ((∃sa sb. ≈ sa sb ∧ t2 = ⋆ sa itcb2 ∧ t3 = ⋆ sb itcb1) ∨ ≈ t2 t3)) ∨
-       (∃e k k'.
-         strip_tau (⋆ (Ret x) itcb2) (Vis e k) ∧
-         strip_tau (⋆ (Tau u) itcb1) (Vis e k') ∧
-         ∀r. (∃sa sb. ≈ sa sb ∧ k r = ⋆ sa itcb2 ∧ k' r = ⋆ sb itcb1) ∨
-             ≈ (k r) (k' r)) ∨
-       ∃r. strip_tau (⋆ (Ret x) itcb2) (Ret r) ∧
-           strip_tau (⋆ (Tau u) itcb1) (Ret r)’
-        suffices_by metis_tac[itree_wbisim_sym] >>
-      irule itree_iter_ret_tau_wbisim >>
-      metis_tac[itree_wbisim_sym]) >-
+      (* (pure)_rewrite_tac more basic *)
+      rpt $ qpat_x_assum ‘Abbrev _’
+          $ assume_tac o PURE_REWRITE_RULE[markerTheory.Abbrev_def] >>
+      pop_assum mp_tac >>
+      drule itree_iter_ret_tau_wbisim >>
+      rpt strip_tac >>
+      first_x_assum drule >>
+      disch_then drule >>
+      (* irule (a ∧ (b -> c)) -> (a -> b) -> c >> CONJ_TAC *)
+      impl_tac >> metis_tac[itree_wbisim_sym]) >-
      (or1_tac >>
       rw[itree_bind_thm] >>
       metis_tac[itree_wbisim_add_tau, itree_wbisim_sym, itree_wbisim_trans]) >-
@@ -652,155 +653,4 @@ Proof
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
   rw[DefnBase.one_line_ify NONE massage_cb_def]
-QED
-
-(*/ pancake programs
-   & parsing utilities
- *)
-
-open stringLib helperLib;
-open finite_mapTheory; (* flookup_thm *)
-
-open asmTheory; (* word_cmp_def *)
-open miscTheory; (* read_bytearray *)
-open panLangTheory; (* size_of_shape_def *)
-open panPtreeConversionTheory; (* parse_funs_to_ast *)
-open wordLangTheory; (* word_op_def *)
-open wordsTheory; (* n2w_def *)
-
-local
-  val f =
-    List.mapPartial
-       (fn s => case remove_whitespace s of "" => NONE | x => SOME x) o
-    String.tokens (fn c => c = #"\n")
-in
-  fun quote_to_strings q =
-    f (Portable.quote_to_string (fn _ => raise General.Bind) q)
-  end
-
-fun parse_pancake q =
-  let
-    val code = quote_to_strings q |> String.concatWith "\n" |> fromMLstring
-  in
-    EVAL “parse_funs_to_ast ^code”
-end
-
-(* ffi test *)
-
-val ffi_ast = rhs $ concl $ parse_pancake ‘
-fun fn() {
-  #num_clients(0, 0, 0, 0);
-  #num_clients(0, 0, 0, 0);
-}’;
-
-Definition ffi_sem_def:
-  ffi_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate (SND $ SND $ HD $ THE ^ffi_ast) s
-End
-
-Theorem ffi_sem_thm:
-  ffi_sem s = ARB
-Proof
-  rw[ffi_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  (* Seq *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
-  rw[Once itree_iter_thm, Once itree_bind_thm] >>
-  (* extcall *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[read_bytearray_def] >>
-  rw[Once itree_bind_thm] >>
-  rw[Once itree_iter_thm] >>
-  rw[Once itree_bind_thm] >>
-  (* inner thing *)
-  rw[Once itree_bind_thm] >>
-  rw[Once itree_bind_thm] >>
-  (* TODO massage bug! (not yet fixed, update when done) *)
-  rw[massage_def] >>
-  rw[Once itree_unfold, massage_thm] >>
-  rw[Once itree_unfold]
-QED
-
-(*/ loops work!
-   manual loop unrolling isn't too bad with equational rewrites
- *)
-
-val loop_ast = rhs $ concl $ parse_pancake ‘
-fun fn() {
-  var x = 0;
-  while (x < 1) {
-    x = x + 1;
-  }
-}’;
-
-Definition loop_sem_def:
-  loop_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s
-End
-
-Definition h_prog_whilebody_cb_def[simp]:
-    h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
-  ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
-  ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
-  (* nice! this syntax is valid *)
-  ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
-End
-
-Definition h_prog_while_cb_def[simp]:
-    h_prog_while_cb (p,s) NONE = Ret (INR (SOME Error,s))
-  ∧ h_prog_while_cb (p,s) (SOME (ValWord w))
-    = (if (w ≠ 0w)
-       then Vis (INL (p,s))
-                (λ(res,s'). h_prog_whilebody_cb p res s')
-       else Ret (INR (NONE,s)))
-  ∧ h_prog_while_cb (p,s) (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
-  ∧ h_prog_while_cb (p,s) (SOME (Struct _)) = Ret (INR (SOME Error,s))
-End
-
-(* PR submitted *)
-Theorem h_prog_rule_while_alt:
-  h_prog_rule_while g p s =
-  (λ(p',s'). (h_prog_while_cb (p',s') (eval s' g))) ↻ (p,s)
-Proof
-  rw[h_prog_rule_while_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >>
-  rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >>
-  rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
-QED
-
-Theorem cheat1:
-  0w < 1w (* supposed to be :4 word but w/e *)
-Proof
-  cheat
-QED
-
-Theorem loop_thm:
-  loop_sem s = Tau (Tau (Tau (Ret NONE)))
-Proof
-  rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_alt] >>
-  rw[eval_def] >>
-  rw[Once itree_iter_thm, itree_bind_thm] >>
-  (* while *)
-  rw[Once h_prog_def, h_prog_rule_while_alt] >>
-  rw[Once itree_iter_thm] >>
-  rw[Once itree_iter_thm] >>
-  rw[eval_def, FLOOKUP_UPDATE, word_cmp_def, cheat1] >>
-  rw[itree_bind_thm] >>
-  (* assignment *)
-  rw[Once h_prog_def, h_prog_rule_assign_def] >>
-  rw[eval_def, FLOOKUP_UPDATE, cheat1,
-     word_op_def, is_valid_value_def, shape_of_def] >>
-  rw[Once itree_iter_thm, itree_bind_thm] >>
-  (* second while *)
-  rw[Once itree_iter_thm] >>
-  rw[Once itree_iter_thm] >>
-  rw[eval_def, FLOOKUP_UPDATE, word_cmp_def] >>
-  rw[revert_binding_def] >>
-  rw[Once itree_iter_thm, itree_bind_thm] >>
-  (* massage *)
-  rw[massage_thm]
 QED

@@ -3,7 +3,7 @@ INCLUDES = $(CAKEMLDIR)/pancake/\
 		   $(CAKEMLDIR)/pancake/parser/\
            $(CAKEMLDIR)/pancake/semantics
 
-all: testItreeScript.sml
+all: testItreeScript.sml panScript.sml
 .PHONY: all
 
 DIRS = $(wildcard */)
