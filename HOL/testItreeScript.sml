@@ -468,7 +468,7 @@ Definition mrec_cb_def[simp]:
     mrec_cb rh (Ret r) = Ret (INR r)
   ∧ mrec_cb rh (Tau t) = Ret (INL t)
   ∧ mrec_cb rh (Vis (INL state_res) k) = Ret (INL (⋆ (rh state_res) k))
-  ∧ mrec_cb rh (Vis (INR ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
+  ∧ mrec_cb rh (Vis (INR   ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
 End
 
 Theorem itree_mrec_alt:
