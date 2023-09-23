@@ -38,8 +38,13 @@ open panSemTheory; (* eval_def *)
 open panItreeSemTheory;
 
 (* open monadsyntax; *)
-(* Overload monad_bind[local] = “itree_bind”; *)
-(* Overload return[local] = “Ret”; *)
+(* val _ = *)
+(*     monadsyntax.declare_monad ( *)
+(*       "itree_monad", *)
+(*       { bind = “itree_bind”, ignorebind = NONE, unit = “Ret”, *)
+(*         guard = NONE, choice = NONE, fail = NONE} *)
+(*     ) *)
+(* val _ = monadsyntax.temp_enable_monad "itree_monad"; *)
 
 val _ = temp_set_fixity "↻" (Infixl 500);
 Overload "↻" = “itree_iter”;
@@ -54,6 +59,13 @@ val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
    itree_unfold f is the final (coinductive) arrow to the capital algebra
    where f = structure map (into primed itree), seed = itree algebra instance
  *)
+
+Overload trigger[local] = “itree_trigger”;
+Theorem trigger:
+  trigger event = Vis event Ret
+Proof
+  rw[itree_trigger_def]
+QED
 
 Theorem spin_unfold:
   spin = Tau spin
@@ -82,127 +94,14 @@ Proof
   rw[FUN_EQ_THM, Once itree_unfold]
 QED
 
-(* coinduction *)
-
-(* finite on all paths *)
-CoInductive itree_fin:
-  (∀t. itree_fin t ⇒ itree_fin (Tau t)) ∧
-  (∀e k. (∀r. itree_fin (k r)) ⇒ itree_fin (Vis e k)) ∧
-  (∀r. itree_fin (Ret r))
-End
-
-(* infinite on all paths *)
-CoInductive itree_inf:
-  (∀t. itree_inf t ⇒ itree_inf (Tau t)) ∧
-  (∀e k. (∀r. itree_inf (k r)) ⇒ itree_inf (Vis e k))
-End
-
-Theorem ret_fin:
-  itree_fin (Tau (Ret r))
-Proof
-  rw[Once itree_fin_cases] >>
-  rw[Once itree_fin_cases]
-QED
-
-Theorem spin_inf:
-  itree_inf spin
-Proof
-  irule itree_inf_coind >>
-  qexists_tac ‘λt. t = (Tau t)’ >>
-  rw[] >-
-   rw[spin_unfold] >-
-   metis_tac[]
-QED
-
-Definition vis_spin_def:
-  vis_spin = itree_unfold (λs. Vis' s I) 0
-End
-Theorem vis_spin_inf:
-  itree_inf vis_spin
-Proof
-  irule itree_inf_coind >>
-  qexists_tac ‘λt. ∃k. t = Vis k (itree_unfold (λs. Vis' s I))’ >>
-  rw[vis_spin_def] >>
-  rw[Once itree_unfold]
-QED
-
-(* looping vis nodes *)
-
-Definition iterate_def:
-  iterate emit succ zero =
-  itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
-End
-
-Definition even_spec_def:
-  even_spec k = iterate (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
-End
-
-Theorem even_add1:
-  EVEN k ⇔ ¬EVEN (k+1)
-Proof
-  metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM]
-QED
-
-(* backwards extensionality *)
-Theorem even_spec_unfold:
-  ∀k. EVEN k ⇒ even_spec k = Vis "even" (λ_. Vis "odd" (λ_. even_spec (2 + k)))
-Proof
-  rw[even_spec_def] >>
-  CONV_TAC $ LHS_CONV $ REWRITE_CONV[iterate_def] >>
-  rw[itree_unfold] >>
-  rw[combinTheory.o_DEF] >>
-  rw[FUN_EQ_THM] >>
-  rw[itree_unfold] >-
-   (metis_tac[even_add1]) >-
-   (rw[combinTheory.o_DEF] >>
-    rw[iterate_def])
-QED
-
-Theorem even_add2:
-  EVEN (n+2) ⇔ EVEN n
-Proof
-  ‘EVEN (n+1+1) ⇔ EVEN (n+2)’ suffices_by metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM] >>
-  rw[]
-QED
-
-Theorem even_spec_plus2:
-  ∀k. even_spec (2+k) = even_spec k
-Proof
-  strip_tac >>
-  qspecl_then [‘even_spec (2+k)’, ‘even_spec k’]
-              strip_assume_tac itree_bisimulation >>
-  fs[EQ_IMP_THM] >>
-  pop_assum irule >>
-  pop_assum kall_tac >>
-  qexists_tac ‘λa b. ∃n. a = even_spec (2+n) ∧ b = even_spec n’ >>
-  rw[] >> gvs[even_spec_def, iterate_def, Once itree_unfold] >-
-   (qexists_tac ‘k’ >>
-    simp[] >>
-    CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_unfold] >>
-    rw[]) >-
-   (simp[Once itree_unfold] >>
-    CONJ_TAC >-
-     (rw[Once even_add2]) >-
-     (qexists_tac ‘n+1’ >> rw[]))
-QED
-
-Theorem even_spec_thm:
-  even_spec 0 = Vis "even" (λ_. Vis "odd" (λ_. even_spec 0))
-Proof
-  rw[Once even_spec_unfold] >>
-  rw[FUN_EQ_THM] >>
-  qspec_then ‘0’ mp_tac even_spec_plus2 >>
-  rw[]
-QED
-
 (*/ misc abstract nonsense
    just to have a richer equational theory for wbisim
  *)
 
-Theorem itree_bind_left_identity:
-  itree_bind (Ret x) k = k x
+Theorem itree_bind_trigger:
+  ⋆ (trigger e) k = Vis e k
 Proof
-  rw[itree_bind_thm]
+  rw[itree_trigger_def, itree_bind_thm, FUN_EQ_THM]
 QED
 
 Theorem itree_wbisim_vis:
@@ -212,7 +111,7 @@ Proof
 QED
 
 (* TODO itree_wbisim_tau is overloaded! merged. change later *)
-Theorem itree_wbisim_add_tau:
+Theorem itree_wbisim_tau_eq:
   ∀ t. ≈ (Tau t) t
 Proof
   qspecl_then [‘λa b. a = Tau b’] strip_assume_tac itree_wbisim_strong_coind >>
@@ -268,7 +167,7 @@ Proof
   rpt strip_tac >-
    (CONV_TAC $ RATOR_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
     ‘≈ (⋆ u k) (⋆ u' k)’ suffices_by
-      metis_tac[itree_wbisim_trans, itree_wbisim_sym, itree_wbisim_add_tau] >>
+      metis_tac[itree_wbisim_trans, itree_wbisim_sym, itree_wbisim_tau_eq] >>
     rw[]) >-
    rw[itree_wbisim_refl] >>
    rw[itree_wbisim_refl]
@@ -379,9 +278,9 @@ Proof
   rw[itree_bind_thm] >-
    (or1_tac >>
     metis_tac[itree_bind_thm,
-              itree_wbisim_add_tau, itree_wbisim_trans, itree_wbisim_sym]) >-
+              itree_wbisim_tau_eq, itree_wbisim_trans, itree_wbisim_sym]) >-
    (or1_tac >>
-    metis_tac[itree_wbisim_add_tau, itree_wbisim_trans, itree_wbisim_sym]) >-
+    metis_tac[itree_wbisim_tau_eq, itree_wbisim_trans, itree_wbisim_sym]) >-
    (or2_tac >> metis_tac[]) >-
    (or3_tac >> metis_tac[]) >-
    (Cases_on ‘v’ >-
@@ -391,7 +290,7 @@ Proof
       qexistsl_tac [‘k1 x’, ‘Tau (k2 x)’] >>
       simp[Once itree_iter_thm] >>
       simp[Once itree_iter_thm, itree_bind_thm] >>
-      metis_tac[itree_wbisim_add_tau, itree_wbisim_sym, itree_wbisim_trans]) >-
+      metis_tac[itree_wbisim_tau_eq, itree_wbisim_sym, itree_wbisim_trans]) >-
      (qunabbrev_tac ‘itcb1’ >> qunabbrev_tac ‘itcb2’ >>
       rw[]))
 QED
@@ -435,7 +334,7 @@ Proof
       impl_tac >> metis_tac[itree_wbisim_sym]) >-
      (or1_tac >>
       rw[itree_bind_thm] >>
-      metis_tac[itree_wbisim_add_tau, itree_wbisim_sym, itree_wbisim_trans]) >-
+      metis_tac[itree_wbisim_tau_eq, itree_wbisim_sym, itree_wbisim_trans]) >-
      (rw[itree_bind_thm] >>
       fs[Once itree_wbisim_cases] >> fs[Once $ GSYM itree_wbisim_cases] >>
       qexists_tac ‘(λx. ⋆ (k x) itcb1)’ >>
@@ -456,201 +355,123 @@ Proof
       rw[Once itree_iter_thm])
 QED
 
-(*/ basic rephrasings
-   not sure whether this should be kept around but lemmas use it atm
+(*/
+  coinduction
  *)
 
-(* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
-                           (mrec_cb h_prog (⋆ (rh state_res) k))) to continue *)
-(* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog ⋆ k)) *)
-(* mrec: Vis (INR (svis_ev × result->itree)) k → Ret (INL (h_prog prog ⋆ k)) *)
-Definition mrec_cb_def[simp]:
-    mrec_cb rh (Ret r) = Ret (INR r)
-  ∧ mrec_cb rh (Tau t) = Ret (INL t)
-  ∧ mrec_cb rh (Vis (INL state_res) k) = Ret (INL (⋆ (rh state_res) k))
-  ∧ mrec_cb rh (Vis (INR   ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
+(* finite on all paths *)
+CoInductive itree_fin:
+  (∀t. itree_fin t ⇒ itree_fin (Tau t)) ∧
+  (∀e k. (∀r. itree_fin (k r)) ⇒ itree_fin (Vis e k)) ∧
+  (∀r. itree_fin (Ret r))
 End
 
-Theorem itree_mrec_alt:
-  itree_mrec rh seed = mrec_cb rh ↻ rh seed
-Proof
-  rw[itree_mrec_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE mrec_cb_def]
-QED
-
-(* Dec cleanup *)
-
-Definition revert_binding_def:
-  revert_binding name old_s
-  = (λ(res,s').
-       Ret
-       (res,
-        s' with locals :=
-        res_var s'.locals (name,FLOOKUP old_s.locals name)))
+(* infinite on all paths *)
+CoInductive itree_inf:
+  (∀t. itree_inf t ⇒ itree_inf (Tau t)) ∧
+  (∀e k. (∀r. itree_inf (k r)) ⇒ itree_inf (Vis e k))
 End
 
-Theorem h_prog_rule_dec_alt:
-  h_prog_rule_dec vname e p s =
-  case eval s e of
-    NONE => Ret (SOME Error,s)
-  | SOME value =>
-      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
-          (revert_binding vname s)
+Theorem ret_fin:
+  itree_fin (Tau (Ret r))
 Proof
-  rw[h_prog_rule_dec_def, revert_binding_def]
+  rw[Once itree_fin_cases] >>
+  rw[Once itree_fin_cases]
 QED
 
-(* (* f, f' type vars instantiated differently smh *) *)
-(* TODO prove wbisim version *)
-(* Theorem mrec_bind_lemma: *)
-(*   ∀f f'. *)
-(*   (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒ *)
-(*   ∀t. (mrec_cb h_prog) ↻ (⋆ t f) = *)
-(*       (⋆ (mrec_cb h_prog ↻ t) f') *)
-(* Proof *)
-(*   rpt strip_tac >> *)
-(*   qspecl_then [‘(mrec_cb h_prog) ↻ (⋆ t f)’, *)
-(*                ‘⋆ (mrec_cb h_prog ↻ t) f'’] *)
-(*               strip_assume_tac itree_bisimulation >> *)
-(*   fs[EQ_IMP_THM] >> *)
-(*   qpat_x_assum ‘_ ⇒ ∃R. _’ kall_tac >> *)
-(*   pop_assum irule >> *)
-(*   qexists_tac ‘λa b. ∃t name s. *)
-(*                 a = (mrec_cb h_prog ↻ (⋆ t f)) ∧ *)
-(*                 b = (⋆ (mrec_cb h_prog ↻ t) f')’ >> *)
-(*   rw[] >- *)
-(*    metis_tac[] >- (* base case *) *)
-(*    (* ret *) *)
-(*    (Cases_on ‘t'’ >- *)
-(*      (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*       last_assum $ qspec_then ‘x'’ strip_assume_tac >> *)
-(*       fs[itree_bind_thm]) >- *)
-(*      (fs[Once itree_iter_thm, itree_bind_thm]) >- *)
-(*      (Cases_on ‘a’ >- *)
-(*        fs[Once itree_iter_thm, itree_bind_thm] >- *)
-(*        fs[Once itree_iter_thm, itree_bind_thm])) >- *)
-(*    (* tau *) *)
-(*    (Cases_on ‘t'’ >- *)
-(*      (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*       last_assum $ qspec_then ‘x’ strip_assume_tac >> *)
-(*       fs[itree_bind_thm]) >- *)
-(*      (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*       metis_tac[]) >- *)
-(*      (Cases_on ‘a’ >- *)
-(*        (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*         metis_tac[itree_bind_assoc]) >- *)
-(*        fs[Once itree_iter_thm, itree_bind_thm])) >- *)
-(*    (* vis *) *)
-(*    (Cases_on ‘t'’ >- *)
-(*      (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*       last_assum $ qspec_then ‘x’ strip_assume_tac >> *)
-(*       fs[itree_bind_thm]) >- *)
-(*      fs[Once itree_iter_thm, itree_bind_thm] >- *)
-(*      (Cases_on ‘a'’ >- *)
-(*        fs[Once itree_iter_thm, itree_bind_thm] >- *)
-(*        (fs[Once itree_iter_thm, itree_bind_thm] >> *)
-(*         strip_tac >> *)
-(*         (* stuck on extra Tau from iter on (Ret INL) from (Vis INR) *) *)
-(*        ))) *)
-(* QED *)
-
-(* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
-(* also applies to while and cond! *)
-Theorem dec_lemma:
-  ∀ t name s.
-    ≈ (mrec_cb h_prog ↻ (⋆ t (revert_binding name s)))
-      (⋆ (mrec_cb h_prog ↻ t) (revert_binding name s))
+Theorem spin_inf:
+  itree_inf spin
 Proof
-  qspecl_then
-  [‘λa b. ∃t name s.
-     a = (mrec_cb h_prog ↻ (⋆ t (revert_binding name s))) ∧
-     b = (⋆ (mrec_cb h_prog ↻ t) (revert_binding name s))’]
-  strip_assume_tac itree_wbisim_strong_coind >>
-  rpt strip_tac >>
-  pop_assum irule >>
+  irule itree_inf_coind >>
+  qexists_tac ‘λt. t = (Tau t)’ >>
   rw[] >-
-   (Cases_on ‘t''’ >-
-     (or3_tac >> (* Ret produces Ret, doesn't affect iter. easy! *)
-      Cases_on ‘x’ >>
-      rw[revert_binding_def] >>
-      rw[Once itree_iter_thm, itree_bind_thm] >>
-      rw[Once itree_iter_thm, itree_bind_thm]) >-
-     (* Tau case is clear *)
-     (or1_tac >>
-      rw[Once itree_iter_thm, itree_bind_thm] >>
-      rw[Once itree_iter_thm, itree_bind_thm] >>
-      metis_tac[]) >-
-     (* Vis case is a bit tricky, depends on whether the event is silent *)
-     (Cases_on ‘a’ >-
-       (or1_tac >>
-        rw[Once itree_iter_thm, itree_bind_thm] >>
-        rw[Once itree_iter_thm, itree_bind_thm] >>
-        metis_tac[itree_bind_assoc]) >-
-       (or2_tac >>
-        rw[Once itree_iter_thm, itree_bind_thm] >>
-        rw[Once itree_iter_thm, itree_bind_thm] >>
-        or1_tac >>
-        qexistsl_tac [‘Tau (g r)’, ‘name’, ‘s’] >>
-        CONJ_TAC >-
-         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_bind_thm] >>
-          CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-          rw[itree_bind_thm]) >-
-         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-          rw[itree_bind_thm])))) >-
+   rw[spin_unfold] >-
    metis_tac[]
 QED
 
-Theorem dec_thm:
-  (eval s e = SOME k) ⇒
-  ≈ (itree_mrec h_prog (Dec name e p,s))
-    (⋆
-     (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))
-     (revert_binding name s))
+Definition vis_spin_def:
+  vis_spin = itree_unfold (λs. Vis' s I) 0
+End
+Theorem vis_spin_inf:
+  itree_inf vis_spin
 Proof
-  rw[itree_mrec_alt] >>
-  rw[h_prog_def, h_prog_rule_dec_def] >>
-  rw[Once itree_iter_thm, itree_bind_thm] >>
-  rw[GSYM revert_binding_def] >>
-  metis_tac[dec_lemma, itree_wbisim_add_tau, itree_wbisim_trans]
+  irule itree_inf_coind >>
+  qexists_tac ‘λt. ∃k. t = Vis k (itree_unfold (λs. Vis' s I))’ >>
+  rw[vis_spin_def] >>
+  rw[Once itree_unfold]
 QED
 
-(*/ massaging into ffi itree
-   this doesn't have a nice theory but simps should do most of the work
- *)
+(* looping vis nodes *)
 
-Definition massage_cb_def[simp]:
-    massage_cb (INL (Ret (res,s))) = Ret' res
-  ∧ massage_cb (INR (Ret (res,s))) = Ret' res
-  ∧ massage_cb (INL (Tau t)) = Tau' (INL t)
-  ∧ massage_cb (INR (Tau t)) = Tau' (INR t)
-  ∧ massage_cb (INL (Vis (e,k) g)) = Vis' e (λr. INR (k r))
-  ∧ massage_cb (INR (Vis e g))     = Vis' e (INR ∘ g)
+Definition iterate_def:
+  iterate emit succ zero =
+  itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
 
-(* massage Ret type from (η x state) -> η *)
-(* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
--> Vis sem_vis_event (FFI_result -> itree) *)
-Definition massage_def:
-  massage x = itree_unfold massage_cb (INL x)
+Definition even_spec_def:
+  even_spec k = iterate (λx. if EVEN x then "even" else "odd") (λn. 1 + n) k
 End
 
-Theorem massage_thm:
-    massage (Ret (res, s)) = Ret res ∧ massage (Tau t) = Tau (massage t)
+Theorem even_add1:
+  EVEN k ⇔ ¬EVEN (k+1)
 Proof
-  rw[massage_def] >-
-   rw[Once itree_unfold] >-
-   (rw[Once itree_unfold] >> rw[GSYM massage_def])
+  metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM]
 QED
 
-Theorem itree_evaluate_alt:
-  itree_evaluate p s = massage (itree_mrec h_prog (p,s))
+(* backwards extensionality *)
+Theorem even_spec_unfold:
+  ∀k. EVEN k ⇒ even_spec k = Vis "even" (λ_. Vis "odd" (λ_. even_spec (2 + k)))
 Proof
-  rw[itree_evaluate_def, massage_def] >>
-  AP_THM_TAC >> (* same fn => same on same arg, backwards *)
-  AP_TERM_TAC >>
+  rw[even_spec_def] >>
+  CONV_TAC $ LHS_CONV $ REWRITE_CONV[iterate_def] >>
+  rw[itree_unfold] >>
+  rw[combinTheory.o_DEF] >>
   rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE massage_cb_def]
+  rw[itree_unfold] >-
+   (metis_tac[even_add1]) >-
+   (rw[combinTheory.o_DEF] >>
+    rw[iterate_def])
+QED
+
+Theorem even_add2:
+  EVEN (n+2) ⇔ EVEN n
+Proof
+  ‘EVEN (n+1+1) ⇔ EVEN (n+2)’ suffices_by metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM] >>
+  rw[]
+QED
+
+Theorem even_spec_plus2:
+  ∀k. even_spec (2+k) = even_spec k
+Proof
+  strip_tac >>
+  qspecl_then [‘even_spec (2+k)’, ‘even_spec k’]
+              strip_assume_tac itree_bisimulation >>
+  fs[EQ_IMP_THM] >>
+  pop_assum irule >>
+  pop_assum kall_tac >>
+  qexists_tac ‘λa b. ∃n. a = even_spec (2+n) ∧ b = even_spec n’ >>
+  rw[] >> gvs[even_spec_def, iterate_def, Once itree_unfold] >-
+   (qexists_tac ‘k’ >>
+    simp[] >>
+    CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_unfold] >>
+    rw[]) >-
+   (simp[Once itree_unfold] >>
+    CONJ_TAC >-
+     (rw[Once even_add2]) >-
+     (qexists_tac ‘n+1’ >> rw[]))
+QED
+
+Theorem even_spec_thm:
+  even_spec 0 = ⋆ (⋆ (trigger "even")
+                     (λ_. (trigger "odd")))
+                  (λ_. even_spec 0)
+Proof
+  rw[Once even_spec_unfold] >>
+  rw[itree_bind_trigger] >>
+  rw[itree_bind_thm] >>
+  rw[FUN_EQ_THM] >>
+  rw[itree_bind_trigger] >>
+  rw[FUN_EQ_THM] >>
+  qspec_then ‘0’ mp_tac even_spec_plus2 >>
+  rw[]
 QED
