@@ -136,7 +136,7 @@ lemma prop_d:  "\<not>(A \<and> B) \<longrightarrow> \<not> A \<or> \<not> B"
    apply assumption
   apply(rule disjI1)
   apply assumption
-  oops
+  done
 
 lemma prop_e:  "(A \<longrightarrow> B) \<longrightarrow> (\<not> A \<or> B)"
   apply(rule impI)
