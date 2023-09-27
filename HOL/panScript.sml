@@ -30,6 +30,87 @@ Proof
   rw[DefnBase.one_line_ify NONE mrec_cb_def]
 QED
 
+(*/ Seq thm
+   this is how we split up a program
+ *)
+
+Theorem itree_bind_k_ret:
+  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
+Proof
+  rw[itree_bind_thm] >>
+  Cases_on ‘t’ >> gvs[itree_bind_thm]
+QED
+
+Theorem mrec_cb_ret:
+  mrec_cb rh t = Ret (INR r) ⇒ t = (Ret r)
+Proof
+  rw[DefnBase.one_line_ify NONE mrec_cb_def] >>
+  Cases_on ‘t’ >-
+   fs[] >-
+   fs[] >-
+   (Cases_on ‘a’ >> fs[])
+QED
+
+Theorem mrec_lemma:
+  iter (mrec_cb h_prog)
+     (⋆ t
+        (λ(res,s'). if res = NONE then Vis (INL (p2,s')) Ret else Ret (res,s')))
+  = ⋆ (iter (mrec_cb h_prog) t)
+      (λ(res,s').
+         if res = NONE then iter (mrec_cb h_prog) (h_prog (p2,s'))
+         else Ret (res,s'))
+Proof
+  rw[Once itree_bisimulation] >>
+  qmatch_goalsub_abbrev_tac ‘(iter (mrec_cb h_prog) (⋆ _ cb1))’ >>
+  qabbrev_tac ‘cb2 = (λ(res,s').
+                        if res = NONE then
+                          iter (mrec_cb h_prog) (h_prog (p2,s'))
+                        else Ret (res,s'))’ >>
+  qexists_tac ‘λa b. ∃ps. a = iter (mrec_cb h_prog) (⋆ ps cb1) ∧
+                          b = ⋆ (iter (mrec_cb h_prog) ps) cb2’ >>
+  rw[] >-
+   (metis_tac[]) >-
+   (‘⋆ (mrec_cb h_prog (⋆ ps cb1))
+       (λx. case x of INL a => Tau (iter (mrec_cb h_prog) a) | INR b => Ret b)
+     = Ret x’
+      by metis_tac[itree_bind_thm, itree_iter_thm] >>
+    qpat_x_assum ‘Ret x = iter _ _’ kall_tac >>
+    drule itree_bind_k_ret >> pop_assum kall_tac >> strip_tac >>
+    Cases_on ‘r'’ >-
+     (fs[]) >-
+     (gvs[] >>
+      drule mrec_cb_ret >> strip_tac
+      drule itree_bind_k_ret >> strip_tac >>
+      rw[Once itree_iter_thm] >>
+      rw[Once itree_bind_thm] >>
+      qunabbrev_tac ‘cb2’ >>
+      Cases_on ‘r'’ >>
+      rw[itree_bind_thm] >-
+       (qunabbrev_tac ‘cb1’ >>
+        fs[]) >-
+       (qunabbrev_tac ‘cb1’ >>
+        fs[])))
+   ()
+QED
+
+Theorem seq_thm:
+  itree_mrec h_prog (Seq p p2, s) =
+  Tau (⋆ (itree_mrec h_prog (p, s))
+         (λ(res,s').
+            if res = NONE
+            then itree_mrec h_prog (p2, s')
+            else (Ret (res, s'))))
+Proof
+  rw[itree_mrec_alt] >>
+  rw[h_prog_def, h_prog_rule_seq_def] >>
+  rw[Once itree_iter_thm] >>
+  rw[itree_bind_thm] >>
+  (* h_prog returns a finite itree (except for while?) *)
+  (* Vis (INL (p2, s')) Ret --> ret inl (⋆ (h_prog p,s) Ret) = tau iter h_prog...*)
+  (* Ret r --mrec_cb-> Ret (INR (res, s')) --iter-> Ret (res, s') *)
+  rw[]
+QED
+
 (* Dec cleanup *)
 
 Definition revert_binding_def:
@@ -56,8 +137,8 @@ QED
 (* Theorem mrec_bind_lemma: *)
 (*   ∀f f'. *)
 (*   (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒ *)
-(*   ∀t. (mrec_cb h_prog) ↻ (bind t f) = *)
-(*       (bind (mrec_cb h_prog ↻ t) f') *)
+(*   ∀t. iter (mrec_cb h_prog) (bind t f) = *)
+(*       (bind (iter (mrec_cb h_prog) t) f') *)
 (* Proof *)
 (*   rpt strip_tac >> *)
 (*   qspecl_then [‘(mrec_cb h_prog) ↻ (bind t f)’, *)
@@ -288,13 +369,8 @@ Proof
 QED
 
 Theorem mrec_thm:
-  (* iter (mrec_cb h_prog) (⋆ t k) *)
-  (* ≈ ⋆ (iter (mrec_cb h_prog) t) (λr. iter (mrec_cb h_prog) (k r)) *)
-  iter (mrec_cb h_prog)
-       (bind (Ret (NONE,s with locals := s.locals |+ («x»,ValWord 0w))) k)
-  = bind (iter (mrec_cb h_prog)
-               (Ret (NONE,s with locals := s.locals |+ («x»,ValWord 0w))))
-         (λr. iter (mrec_cb h_prog) (k r))
+  iter (mrec_cb h_prog) (⋆ t k)
+  ≈ ⋆ (iter (mrec_cb h_prog) t) (λr. iter (mrec_cb h_prog) (k r))
 Proof
   CONV_TAC $ RHS_CONV $ REWRITE_CONV[Once itree_iter_thm, mrec_cb_def] >>
   CONV_TAC $ RHS_CONV $ REWRITE_CONV[Once itree_bind_thm] >>
