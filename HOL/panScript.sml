@@ -51,7 +51,7 @@ Proof
    (Cases_on ‘a’ >> fs[])
 QED
 
-Theorem mrec_lemma:
+Theorem mrec_seq_lemma:
   iter (mrec_cb h_prog)
      (⋆ t
         (λ(res,s'). if res = NONE then Vis (INL (p2,s')) Ret else Ret (res,s')))
@@ -79,18 +79,38 @@ Proof
     Cases_on ‘r'’ >-
      (fs[]) >-
      (gvs[] >>
-      drule mrec_cb_ret >> strip_tac
+      drule mrec_cb_ret >> strip_tac >>
       drule itree_bind_k_ret >> strip_tac >>
       rw[Once itree_iter_thm] >>
-      rw[Once itree_bind_thm] >>
+      rw[itree_bind_thm] >>
       qunabbrev_tac ‘cb2’ >>
+      qunabbrev_tac ‘cb1’ >>
       Cases_on ‘r'’ >>
-      rw[itree_bind_thm] >-
-       (qunabbrev_tac ‘cb1’ >>
-        fs[]) >-
-       (qunabbrev_tac ‘cb1’ >>
-        fs[])))
-   ()
+      rw[itree_bind_thm] >> fs[]))
+   (fs[Once itree_iter_thm] >>
+    cheat (* need bisim upto for prog2 case? wow *)
+   ) >-
+   (fs[Once itree_iter_thm] >>
+    Cases_on ‘ps’ >-
+     (qunabbrev_tac ‘cb1’ >>
+      Cases_on ‘x’ >>
+      fs[itree_bind_thm] >>
+      fs[Once itree_iter_thm] >>
+      Cases_on ‘q’ >-  (* impossible *)
+       (fs[itree_bind_thm]) >-
+       (fs[itree_bind_thm])) >-
+     (fs[itree_bind_thm]) >- (* impossible *)
+     (fs[itree_bind_thm] >>
+      Cases_on ‘a'’ >-
+       (fs[itree_bind_thm]) >- (* impossible *)
+       (fs[itree_bind_thm] >>
+        strip_tac >>
+        qexists_tac ‘Tau (g s)’ >>
+        rw[itree_bind_thm] >-
+         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
+          rw[itree_bind_thm]) >-
+         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
+          rw[itree_bind_thm]))))
 QED
 
 Theorem seq_thm:

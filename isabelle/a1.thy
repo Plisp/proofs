@@ -2,7 +2,6 @@ theory a1
 imports Main
 begin
 
-
 section "Q1: \<lambda>-Calculus"
 
 (* a.
@@ -37,10 +36,16 @@ section "Q1: \<lambda>-Calculus"
 
 (* d.
   exp \<equiv> \<lambda>mn.n m
-  (\<lambda>mn.n m) (\<lambda>fx. ff...fx) (\<lambda>f'x. f' f'... f'x)
-\<rightarrow> (\<lambda>fx. ff...n times...fx) (\<lambda>f'x. f' f'...m times...f'x)
-\<rightarrow> which passes (\<lambda>f'x. m applications of f' to x) to the next f,
-   duplicating
+  (\<lambda>mn.n m) (\<lambda>fx. f(f...(fx))) (\<lambda>gx. g(g.. (gx)))
+\<rightarrow> (\<lambda>gx. g(g.. (gx))) n
+\<rightarrow> \<lambda>x. n(n.. (nx))
+\<rightarrow> \<lambda>f. n(n.. (nf))
+  where nf is a function that applies f (n) times to its argument.
+  in general if F applies f to its argument m^k times,
+  then \<lambda>f. n(n.. (n F)) expands to \<lambda>f. n(n.. (\<lambda>x.F ... F x))
+  which applies f to its argument m^(k+1) times.
+  Inductively this means `n m` expands to applying f to
+  a bound variable x, m^n times
 *)
 
 section "Q2: Types"
@@ -59,12 +64,12 @@ section "Q2: Types"
     ---------------------------------Abs
    \<Gamma> \<turnstile> \<lambda>ab.a (c b) b : (C\<rightarrow>B\<rightarrow>X)\<rightarrow>B\<rightarrow>X
 
-   This term is correct if the initial context contains
+   This term is correct if the initial context contains at least
    [c <- B\<rightarrow>C]
 *)
 
 (* b.
-  b : a \<rightarrow> b, c : a \<rightarrow> b \<rightarrow> c
+  let b : a \<rightarrow> b, c : a \<rightarrow> b \<rightarrow> c
   \<lambda>b.\<lambda>a.\<lambda>c. c a (b a)
 *)
 
@@ -111,7 +116,7 @@ lemma prop_b: "\<not>\<not>\<not> A \<longrightarrow> \<not>A"
   apply(rule impI)
   apply(rule notI)
   apply(erule notE)
-  apply(rule impE[where P = A and Q = "\<not>\<not>A"])
+  apply(rule impE)
   apply(rule prop_a)
    apply assumption
   apply assumption
@@ -170,16 +175,6 @@ lemma prop_f:  "\<not>A\<and>\<not>B \<longleftrightarrow> \<not>(A\<or>B)"
   apply assumption
   done
 
-lemma prop_e_imp:  "(A \<longrightarrow> B) \<Longrightarrow> (\<not> A \<or> B)"
-  apply(cases A)
-   apply(drule mp)
-  apply assumption
-   apply(rule disjI2)
-   apply assumption
-  apply(rule disjI1)
-  apply assumption
-  done
-
 lemma prop_e_inv: "(\<not> A \<or> B) \<Longrightarrow> (A \<longrightarrow> B)"
   apply(rule impI)
   apply(erule disjE)
@@ -188,18 +183,11 @@ lemma prop_e_inv: "(\<not> A \<or> B) \<Longrightarrow> (A \<longrightarrow> B)"
   apply assumption
   done
 
-lemma prop_c_imp: "\<not>\<not> A \<Longrightarrow> A"
-  apply(cases A)
-   apply assumption
-  apply(erule notE)
-  apply assumption
-  done
-
 lemma contrapos: "(\<not>B \<longrightarrow> \<not>A) \<Longrightarrow> A \<longrightarrow> B"
   apply(rule prop_e_inv)
-  apply(drule prop_e_imp)
+  apply(drule prop_e[THEN mp])
   apply(erule disjE)
-   apply(drule prop_c_imp)
+   apply(drule prop_c[THEN mp])
    apply(rule disjI2)
    apply assumption
   apply(rule disjI1)
@@ -207,7 +195,7 @@ lemma contrapos: "(\<not>B \<longrightarrow> \<not>A) \<Longrightarrow> A \<long
   done
 
 lemma prop_g_lem: "((B \<longrightarrow> C) \<longrightarrow> A) \<Longrightarrow> \<not>A \<Longrightarrow> B"
-  apply(drule prop_e_imp)
+  apply(drule prop_e[THEN mp])
   apply(erule disjE)
   apply(rule impE[where P = "\<not>(B \<longrightarrow> C)" and Q = B])
      apply(rule contrapos)
@@ -336,7 +324,7 @@ lemma hol_c_neg: "\<not>(\<forall>x. P x) \<Longrightarrow> \<exists>x. \<not>P 
   apply assumption
   done
 
-lemma hol_f: "(\<forall>x y. A y \<or> B x) \<longrightarrow> (\<forall>x. B x) \<or> (\<forall>y. A y)" 
+lemma hol_f: "(\<forall>x y. A y \<or> B x) \<longrightarrow> (\<forall>x. B x) \<or> (\<forall>y. A y)"
   apply(rule contrapos)
   apply(rule impI)
   apply(rule notI)
