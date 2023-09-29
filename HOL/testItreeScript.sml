@@ -49,6 +49,7 @@ End
 Overload emit[local] = “itree_trigger”;
 Overload bind[local] = “itree_bind”;
 Overload iter[local] = “itree_iter”;
+Overload "case" = “itree_CASE”
 
 val _ = temp_set_fixity "≈" (Infixl 500);
 Overload "≈" = “itree_wbisim”;

@@ -51,20 +51,45 @@ Proof
    (Cases_on ‘a’ >> fs[])
 QED
 
+Theorem itree_strong_bisimulation:
+  !t1 t2.
+    t1 = t2 <=>
+    ?R. R t1 t2 /\
+        (!x t. R (Ret x) t ==> t = Ret x) /\
+        (!u t. R (Tau u) t ==> ?v. t = Tau v /\ (R u v \/ u = v)) /\
+        (!a f t. R (Vis a f) t ==> ?g. t = Vis a g /\
+                                       !s. R (f s) (g s) \/ f s = g s)
+Proof
+  rpt strip_tac >>
+  EQ_TAC
+  >- (strip_tac >> first_x_assum $ irule_at $ Pos hd >> metis_tac[]) >>
+  strip_tac >>
+  ONCE_REWRITE_TAC[itree_bisimulation] >>
+  qexists_tac ‘λx y. R x y ∨ x = y’ >>
+  metis_tac[]
+QED
+
+Theorem mrec_lemma:
+  ∀t k. iter (mrec_cb h_prog) (⋆ t k)
+  = ⋆ (iter (mrec_cb h_prog) t) (λx. iter (mrec_cb h_prog) (k x))
+Proof
+    cheat
+QED
+
 Theorem mrec_seq_lemma:
   iter (mrec_cb h_prog)
      (⋆ t
         (λ(res,s'). if res = NONE then Vis (INL (p2,s')) Ret else Ret (res,s')))
   = ⋆ (iter (mrec_cb h_prog) t)
       (λ(res,s').
-         if res = NONE then iter (mrec_cb h_prog) (h_prog (p2,s'))
+         if res = NONE then Tau (iter (mrec_cb h_prog) (h_prog (p2,s')))
          else Ret (res,s'))
 Proof
-  rw[Once itree_bisimulation] >>
+  rw[Once itree_strong_bisimulation] >>
   qmatch_goalsub_abbrev_tac ‘(iter (mrec_cb h_prog) (⋆ _ cb1))’ >>
   qabbrev_tac ‘cb2 = (λ(res,s').
                         if res = NONE then
-                          iter (mrec_cb h_prog) (h_prog (p2,s'))
+                          Tau (iter (mrec_cb h_prog) (h_prog (p2,s')))
                         else Ret (res,s'))’ >>
   qexists_tac ‘λa b. ∃ps. a = iter (mrec_cb h_prog) (⋆ ps cb1) ∧
                           b = ⋆ (iter (mrec_cb h_prog) ps) cb2’ >>
@@ -86,10 +111,27 @@ Proof
       qunabbrev_tac ‘cb2’ >>
       qunabbrev_tac ‘cb1’ >>
       Cases_on ‘r'’ >>
-      rw[itree_bind_thm] >> fs[]))
+      rw[itree_bind_thm] >> fs[])) >-
    (fs[Once itree_iter_thm] >>
-    cheat (* need bisim upto for prog2 case? wow *)
-   ) >-
+    Cases_on ‘ps’ >-
+     (qunabbrev_tac ‘cb1’ >>
+      fs[itree_bind_thm] >>
+      Cases_on ‘x’ >>
+      Cases_on ‘q’ >-
+       (qunabbrev_tac ‘cb2’ >>
+        gvs[itree_bind_thm] >>
+        disj2_tac >>
+        rw[Once $ GSYM itree_iter_thm] >>
+        rw[itree_bind_right_identity]) >-
+       (fs[itree_bind_thm])) >-  (* impossible *)
+     (fs[itree_bind_thm] >>
+      metis_tac[]) >-
+     (fs[itree_bind_thm] >>
+      Cases_on ‘a’ >-
+       (fs[itree_bind_thm] >>
+        rw[GSYM itree_bind_assoc] >>
+        metis_tac[]) >-
+       (fs[itree_bind_thm]))) >-
    (fs[Once itree_iter_thm] >>
     Cases_on ‘ps’ >-
      (qunabbrev_tac ‘cb1’ >>
@@ -105,6 +147,7 @@ Proof
        (fs[itree_bind_thm]) >- (* impossible *)
        (fs[itree_bind_thm] >>
         strip_tac >>
+        disj1_tac >>
         qexists_tac ‘Tau (g s)’ >>
         rw[itree_bind_thm] >-
          (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
@@ -118,7 +161,7 @@ Theorem seq_thm:
   Tau (⋆ (itree_mrec h_prog (p, s))
          (λ(res,s').
             if res = NONE
-            then itree_mrec h_prog (p2, s')
+            then Tau (itree_mrec h_prog (p2, s'))
             else (Ret (res, s'))))
 Proof
   rw[itree_mrec_alt] >>
@@ -128,7 +171,7 @@ Proof
   (* h_prog returns a finite itree (except for while?) *)
   (* Vis (INL (p2, s')) Ret --> ret inl (⋆ (h_prog p,s) Ret) = tau iter h_prog...*)
   (* Ret r --mrec_cb-> Ret (INR (res, s')) --iter-> Ret (res, s') *)
-  rw[]
+  rw[mrec_seq_lemma]
 QED
 
 (* Dec cleanup *)
