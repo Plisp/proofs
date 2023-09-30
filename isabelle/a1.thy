@@ -11,7 +11,7 @@ section "Q1: \<lambda>-Calculus"
 *)
 
 (* b.
-  (x (\<lambda>x.(\<lambda>y.(x (y z)) (x y)))) (\<lambda>y. (y z))
+  (x (\<lambda>x.(\<lambda>y.((x (y z)) (x y))))) (\<lambda>y.(y z))
 *)
 
 (* c.
