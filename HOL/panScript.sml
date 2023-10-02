@@ -1,5 +1,5 @@
 (*
- * actual pancake programs
+ * actual pancake programs. simps used here
  *)
 
 open panItreeSemTheory;
@@ -30,130 +30,89 @@ Proof
   rw[DefnBase.one_line_ify NONE mrec_cb_def]
 QED
 
+Theorem iter_mrec_cb_thm[simp]:
+  iter (mrec_cb h_prog) (Ret x) = Ret x ∧
+  iter (mrec_cb h_prog) (Tau t) = Tau (iter (mrec_cb h_prog) t) ∧
+  iter (mrec_cb h_prog) (Vis (INL s) g)
+    = Tau (iter (mrec_cb h_prog) (bind (h_prog s) g)) ∧
+  iter (mrec_cb h_prog) (Vis (INR e) k)
+    = Vis e (λx. Tau (iter (mrec_cb h_prog) (k x)))
+Proof
+  rw[Once itree_iter_thm] >> rw[Once itree_iter_thm]
+QED
+
 (*/ Seq thm
    this is how we split up a program
  *)
 
-Theorem itree_bind_k_ret:
+(* inversion lemmas *)
+Theorem itree_bind_ret_inv:
   bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
 Proof
-  rw[itree_bind_thm] >>
-  Cases_on ‘t’ >> gvs[itree_bind_thm]
+  Cases_on ‘t’ >> fs[]
 QED
 
-Theorem mrec_cb_ret:
+Theorem mrec_cb_ret_inv:
   mrec_cb rh t = Ret (INR r) ⇒ t = (Ret r)
 Proof
   rw[DefnBase.one_line_ify NONE mrec_cb_def] >>
-  Cases_on ‘t’ >-
-   fs[] >-
-   fs[] >-
+  Cases_on ‘t’ >> fs[] >-
    (Cases_on ‘a’ >> fs[])
 QED
 
-Theorem itree_strong_bisimulation:
-  !t1 t2.
-    t1 = t2 <=>
-    ?R. R t1 t2 /\
-        (!x t. R (Ret x) t ==> t = Ret x) /\
-        (!u t. R (Tau u) t ==> ?v. t = Tau v /\ (R u v \/ u = v)) /\
-        (!a f t. R (Vis a f) t ==> ?g. t = Vis a g /\
-                                       !s. R (f s) (g s) \/ f s = g s)
-Proof
-  rpt strip_tac >>
-  EQ_TAC
-  >- (strip_tac >> first_x_assum $ irule_at $ Pos hd >> metis_tac[]) >>
-  strip_tac >>
-  ONCE_REWRITE_TAC[itree_bisimulation] >>
-  qexists_tac ‘\x y. R x y ∨ x = y’ >>
-  metis_tac[]
-QED
-
-Theorem mrec_lemma:
-  ∀t k. iter (mrec_cb h_prog) (⋆ t k) =
-        ⋆ (iter (mrec_cb h_prog) t) (λx. iter (mrec_cb h_prog) (k x))
+(* h_prog iterates sequentially on its seed *)
+Theorem mrec_bind_thm:
+  ∀t k. iter (mrec_cb h_prog) (bind t k) =
+        bind (iter (mrec_cb h_prog) t) (λx. iter (mrec_cb h_prog) (k x))
 Proof
   rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λa b. ∃ps. a = iter (mrec_cb h_prog) (⋆ ps k) ∧
-                          b = ⋆ (iter (mrec_cb h_prog) ps)
+  qexists_tac ‘λa b. ∃ps. a = iter (mrec_cb h_prog) (bind ps k) ∧
+                          b = bind (iter (mrec_cb h_prog) ps)
                                 (λx. iter (mrec_cb h_prog) (k x))’ >>
   rw[] >-
    (metis_tac[]) >-
-   (‘⋆ (mrec_cb h_prog (⋆ ps k))
+   (‘bind (mrec_cb h_prog (bind ps k))
        (λx. case x of INL a => Tau (iter (mrec_cb h_prog) a) | INR b => Ret b)
      = Ret x’
-      by metis_tac[itree_bind_thm, itree_iter_thm] >>
+      by gvs[Once itree_iter_thm] >>
     qpat_x_assum ‘Ret x = iter _ _’ kall_tac >>
-    drule itree_bind_k_ret >> pop_assum kall_tac >> strip_tac >>
-    Cases_on ‘r'’ >-
-     (fs[]) >-
-     (gvs[] >>
-      drule mrec_cb_ret >> strip_tac >>
-      drule itree_bind_k_ret >> strip_tac >>
-      rw[Once itree_iter_thm] >>
-      rw[itree_bind_thm] >>
-      fs[Once itree_iter_thm] >>
-      fs[Once itree_bind_thm])) >-
+    drule itree_bind_ret_inv >> pop_assum kall_tac >> strip_tac >>
+    Cases_on ‘r'’ >> gvs[] >>
+    drule mrec_cb_ret_inv >> strip_tac >>
+    drule itree_bind_ret_inv >> strip_tac >>
+    fs[Once itree_iter_thm] >>
+    fs[Once itree_iter_thm]) >-
    (Cases_on ‘ps’ >-
-     (rw[Once itree_iter_thm] >>
-      fs[itree_bind_thm] >>
-      metis_tac[]) >-
-     (fs[itree_bind_thm] >>
-      fs[Once itree_iter_thm] >>
-      fs[itree_bind_thm] >>
-      metis_tac[]) >-
-     (fs[itree_bind_thm] >>
-      Cases_on ‘a’ >-
-       (fs[Once itree_iter_thm] >>
-        fs[itree_bind_thm] >>
-        rw[GSYM itree_bind_assoc] >>
-        metis_tac[]) >-
-       (fs[Once itree_iter_thm] >>
-        fs[itree_bind_thm]))) >-
-   (Cases_on ‘ps’ >-
-     (fs[itree_bind_thm] >>
-      rw[Once itree_iter_thm] >>
-      rw[itree_bind_thm] >>
-      metis_tac[]) >-
-     (fs[itree_bind_thm] >>
-      fs[Once itree_iter_thm] >>
-      fs[itree_bind_thm]) >-
-     (fs[itree_bind_thm] >>
-      fs[Once itree_iter_thm] >>
-      Cases_on ‘a'’ >-
-       (fs[itree_bind_thm]) >-
-       (fs[itree_bind_thm] >>
-        strip_tac >>
-        disj1_tac >>
-        qexists_tac ‘Tau (g s)’ >>
-        rw[itree_bind_thm] >-
-         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-          rw[itree_bind_thm]) >-
-         (CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-          rw[itree_bind_thm] >>
-          rw[Once $ GSYM itree_iter_thm]))))
+     (fs[] >> metis_tac[]) >-
+     (fs[] >> metis_tac[]) >-
+     (Cases_on ‘a’ >> fs[] >-
+       (fs[GSYM itree_bind_assoc] >> metis_tac[]))) >-
+   (Cases_on ‘ps’ >> fs[] >-
+     (metis_tac[]) >-
+     (Cases_on ‘a'’ >> fs[] >>
+      strip_tac >> disj1_tac >>
+      qexists_tac ‘Tau (g s)’ >>
+      rw[]))
 QED
 
-Theorem mrec_seq_lemma:
+Theorem mrec_seq_thm:
   iter (mrec_cb h_prog)
-     (⋆ t
+     (bind t
         (λ(res,s'). if res = NONE then Vis (INL (p2,s')) Ret else Ret (res,s')))
-  = ⋆ (iter (mrec_cb h_prog) t)
+  = bind (iter (mrec_cb h_prog) t)
       (λ(res,s').
          if res = NONE then Tau (iter (mrec_cb h_prog) (h_prog (p2,s')))
          else Ret (res,s'))
 Proof
-  rw[mrec_lemma] >>
+  rw[mrec_bind_thm] >>
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
-  Cases_on ‘x’ >>
-  rw[Once itree_iter_thm] >> rw[itree_bind_thm] >>
-  rw[itree_bind_right_identity]
+  Cases_on ‘x’ >> rw[]
 QED
 
 Theorem seq_thm:
   itree_mrec h_prog (Seq p p2, s) =
-  Tau (⋆ (itree_mrec h_prog (p, s))
+  Tau (bind (itree_mrec h_prog (p, s))
          (λ(res,s').
             if res = NONE
             then Tau (itree_mrec h_prog (p2, s'))
@@ -161,12 +120,7 @@ Theorem seq_thm:
 Proof
   rw[itree_mrec_alt] >>
   rw[h_prog_def, h_prog_rule_seq_def] >>
-  rw[Once itree_iter_thm] >>
-  rw[itree_bind_thm] >>
-  (* h_prog returns a finite itree (except for while?) *)
-  (* Vis (INL (p2, s')) Ret --> ret inl (⋆ (h_prog p,s) Ret) = tau iter h_prog...*)
-  (* Ret r --mrec_cb-> Ret (INR (res, s')) --iter-> Ret (res, s') *)
-  rw[mrec_seq_lemma]
+  rw[mrec_seq_thm]
 QED
 
 (* Dec cleanup *)
@@ -427,8 +381,8 @@ Proof
 QED
 
 Theorem mrec_thm:
-  iter (mrec_cb h_prog) (⋆ t k)
-  ≈ ⋆ (iter (mrec_cb h_prog) t) (λr. iter (mrec_cb h_prog) (k r))
+  iter (mrec_cb h_prog) (bind t k)
+  ≈ bind (iter (mrec_cb h_prog) t) (λr. iter (mrec_cb h_prog) (k r))
 Proof
   CONV_TAC $ RHS_CONV $ REWRITE_CONV[Once itree_iter_thm, mrec_cb_def] >>
   CONV_TAC $ RHS_CONV $ REWRITE_CONV[Once itree_bind_thm] >>

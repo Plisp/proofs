@@ -65,8 +65,8 @@ val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
    where f = structure map (into primed itree), seed = itree algebra instance
  *)
 
-Theorem spin_unfold:
-  spin = Tau spin
+Theorem spin_unfold[simp]:
+  Tau spin = spin
 Proof
   rw[spin, Once itree_unfold]
 QED
@@ -96,10 +96,41 @@ QED
    just to have a richer equational theory for wbisim
  *)
 
+Theorem itree_bind_thm[simp]:
+  bind (Ret r) k = k r ∧ bind (Tau t) k = Tau (bind t k) ∧
+  bind (Vis e k') k = Vis e (λx. bind (k' x) k)
+Proof
+  cheat
+QED
+
+Theorem itree_bind_right_identity[simp]:
+  itree_bind t Ret = t
+Proof
+  cheat
+QED
+
 Theorem itree_bind_emit:
   bind (emit e) k = Vis e k
 Proof
   rw[itree_trigger_def, itree_bind_thm, FUN_EQ_THM]
+QED
+
+Theorem itree_strong_bisimulation:
+  !t1 t2.
+    t1 = t2 <=>
+    ?R. R t1 t2 /\
+        (!x t. R (Ret x) t ==> t = Ret x) /\
+        (!u t. R (Tau u) t ==> ?v. t = Tau v /\ (R u v \/ u = v)) /\
+        (!a f t. R (Vis a f) t ==> ?g. t = Vis a g /\
+                                       !s. R (f s) (g s) \/ f s = g s)
+Proof
+  rpt strip_tac >>
+  EQ_TAC
+  >- (strip_tac >> first_x_assum $ irule_at $ Pos hd >> metis_tac[]) >>
+  strip_tac >>
+  ONCE_REWRITE_TAC[itree_bisimulation] >>
+  qexists_tac ‘\x y. R x y ∨ x = y’ >>
+  metis_tac[]
 QED
 
 Theorem itree_wbisim_vis:
@@ -108,7 +139,6 @@ Proof
   metis_tac[strip_tau_cases, itree_wbisim_cases]
 QED
 
-(* TODO itree_wbisim_tau is overloaded! merged. change later *)
 Theorem itree_wbisim_tau_eq:
   ∀ t. (Tau t) ≈ t
 Proof
@@ -157,19 +187,12 @@ QED
    requires some lemmas
 *)
 
-Theorem itree_bind_wbisim_tau_eq[simp]:
-  itree_bind (Tau x) k ≈ y ⇔ (itree_bind x k) ≈ y
-Proof
-  metis_tac[itree_bind_thm, itree_wbisim_tau_eq,
-            itree_wbisim_sym, itree_wbisim_trans]
-QED
-
-(* Q.AP_TERM or AP_THM to lift eq *)
 Theorem itree_bind_strip_tau_wbisim:
   ∀u u' k. strip_tau u u' ⇒ bind u k ≈ bind u' k
 Proof
   Induct_on ‘strip_tau’ >>
-  rpt strip_tac >> rw[itree_wbisim_refl]
+  rw[] >>
+  metis_tac[itree_wbisim_refl, itree_wbisim_tau_eq, itree_wbisim_trans]
 QED
 
 (* note a similar theorem does NOT hold for Ret because bind expands to (k x) *)
@@ -177,7 +200,8 @@ Theorem itree_bind_vis_strip_tau:
   ∀u k k' e. strip_tau u (Vis e k')
            ⇒ strip_tau (bind u k) (Vis e (λx. bind (k' x) k))
 Proof
-  strip_tac >> strip_tac >> strip_tac >> strip_tac >>
+  rpt strip_tac >>
+  pop_assum mp_tac >>
   Induct_on ‘strip_tau’ >>
   rpt strip_tac >>
   rw[itree_bind_thm]
@@ -221,9 +245,7 @@ Proof
      (or4_tac >>
       irule itree_bind_strip_tau_wbisim >>
       fs[Once itree_wbisim_cases]) >-
-     (rw[itree_bind_thm] >>
-      ‘u ≈ u'’ by metis_tac[itree_wbisim_tau, itree_wbisim_sym] >>
-      metis_tac[]) >-
+     (rw[itree_bind_thm] >> metis_tac[itree_wbisim_tau, itree_wbisim_sym]) >-
      (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
      (fs[Once itree_wbisim_cases]) >-
      (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
@@ -345,14 +367,10 @@ Proof
       qexists_tac ‘(λx. bind (k' x) itcb2)’ >>
       metis_tac[itree_bind_vis_strip_tau]) >-
      (or2_tac >>
-      simp[Once itree_bind_thm] >>
-      simp[Once itree_bind_thm] >>
+      simp[itree_bind_thm] >>
       fs[Once itree_wbisim_cases] >> fs[GSYM $ Once itree_wbisim_cases] >>
       metis_tac[]))
-  >- (qexistsl_tac [‘k1 t’, ‘k2 t’] >>
-      (* metis_tac[Once itree_iter_thm] metis is broken ??*)
-      rw[Once itree_iter_thm] >>
-      rw[Once itree_iter_thm])
+  >- (qexistsl_tac [‘k1 t’, ‘k2 t’] >> rw[itree_iter_thm])
 QED
 
 (*/
@@ -384,9 +402,7 @@ Theorem spin_inf:
 Proof
   irule itree_inf_coind >>
   qexists_tac ‘λt. t = (Tau t)’ >>
-  rw[] >-
-   rw[spin_unfold] >-
-   metis_tac[]
+  metis_tac[spin_unfold]
 QED
 
 Definition vis_spin_def:
