@@ -174,37 +174,28 @@ Proof
 QED
 
 (*/ massaging into ffi itree
-   TODO change when fixed, also prove it respects wbisim or have a bad time
+   TODO change when fixed
  *)
 
 Definition massage_cb_def[simp]:
-    massage_cb (INL (Ret (res,s))) = Ret' res
-  ∧ massage_cb (INR (Ret (res,s))) = Ret' res
-  ∧ massage_cb (INL (Tau t)) = Tau' (INL t)
-  ∧ massage_cb (INR (Tau t)) = Tau' (INR t)
-  ∧ massage_cb (INL (Vis (e,k) g)) = Vis' e (λr. INR (k r))
-  ∧ massage_cb (INR (Vis e g))     = Vis' e (INR ∘ g)
+    massage_cb (INL stree) = massage stree ∧
+    massage_cb (INR (Ret res_state,st)) = massage (st res_state) ∧
+    massage_cb (INR (Tau kt,st)) = Tau' (INR (kt,st)) ∧
+    massage_cb (INR (Vis svis_ev kt',st))
+    = Vis' svis_ev (λffi_res. INR (kt' ffi_res,st))
 End
 
 (* massage Ret type from (η x state) -> η *)
 (* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
 -> Vis sem_vis_event (FFI_result -> itree) *)
-Definition massage_def:
-  massage x = itree_unfold massage_cb (INL x)
+Definition to_ffi_def:
+  to_ffi x = itree_unfold massage_cb (INL x)
 End
 
-Theorem massage_thm:
-    massage (Ret (res, s)) = Ret res ∧ massage (Tau t) = Tau (massage t)
-Proof
-  rw[massage_def] >-
-   rw[Once itree_unfold] >-
-   (rw[Once itree_unfold] >> rw[GSYM massage_def])
-QED
-
 Theorem itree_evaluate_alt:
-  itree_evaluate p s = massage (itree_mrec h_prog (p,s))
+  itree_evaluate p s = to_ffi (itree_mrec h_prog (p,s))
 Proof
-  rw[itree_evaluate_def, massage_def] >>
+  rw[itree_evaluate_def, to_ffi_def] >>
   AP_THM_TAC >> (* same fn => same on same arg, backwards *)
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
@@ -369,14 +360,13 @@ Proof
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[eval_def, FLOOKUP_UPDATE] >>
   rw[read_bytearray_def] >>
-  rw[Once itree_bind_thm] >>
+  (* next, stuck *)
   rw[Once itree_iter_thm] >>
-  rw[Once itree_bind_thm] >>
-  (* inner thing *)
-  rw[Once itree_bind_thm] >>
-  rw[Once itree_bind_thm] >>
-  (* TODO massage bug! (not yet fixed, update when done) *)
+  (* massaging *)
+  rw[to_ffi_def] >>
+  rw[Once itree_unfold] >>
   rw[massage_def] >>
-  rw[Once itree_unfold, massage_thm] >>
-  rw[Once itree_unfold]
+  rw[Once itree_unfold] >>
+  rw[massage_def] >>
+  rw[combinTheory.o_DEF] >>
 QED
