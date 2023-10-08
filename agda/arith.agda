@@ -143,7 +143,7 @@ test-multiple : Multiple 3 6
 test-multiple = div-suck (div-suck (div-zero 3))
 
 div-coe : {a b k : ℕ} → Multiple k (a + b) → Multiple k (b + a)
-div-coe {a} {b} {k} m = transport (λ n → Multiple k n) (commutes-+ a b) m
+div-coe {a} {b} {k} m = subst (λ n → Multiple k n) (commutes-+ a b) m
 
 div-four→div-two : {n : ℕ} → Multiple 4 n → Multiple 2 n
 div-four→div-two (div-zero .4) = div-zero 2

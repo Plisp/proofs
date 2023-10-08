@@ -1,4 +1,4 @@
-{-# OPTIONS --without-K --exact-split --safe #-}
+{-# OPTIONS --without-K --exact-split #-}
 
 {-
   random proofs
@@ -9,11 +9,61 @@ open import eq
 open import types
 open import hott
 
+postulate
+  invertibles-are-equivs :
+    {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → invertible f → is-equiv f
+  funext :
+    {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
+
+isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
+              → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
+isabelle-cong {ℓ} {P}{P'}{Q}{Q'} ua p＝ q＝
+  = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
+  where
+    qmap : (P' → Q) → (P' → Q')
+    qmap pq p' = subst id (q＝ p') (pq p')
+    qmap⁻¹ : (P' → Q') → (P' → Q)
+    qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
+
+    l : (f : P' → Q') (p : P')
+      → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
+    l f p = let qq = (q＝ p) in
+              (transport∙ (sym＝ qq) _ _)
+            ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
+
+    g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
+    g f p = let qq = (q＝ p) in
+              (transport∙ qq (sym＝ qq) (f p))
+            ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
+
+    hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
+    hom f p' = g f p'
+
+    left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
+    left f = funext (hom f)
+
+    qmap-is-invertible : invertible qmap
+    qmap-is-invertible = qmap⁻¹ , (left , (λ f → funext (λ p' → l f p')))
+
+    pq-equiv : (P' → Q) ≃ (P' → Q')
+    pq-equiv = qmap , invertibles-are-equivs qmap qmap-is-invertible
+
+    p-cong : (P' → Q) ＝ (P' → Q')
+    p-cong = Eq→Id ua (P' → Q) (P' → Q') pq-equiv
+
+{-
+  new type: manual boolean
+-}
+
 𝟚 = 𝟙 ＋ 𝟙
 𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
 𝟚-ind A a₀ a₁ = ind＋ A
                 (ind⊤ (λ (x : 𝟙) → (A (inl x))) a₀)
                 (ind⊤ (λ (x : 𝟙) → (A (inr x))) a₁)
+
+{-
+  uniqueness: intro on elim thing = thing
+-}
 
 uniqλ : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → f ＝ (λ x → f x)
 uniqλ f = refl f -- eta moment
@@ -21,7 +71,8 @@ uniqλ f = refl f -- eta moment
 uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd p)
 uniq× (a , b) = refl (a , b)
 
-uniq⋆ = is-center ⊤ 𝟙-is-singleton
+uniq⋆ : (a : 𝟙) → ⋆ ＝ a
+uniq⋆ = centerality ⊤ 𝟙-is-singleton
 
 {-
   \j the fun way!

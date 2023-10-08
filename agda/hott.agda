@@ -14,53 +14,68 @@ open import eq
   -1-type
 -}
 
-centerp : (X : Set ℓ) → X → Set ℓ
-centerp X c = (x : X) → c ＝ x
+is-center : (X : Set ℓ) → X → Set ℓ
+is-center X c = (x : X) → c ＝ x
 
-singletonp : Set ℓ → Set ℓ
-singletonp X = Σ c ∶ X , centerp X c
+is-singleton : Set ℓ → Set ℓ
+is-singleton X = Σ c ∶ X , is-center X c
 
-𝟙-is-singleton : singletonp 𝟙
+𝟙-is-singleton : is-singleton 𝟙
 𝟙-is-singleton = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
 
-center : (X : Set ℓ) → singletonp X → X
+center : (X : Set ℓ) → is-singleton X → X
 center X (c , p) = c
 
-is-center : (X : Set ℓ) (i : singletonp X) → (x : X) → center X i ＝ x
-is-center X (c , p) = p
+centerality : (X : Set ℓ) (i : is-singleton X) → (x : X) → center X i ＝ x
+centerality X (c , p) = p
+
+singleton-type : {X : Set ℓ} → X → Set ℓ
+singleton-type {ℓ} {X} x = Σ y ∶ X , y ＝ x
+
+singleton-type-center : {X : Set ℓ} (x : X) → singleton-type x
+singleton-type-center x = (x , refl x)
+
+singleton-type-centered : {X : Set ℓ} (x : X) (σ : singleton-type x)
+                        → singleton-type-center x ＝ σ
+singleton-type-centered x (x , refl x) = refl (x , refl x)
+
+singleton-types-are-singletons : (X : Set ℓ) (x : X) → is-singleton (singleton-type x)
+singleton-types-are-singletons X x -- v is-singleton (fiber id x) ⇔ c, c ＝ (x,refl x)
+  = singleton-type-center x , singleton-type-centered x
 
 -- (subtype) singletons but maybe not inhabited
-subsingletonp : Set ℓ → Set ℓ
-subsingletonp X = (x y : X) → x ＝ y
+is-subsingleton : Set ℓ → Set ℓ
+is-subsingleton X = (x y : X) → x ＝ y
 
-𝟘-is-subsingleton : subsingletonp 𝟘
+𝟘-is-subsingleton : is-subsingleton 𝟘
 𝟘-is-subsingleton x y = ind⊥ (λ x → (x ＝ y)) x
 
-is-prop = subsingletonp
+is-prop = is-subsingleton
 
-singleton→subsingleton : (X : Set ℓ) → singletonp X → subsingletonp X
+singleton→subsingleton : (X : Set ℓ) → is-singleton X → is-subsingleton X
 singleton→subsingleton X (c , p) x y = sym＝ (p x) ∙ p y
 
-pointed-subsingleton→singleton : (X : Set ℓ) → X → subsingletonp X → singletonp X
+pointed-subsingleton→singleton : (X : Set ℓ) → X
+                               → is-subsingleton X → is-singleton X
 pointed-subsingleton→singleton X x s = (x , s x)
 
 {-
   n-types
 -}
 
-0-typep : Set ℓ → Set ℓ
-0-typep X = (x y : X) → subsingletonp (x ＝ y)
+0-type : Set ℓ → Set ℓ
+0-type X = (x y : X) → is-subsingleton (x ＝ y)
 
-setp = 0-typep
+is-set = 0-type
 
-1-typep : Set ℓ → Set ℓ
-1-typep X = {x y : X} (p q : x ＝ y) → subsingletonp (p ＝ q)
+1-type : Set ℓ → Set ℓ
+1-type X = {x y : X} (p q : x ＝ y) → is-subsingleton (p ＝ q)
 
 _is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
-X is-of-hlevel 0       = singletonp X
+X is-of-hlevel 0       = is-singleton X
 X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
 
-subsingleton→set : (X : Set ℓ) → subsingletonp X → setp X
+subsingleton→set : (X : Set ℓ) → is-subsingleton X → is-set X
 subsingleton→set X ss = proof
   where
     g : {x : X} (y : X) → x ＝ y
@@ -87,7 +102,7 @@ hlevel-eq : {X : Set ℓ} {n : ℕ}
           → (x y : X) → (x ＝ y) is-of-hlevel n
 hlevel-eq {ℓ}{X} {n} p x y = p x y
 
-𝟘-is-set : setp 𝟘
+𝟘-is-set : is-set 𝟘
 𝟘-is-set = subsingleton→set 𝟘 𝟘-is-subsingleton
 
 {-
@@ -121,38 +136,68 @@ decidable A = A ＋ ¬ A
 has-decidable-equality : Set ℓ → Set ℓ
 has-decidable-equality A = (x y : A) → decidable (x ＝ y)
 
-emptyp : Set ℓ → Set ℓ
-emptyp X = ¬ X
+is-empty : Set ℓ → Set ℓ
+is-empty X = ¬ X
 
 LEM LEM' : ∀ ℓ → Set (lsuc ℓ)
 LEM ℓ = (X : Set ℓ) → is-prop X → decidable X
-LEM' ℓ = (X : Set ℓ) → subsingletonp X → singletonp X ＋ emptyp X
+LEM' ℓ = (X : Set ℓ) → is-subsingleton X → is-singleton X ＋ is-empty X
 
 {-
   equivalence
 -}
 
-quasi-equiv : (A : Set ℓ₁) (B : Set ℓ₂) → Set (ℓ₁ ⊔ ℓ₂)
-quasi-equiv A B = Σ f ∶ (A → B) , Σ g ∶ (B → A) , f ∘ g ~ id × g ∘ f ~ id
+invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
+invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
 
-invertible = quasi-equiv
+quasi-equiv : (A : Set ℓ) (B : Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
+quasi-equiv A B = Σ f ∶ (A → B) , invertible f
 
 -- witness x, f x = y
 fiber : {X :  Set ℓ} {Y : Set ℓ₁} (f : X → Y) → Y → Set (ℓ ⊔ ℓ₁)
 fiber {ℓ}{ℓ₁} {X}{Y} f y = Σ x ∶ X , f x ＝ y
 
-fiber-point : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
+fiber-base : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
             → fiber f y → X
-fiber-point (x , p) = x
+fiber-base (x , p) = x
 
 fiber-identity : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
-               → (w : fiber f y) → f (fiber-point w) ＝ y
+               → (w : fiber f y) → f (fiber-base w) ＝ y
 fiber-identity (x , p) = p
 
+-- the fibre (preimage) of all y : Y under f is unique (size 1)
 is-equiv : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
-is-equiv {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , singletonp (fiber f y)
+is-equiv {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , is-singleton (fiber f y)
+
+-- inverses
+inverse : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → is-equiv f → (Y → X)
+inverse f e y = fiber-base (center (fiber f y) (e y))
 
 -- equivalence
 _≃_ : Set ℓ₁ → Set ℓ₂ → Set (ℓ₁ ⊔ ℓ₂)
 X ≃ Y = Σ f ∶ (X → Y) , is-equiv f
 infix 5 _≃_
+
+Eq→fun : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
+Eq→fun (f , i) = f
+
+id-is-equiv : (X : Set ℓ) → is-equiv id
+id-is-equiv = singleton-types-are-singletons
+
+id≃ : (X : Set ℓ) → X ≃ X
+id≃ X = id , id-is-equiv X
+
+Id→Eq : (X Y : Set ℓ) → X ＝ Y → X ≃ Y
+Id→Eq X X (refl X) = id≃ X
+
+is-univalent : (ℓ : Level) → Set (lsuc ℓ)
+is-univalent ℓ = ∀ (X Y : Set ℓ) → is-equiv (Id→Eq X Y)
+
+univalence-≃ : is-univalent ℓ → (X Y : Set ℓ) → (X ＝ Y) ≃ (X ≃ Y)
+univalence-≃ ua X Y = Id→Eq X Y , ua X Y
+
+Eq→Id : is-univalent ℓ → (X Y : Set ℓ) → X ≃ Y → X ＝ Y
+Eq→Id ua X Y = inverse (Id→Eq X Y) (ua X Y)
+
+Id→fun : {X Y : Set ℓ} → X ＝ Y → X → Y
+Id→fun {ℓ} {X} {Y} p = Eq→fun (Id→Eq X Y p)

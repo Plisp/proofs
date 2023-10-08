@@ -17,9 +17,17 @@ infix 4 _＝_
   → (x y : A) (p : x ＝ y) → C x y p
 ȷ C f x x (refl x) = f x
 
-sym＝ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
-sym＝ {ℓ} {A} {x}{y} p = ȷ (λ x y _ → y ＝ x) (λ y → refl y) x y p
+-- based path induction
+ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (a ＝ x) → Set ℓ₁)
+  → C a (refl a)
+  → (x : A) (p : a ＝ x) → C x p
+ⅉ a C ca x (refl x) = ca
 
+-- matching gives clearer computation rule, proved by Cockx to be same in without-K
+sym＝ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
+sym＝ (refl x) = refl x
+
+-- but here's how to use ȷ anyways
 trans＝ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
 trans＝ {ℓ} {A} {x}{y}{z} p = ȷ (λ x y _ → y ＝ z → x ＝ z)
                                (λ x → (ȷ (λ x z _ → x ＝ z)
@@ -27,33 +35,31 @@ trans＝ {ℓ} {A} {x}{y}{z} p = ȷ (λ x y _ → y ＝ z → x ＝ z)
                                          x z))
                               x y p
 
--- based path induction
-ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (a ＝ x) → Set ℓ₁)
-  → C a (refl a)
-  → (x : A) (p : a ＝ x) → C x p
-ⅉ a C ca x (refl x) = ca
+-- path notation
+_∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
+(refl x) ∙ (refl y) = refl x
+infixr 5 _∙_
 
 transport : {A : Set ℓ} (P : A → Set ℓ₁) {x y : A} → (x ＝ y) → (P x → P y)
-transport {ℓ}{ℓ₁} {A} P {x}{y} p = ȷ (λ x y _ → P x → P y)
-                                     (λ x → (id{ℓ₁} {P x}))
-                                     x y p
+-- transport {ℓ}{ℓ₁} {A} P {x}{y} p = ȷ (λ x y _ → P x → P y)
+--                                      (λ x → (id{ℓ₁} {P x}))
+--                                      x y p
+transport P (refl x) = id
+subst = transport
 
 ap : {A : Set ℓ} {B : Set ℓ₁} {x y : A}
    → (f : A → B) → (x ＝ y) → (f x ＝ f y)
-ap {ℓ}{ℓ₁} {A}{B} {x}{y} f p = ȷ (λ x y _ → f x ＝ f y)
-                                 (λ x → refl (f x))
-                                 x y p
+-- ap {ℓ}{ℓ₁} {A}{B} {x}{y} f p = ȷ (λ x y _ → f x ＝ f y)
+--                                  (λ x → refl (f x))
+--                                  x y p
+ap f (refl x) = refl (f x)
 
 apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x)
     → {x y : X} (p : x ＝ y) → transport A p (f x) ＝ f y
-apd {ℓ}{ℓ₁} {X}{A} f {x}{y} p = ȷ (λ x y p → transport A p (f x) ＝ f y)
-                                  (λ x → refl (f x))
-                                  x y p
-
--- path notation
-_∙_ : {A : Set ℓ} {x y z : A} → (x ＝ y) → (y ＝ z) → (x ＝ z)
-_∙_ = trans＝
-infixr 5 _∙_
+-- apd {ℓ}{ℓ₁} {X}{A} f {x}{y} p = ȷ (λ x y p → transport A p (f x) ＝ f y)
+--                                   (λ x → refl (f x))
+--                                   x y p
+apd f (refl x) = refl (f x)
 
 {-
   proof boilerplate

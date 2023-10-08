@@ -138,4 +138,44 @@ lemma "\<exists>x::nat. (x div 2) * 2 = 0 * x"
   done
 
 find_theorems "(_ + _) + _ = _ + (_ + _)"
+
+(* GSYM equivalent, pass del: the original theorem *)
+thm add_mult_distrib2[symmetric]
+
+declare [[simp_trace=true]]
+
+(* auto to first n goals, auto simp is better? *)
+(* fastforce only touches current goal, arith solves linear equations *)
+lemma "True \<and> ((\<exists>u::nat. x=y+u) \<longrightarrow> a*(b+c)+y \<le> x + a*b+a*c)"
+  apply(auto)[1]
+  apply(simp (no_asm) add: add_mult_distrib2 split: nat.split)
+  done
+
+declare [[simp_trace=false]]
+
+(* [intro/elim/dest like conjunct1] *)
+(* [cong] PQ = P' Q' by lifting P = Q*)
+thm disj_cong imp_cong
+lemma "\<lbrakk> P = P'; P' \<Longrightarrow> Q = Q' \<rbrakk> \<Longrightarrow> (P \<longrightarrow> Q) = (P' \<longrightarrow> Q')"
+  apply(erule ssubst)
+  apply(rule iffI)
+   apply(rule impI)
+   apply(drule mp, assumption)
+   apply(drule mp[OF impI], assumption)
+   apply(erule subst, assumption)
+  apply(rule impI)
+  apply(drule mp, assumption)
+  apply(drule mp[OF impI], assumption)
+  apply(erule ssubst, assumption)
+  done
+
+(* control click to browse source *)
+term Eps
+thm Let_def
+
+(* add splits *)
+lemma "\<lbrakk> (if x then z else \<not>z) = z \<rbrakk> \<Longrightarrow> x"
+  apply(simp split: if_splits)
+  done
+
 end
