@@ -155,6 +155,7 @@ declare [[simp_trace=false]]
 
 (* [intro/elim/dest like conjunct1] *)
 (* [cong] PQ = P' Q' by lifting P = Q*)
+(* [simp] for rules *)
 thm disj_cong imp_cong
 lemma "\<lbrakk> P = P'; P' \<Longrightarrow> Q = Q' \<rbrakk> \<Longrightarrow> (P \<longrightarrow> Q) = (P' \<longrightarrow> Q')"
   apply(erule ssubst)
@@ -176,6 +177,43 @@ thm Let_def
 (* add splits *)
 lemma "\<lbrakk> (if x then z else \<not>z) = z \<rbrakk> \<Longrightarrow> x"
   apply(simp split: if_splits)
+  done
+
+(* inductive sets *)
+inductive_set Fin :: "'a set set" where
+  emptyI[simp]: "{} \<in> Fin" | (* add simp *)
+  insertI: "A \<in> Fin \<Longrightarrow> insert a A \<in> Fin"
+print_theorems
+
+declare Fin.intros[intro]
+thm Fin.intros
+lemma "\<lbrakk> A \<in> Fin ; B \<in> Fin \<rbrakk> \<Longrightarrow> A \<union> B \<in> Fin"
+  apply(erule Fin.induct)
+   apply simp
+  apply auto
+  done
+
+lemma "\<lbrakk> A \<in> Fin ; B \<subseteq> A \<rbrakk> \<Longrightarrow> B \<in> Fin"
+  apply(erule Fin.induct)
+  oops
+
+(* want to induct on A instead *)
+lemma "A \<in> Fin \<Longrightarrow> B \<subseteq> A \<longrightarrow> B \<in> Fin"
+  apply(erule Fin.induct)
+   apply auto[1]
+  apply(clarsimp del: subsetI)
+  oops
+
+(* strengthen IH *)
+lemma "A \<in> Fin \<Longrightarrow> \<forall>B. B \<subseteq> A \<longrightarrow> B \<in> Fin"
+  apply(erule Fin.induct)
+   apply(simp, clarify)
+  thm insert_Diff subset_insert_iff
+  apply(simp add: subset_insert_iff)
+  apply(simp split: if_split_asm)
+  apply(drule_tac A=B in insert_Diff)
+  apply(erule subst)
+  apply(blast)
   done
 
 end

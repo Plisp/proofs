@@ -9,11 +9,12 @@ open import eq
 open import types
 open import hott
 
+-- TODO prove these
 postulate
-  invertibles-are-equivs :
-    {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → invertible f → is-equiv f
   funext :
     {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
+  invertibles-are-equivs :
+    {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → invertible f → is-equiv f
 
 isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
