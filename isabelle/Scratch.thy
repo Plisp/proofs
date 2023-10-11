@@ -210,9 +210,9 @@ lemma "A \<in> Fin \<Longrightarrow> \<forall>B. B \<subseteq> A \<longrightarro
    apply(simp, clarify)
   thm insert_Diff subset_insert_iff
   apply(simp add: subset_insert_iff)
-  apply(simp split: if_split_asm)
+  apply(simp split: if_split_asm) (* B - {a} case *)
   apply(drule_tac A=B in insert_Diff)
-  apply(erule subst)
+  apply(erule subst) (* B - {a} matches asm *)
   apply(blast)
   done
 
