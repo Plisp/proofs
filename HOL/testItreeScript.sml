@@ -1,24 +1,20 @@
 (*
  * Coinductive semantics with interaction trees!
  *
- * Directly express an infinite tree semantic structure via continuations.
- * In the spirit of the "Propositions as Types" principle, by encoding programs
- * as data rather than theorems, we may write *programs* to act as *proofs*,
- * potentially allowing the automation of simple algebraic reasoning.
- *
+ * Directly express an infinite tree program-semantics structure via continuations.
  * By developing an algebra, reasoning can be mostly done above the Tau level,
  * which are convenient for expressing silent program steps which may differ,
  * depending on context.
  *
- * Since they are the greatest fixpoint, they may also encode general recursive
- * data types using appropriate event data - e.g. W-trees.
- *
- * In comparision to the clock approach in cakeML's FBS semantics, the clock
- * becomes implicit in the structure of the itree, which is simpler for reasoning.
+ * In comparision to the clock approach in cakeML's FBS semantics, there is less
+ * distinction between finite/infinite programs, which allows local reasoning.
  * Oracle queries are encoded by events, and 'evaluating' in a context where the
  * responses are limited, we can simulate interaction with the external world.
+ * Although that possibility depends on the granularity of restrictions on results.
  *
- * One possible reasoning method:
+ * specifications should be *structural*, proofs should be *syntax-directed*
+ *
+ * One promising approach:
  * 1. express a clear (tauless) decomposition of the spec w/ conditions on FFI
  * 2. prove equivalence to the actual program semantics via weak bisimulation
  *
@@ -26,9 +22,11 @@
  * program, to easily show facts about its interaction tree directly. This should
  * also allow for automated removal of Tau nodes. Could this be easier with types?
  *
+ * note: Since they are the greatest fixpoint, they may also encode recursive tree
+ * types using appropriate event data - e.g. W-trees. *
  * note: programs/simps/rewrites getting stuck in general is hard to predict and
- * annoying, proving strong normalization is the only way out.
- * note: don't worry about the itree repr
+ * annoying, proving strong normalization is the way out/weak ad-hoc size measure
+ * note: look into how to execute coinductive programs with progress?
  *)
 
 open HolKernel boolLib bossLib BasicProvers;
@@ -49,7 +47,6 @@ End
 Overload emit[local] = “itree_trigger”;
 Overload bind[local] = “itree_bind”;
 Overload iter[local] = “itree_iter”;
-Overload "case" = “itree_CASE”
 
 val _ = temp_set_fixity "≈" (Infixl 500);
 Overload "≈" = “itree_wbisim”;
@@ -96,281 +93,22 @@ QED
    just to have a richer equational theory for wbisim
  *)
 
-Theorem itree_bind_thm[simp]:
-  bind (Ret r) k = k r ∧ bind (Tau t) k = Tau (bind t k) ∧
-  bind (Vis e k') k = Vis e (λx. bind (k' x) k)
-Proof
-  cheat
-QED
-
-Theorem itree_bind_right_identity[simp]:
-  itree_bind t Ret = t
-Proof
-  cheat
-QED
-
 Theorem itree_bind_emit:
   bind (emit e) k = Vis e k
 Proof
   rw[itree_trigger_def, itree_bind_thm, FUN_EQ_THM]
 QED
 
-Theorem itree_strong_bisimulation:
-  !t1 t2.
-    t1 = t2 <=>
-    ?R. R t1 t2 /\
-        (!x t. R (Ret x) t ==> t = Ret x) /\
-        (!u t. R (Tau u) t ==> ?v. t = Tau v /\ (R u v \/ u = v)) /\
-        (!a f t. R (Vis a f) t ==> ?g. t = Vis a g /\
-                                       !s. R (f s) (g s) \/ f s = g s)
+Theorem itree_bind_ret_inv:
+  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
 Proof
-  rpt strip_tac >>
-  EQ_TAC
-  >- (strip_tac >> first_x_assum $ irule_at $ Pos hd >> metis_tac[]) >>
-  strip_tac >>
-  ONCE_REWRITE_TAC[itree_bisimulation] >>
-  qexists_tac ‘\x y. R x y ∨ x = y’ >>
-  metis_tac[]
+  Cases_on ‘t’ >> fs[itree_bind_thm]
 QED
 
 Theorem itree_wbisim_vis:
   ∀e k1 k2. (∀r. k1 r ≈ k2 r) ⇒ Vis e k1 ≈ Vis e k2
 Proof
   metis_tac[strip_tau_cases, itree_wbisim_cases]
-QED
-
-Theorem itree_wbisim_tau_eq:
-  ∀ t. (Tau t) ≈ t
-Proof
-  qspecl_then [‘λa b. a = Tau b’] strip_assume_tac itree_wbisim_strong_coind >>
-  strip_tac >>
-  pop_assum irule >>
-  rw[] >>
-  Cases_on ‘t'’ >> rw[] >>
-  disj2_tac >>
-  rw[itree_wbisim_refl]
-QED
-
-Triviality itree_wbisim_coind_upto_equiv:
-  ∀R t t'. t ≈ t'
-           ⇒ (∃t2 t3. t = Tau t2 ∧ t' = Tau t3 ∧ (R t2 t3 ∨ t2 ≈ t3)) ∨
-             (∃e k k'.
-               strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
-               ∀r. R (k r) (k' r) ∨ k r ≈ k' r) ∨
-             (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r))
-Proof
-  metis_tac[itree_wbisim_cases]
-QED
-
-(* coinduction but allows proof of subtrees using a separate wbisim *)
-Theorem itree_wbisim_coind_upto:
-  ∀R.
-    (∀t t'.
-       R t t' ⇒
-       (∃t2 t3. t = Tau t2 ∧ t' = Tau t3 ∧ (R t2 t3 ∨ itree_wbisim t2 t3)) ∨
-       (∃e k k'.
-          strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
-          ∀r. R (k r) (k' r) ∨ itree_wbisim(k r) (k' r)) ∨
-       (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r))
-       ∨ itree_wbisim t t')
-    ⇒ ∀t t'. R t t' ⇒ itree_wbisim t t'
-Proof
-  rpt strip_tac >>
-  irule itree_wbisim_strong_coind >>
-  qexists_tac ‘R’ >>
-  fs[] >>
-  pop_assum kall_tac >>
-  metis_tac[itree_wbisim_coind_upto_equiv]
-QED
-
-(*/ itree_bind respects wbisimilarity in itree and handler
-   requires some lemmas
-*)
-
-Theorem itree_bind_strip_tau_wbisim:
-  ∀u u' k. strip_tau u u' ⇒ bind u k ≈ bind u' k
-Proof
-  Induct_on ‘strip_tau’ >>
-  rw[] >>
-  metis_tac[itree_wbisim_refl, itree_wbisim_tau_eq, itree_wbisim_trans]
-QED
-
-(* note a similar theorem does NOT hold for Ret because bind expands to (k x) *)
-Theorem itree_bind_vis_strip_tau:
-  ∀u k k' e. strip_tau u (Vis e k')
-           ⇒ strip_tau (bind u k) (Vis e (λx. bind (k' x) k))
-Proof
-  rpt strip_tac >>
-  pop_assum mp_tac >>
-  Induct_on ‘strip_tau’ >>
-  rpt strip_tac >>
-  rw[itree_bind_thm]
-QED
-
-Triviality itree_bind_vis_tau_wbisim:
-  Vis a g ≈ Tau u
-  ⇒ (∃e k' k''.
-      strip_tau (bind (Vis a g) k) (Vis e k') ∧
-      strip_tau (bind (Tau u) k) (Vis e k'') ∧
-      ∀r. (∃t1 t2. t1 ≈ t2 ∧ k' r = bind t1 k ∧ k'' r = bind t2 k) ∨
-          k' r ≈ k'' r)
-Proof
-  rpt strip_tac >>
-  rw[itree_bind_thm] >>
-  fs[Once itree_wbisim_cases] >>
-  fs[Once $ GSYM itree_wbisim_cases] >>
-  qexists_tac ‘(λx. bind (k' x) k)’ >>
-  rw[itree_bind_vis_strip_tau] >>
-  metis_tac[]
-QED
-
-Theorem itree_bind_resp_t_wbisim:
-  ∀a b k. a ≈ b ⇒ bind a k ≈ bind b k
-Proof
-  rpt strip_tac >>
-  qspecl_then [‘λa b. ∃t1 t2. t1 ≈ t2 ∧ a = (bind t1 k) ∧ b = (bind t2 k)’]
-              strip_assume_tac itree_wbisim_coind_upto >>
-  pop_assum irule >>
-  rw[] >-
-   (last_x_assum kall_tac >>
-    Cases_on ‘t1’ >>
-    Cases_on ‘t2’ >-
-     (fs[Once itree_wbisim_cases, itree_bind_thm] >>
-      Cases_on ‘k x’ >> rw[itree_wbisim_refl]) >-
-     (or4_tac >>
-      irule itree_wbisim_sym >>
-      irule itree_bind_strip_tau_wbisim >>
-      fs[Once itree_wbisim_cases]) >-
-     (fs[Once itree_wbisim_cases]) >-
-     (or4_tac >>
-      irule itree_bind_strip_tau_wbisim >>
-      fs[Once itree_wbisim_cases]) >-
-     (rw[itree_bind_thm] >> metis_tac[itree_wbisim_tau, itree_wbisim_sym]) >-
-     (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
-     (fs[Once itree_wbisim_cases]) >-
-     (metis_tac[itree_wbisim_sym, itree_bind_vis_tau_wbisim]) >-
-     (fs[itree_bind_thm, Once itree_wbisim_cases] >> metis_tac[]))
-  >- metis_tac[]
-QED
-
-Theorem itree_bind_resp_k_wbisim:
-  ∀t k1 k2. (∀r. k1 r ≈ k2 r) ⇒ bind t k1 ≈ bind t k2
-Proof
-  rpt strip_tac >>
-  qspecl_then [‘λa b. ∃t. a = (bind t k1) ∧ b = (bind t k2)’]
-              strip_assume_tac itree_wbisim_coind_upto >>
-  pop_assum irule >>
-  rw[] >-
-   (Cases_on ‘t''’ >> rw[itree_bind_thm] >> metis_tac[]) >-
-   metis_tac[]
-QED
-
-Theorem itree_bind_resp_wbisim:
-  ∀a b k1 k2. a ≈ b ∧ (∀r. k1 r ≈ k2 r) ⇒ bind a k1 ≈ bind b k2
-Proof
-  metis_tac[itree_bind_resp_t_wbisim, itree_bind_resp_k_wbisim, itree_wbisim_trans]
-QED
-
-(*/ itree_iter
-   unexpectedly technical and probably not useful, but here you go
- *)
-
-Theorem itree_iter_ret_tau_wbisim:
-    itcb1 = (λx. case x of INL a => Tau (iter k1 a) | INR b => Ret b)
-  ⇒ itcb2 = (λx. case x of INL a => Tau (iter k2 a) | INR b => Ret b)
-  ⇒ Ret x ≈ Tau u ⇒ (∀r. k1 r ≈ k2 r)
-  ⇒ (∃t2 t3.
-      bind (Ret x) itcb1 = Tau t2 ∧ bind (Tau u) itcb2 = Tau t3 ∧
-      ((∃sa sb. sa ≈ sb ∧ t2 = bind sa itcb1 ∧ t3 = bind sb itcb2) ∨ t2 ≈ t3)) ∨
-    (∃e k k'.
-      strip_tau (bind (Ret x) itcb1) (Vis e k) ∧
-      strip_tau (bind (Tau u) itcb2) (Vis e k') ∧
-      ∀r. (∃sa sb. sa ≈ sb ∧ k r = bind sa itcb1 ∧ k' r = bind sb itcb2) ∨
-          k r ≈ k' r) ∨
-    ∃r. strip_tau (bind (Ret x) itcb1) (Ret r) ∧
-        strip_tau (bind (Tau u) itcb2) (Ret r)
-Proof
-  rpt strip_tac >>
-  rw[itree_bind_thm] >>
-  qabbrev_tac ‘itcb1 = (λx. case x of INL a => Tau (iter k1 a) | INR b => Ret b)’ >>
-  qabbrev_tac ‘itcb2 = (λx. case x of INL a => Tau (iter k2 a) | INR b => Ret b)’ >>
-  fs[Once itree_wbisim_cases] >> fs[Once $ GSYM itree_wbisim_cases] >>
-  qpat_x_assum ‘strip_tau _ _’ mp_tac >>
-  Induct_on ‘strip_tau’ >>
-  rw[itree_bind_thm] >-
-   (or1_tac >>
-    metis_tac[itree_bind_thm,
-              itree_wbisim_tau_eq, itree_wbisim_trans, itree_wbisim_sym]) >-
-   (or1_tac >>
-    metis_tac[itree_wbisim_tau_eq, itree_wbisim_trans, itree_wbisim_sym]) >-
-   (or2_tac >> metis_tac[]) >-
-   (or3_tac >> metis_tac[]) >-
-   (Cases_on ‘v’ >-
-     (qunabbrev_tac ‘itcb1’ >> qunabbrev_tac ‘itcb2’ >>
-      rw[] >>
-      or1_tac >> or1_tac >>
-      qexistsl_tac [‘k1 x’, ‘Tau (k2 x)’] >>
-      simp[Once itree_iter_thm] >>
-      simp[Once itree_iter_thm, itree_bind_thm] >>
-      metis_tac[itree_wbisim_tau_eq, itree_wbisim_sym, itree_wbisim_trans]) >-
-     (qunabbrev_tac ‘itcb1’ >> qunabbrev_tac ‘itcb2’ >>
-      rw[]))
-QED
-
-Theorem itree_iter_resp_wbisim:
-  ∀t k1 k2. (∀r. k1 r ≈ k2 r) ⇒ iter k1 t ≈ iter k2 t
-Proof
-  rpt strip_tac >>
-  qabbrev_tac ‘itcb1 = (λx. case x of INL a => Tau (iter k1 a) | INR b => Ret b)’ >>
-  qabbrev_tac ‘itcb2 = (λx. case x of INL a => Tau (iter k2 a) | INR b => Ret b)’ >>
-  qspecl_then [‘λia ib.∃sa sb x. sa ≈ sb ∧ ia = bind sa itcb1 ∧ ib = bind sb itcb2’]
-              strip_assume_tac itree_wbisim_strong_coind >>
-  pop_assum irule >>
-  rw[] >-
-   (Cases_on ‘sa’ >>
-    Cases_on ‘sb’ >-
-     (‘x' = x’ by fs[Once itree_wbisim_cases] >>
-      gvs[] >>
-      Cases_on ‘x’ >-
-       (or1_tac >> (* Ret INL by wbisim *)
-        qexistsl_tac [‘bind (k1 x') itcb1’, ‘bind (k2 x') itcb2’] >>
-        qunabbrev_tac ‘itcb1’ >> qunabbrev_tac ‘itcb2’ >>
-        simp[Once itree_iter_thm, itree_bind_thm] >>
-        simp[Once itree_iter_thm, itree_bind_thm] >>
-        metis_tac[]) >-
-       (or3_tac >> (* Ret INR by equality *)
-        qunabbrev_tac ‘itcb1’ >> qunabbrev_tac ‘itcb2’ >>
-        rw[Once itree_iter_thm, itree_bind_thm])) >-
-     (irule itree_iter_ret_tau_wbisim >> metis_tac[]) >-
-     (fs[Once itree_wbisim_cases]) >-
-     (‘Ret x ≈ Tau u’ by fs[itree_wbisim_sym] >>
-      (* (pure)_rewrite_tac more basic *)
-      rpt $ qpat_x_assum ‘Abbrev _’
-          $ assume_tac o PURE_REWRITE_RULE[markerTheory.Abbrev_def] >>
-      pop_assum mp_tac >>
-      drule itree_iter_ret_tau_wbisim >>
-      rpt strip_tac >>
-      first_x_assum drule >>
-      disch_then drule >>
-      (* irule (a ∧ (b -> c)) -> (a -> b) -> c >> CONJ_TAC *)
-      impl_tac >> metis_tac[itree_wbisim_sym]) >-
-     (or1_tac >>
-      rw[itree_bind_thm] >>
-      metis_tac[itree_wbisim_tau_eq, itree_wbisim_sym, itree_wbisim_trans]) >-
-     (rw[itree_bind_thm] >>
-      fs[Once itree_wbisim_cases] >> fs[Once $ GSYM itree_wbisim_cases] >>
-      qexists_tac ‘(λx. bind (k x) itcb1)’ >>
-      metis_tac[itree_bind_vis_strip_tau]) >-
-     (fs[Once itree_wbisim_cases]) >-
-     (rw[itree_bind_thm] >>
-      fs[Once itree_wbisim_cases] >> fs[Once $ GSYM itree_wbisim_cases] >>
-      qexists_tac ‘(λx. bind (k' x) itcb2)’ >>
-      metis_tac[itree_bind_vis_strip_tau]) >-
-     (or2_tac >>
-      simp[itree_bind_thm] >>
-      fs[Once itree_wbisim_cases] >> fs[GSYM $ Once itree_wbisim_cases] >>
-      metis_tac[]))
-  >- (qexistsl_tac [‘k1 t’, ‘k2 t’] >> rw[itree_iter_thm])
 QED
 
 (*/
