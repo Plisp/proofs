@@ -14,57 +14,52 @@ mutual
 
   record Itree (E : Set → Set) (A R : Set) : Set where
     coinductive
+    constructor alg'
     field
       alg : itree-ind E A R
 
-  data wsim-ind (rel : itree-ind E A R → itree-ind E A R → Set) :
-                itree-ind E A R → itree-ind E A R → Set where
+  Ret : R → Itree E A R
+  Itree.alg (Ret r) = ret r
+  Tau : Itree E A R → Itree E A R
+  Itree.alg (Tau t) = tau t
+  Vis : E A → (A → Itree E A R) → Itree E A R
+  Itree.alg (Vis e k) = vis e k
 
-    wsim-ret : (r : R) → wsim-ind rel (ret r) (ret r)
+  data wsim-ind (rel : itree-ind E A R → itree-ind E A R → Set) :
+                Itree E A R → Itree E A R → Set where
+
+    wsim-ret : (r : R) → wsim-ind rel (Ret r) (Ret r)
 
     wsim-ltau : {t t' : Itree E A R}
-              → Wsim rel t t' → wsim-ind rel (tau t) (Itree.alg t')
+              → Wsim rel t t' → wsim-ind rel (Tau t) t'
     wsim-rtau : {t t' : Itree E A R}
-              → Wsim rel t t' → wsim-ind rel (Itree.alg t) (tau t')
+              → Wsim rel t t' → wsim-ind rel t (Tau t')
 
     wsim-vis : (e : E A) → (k k' : A → Itree E A R)
              → (∀ a → rel (Itree.alg (k a)) (Itree.alg (k' a)))
-             → wsim-ind rel (vis e k) (vis e k')
+             → wsim-ind rel (Vis e k) (Vis e k')
 
   record Wsim {E : Set → Set} {A R : Set}
               (rel : itree-ind E A R → itree-ind E A R → Set)
               (a b : Itree E A R) : Set where
     coinductive
+    constructor alg'
     field
-      alg : wsim-ind rel (Itree.alg a) (Itree.alg b)
+      alg : wsim-ind rel a b
 
 open Itree
 open Wsim
 
-Ret : R → Itree E A R
-alg (Ret r) = ret r
-Tau : Itree E A R → Itree E A R
-alg (Tau t) = tau t
-Vis : E A → (A → Itree E A R) → Itree E A R
-alg (Vis e k) = vis e k
-
-to-wsim : {a b : Itree E A R}
-        → (rel : itree-ind E A R → itree-ind E A R → Set)
-        → wsim-ind rel (alg a) (alg b) → Wsim rel a b
-alg (to-wsim rel w) = w
-
-wsim-eqtau : {t : Itree E A R} → Wsim _＝_ t t → wsim-ind _＝_ (tau t) (tau t)
-wsim-eqtau wt = wsim-rtau (wsim-eqtau' wt)
-  where
-    wsim-eqtau' : {t : Itree E A R} → Wsim _＝_ t t → Wsim _＝_ (Tau t) t
-    wsim-eqtau' wt = to-wsim _＝_ (wsim-ltau wt)
+{-# ETA Itree #-}
+-- ret-lem : (t : Itree E A R) → (r : R) → ret r ＝ (alg t) → Ret r ＝ t
+-- ret-lem t r p = ap alg' p
 
 wsim-refl : {E : Set → Set} {A R : Set}
           → (t : Itree E A R) → Wsim _＝_ t t
 alg (wsim-refl t) with (alg t)
 ...               | ret r = wsim-ret r
-...               | tau t' = wsim-eqtau (wsim-refl t')
-...               | vis e g = wsim-vis e g g (λ a → refl (alg (g a)))
+...               | tau t' = ?
+...               | vis e g = ? -- wsim-vis e g g (λ a → refl (alg (g a)))
 
 {-
   combinators

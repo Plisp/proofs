@@ -9,6 +9,15 @@ open import eq
 open import types
 open import hott
 
+data badalg : Set where
+  co : (Bool → badalg) → badalg
+
+badalg-rec : {A : Set} → ((Bool → A) → A) → (t : badalg) → A
+badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
+
+badalg-contra : ¬ badalg
+badalg-contra (co f) = badalg-rec (λ f → f true) (co f)
+
 -- TODO prove these
 postulate
   funext :

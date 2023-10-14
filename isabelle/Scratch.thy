@@ -85,7 +85,7 @@ lemma "(\<forall>x. P x \<longrightarrow> Q) = ((\<exists>x. P x) \<longrightarr
   apply(clarify)
   apply(erule notE, rule exI, assumption)
   done
-thm someI
+
 text \<open> use SOME to delay choice for later instantiation \<close>
 lemma choice:
   "\<forall>x. \<exists>y. R x y \<Longrightarrow> \<exists>f. \<forall>x. R x (f x)"
@@ -93,10 +93,14 @@ lemma choice:
   apply(rule allI)
   apply(erule allE)
   apply(erule exE)
+  thm someI
   apply(rule someI)
   apply(assumption)
   done
 
+(* blue variables: top-level free variables from the goal statement *)
+(* green variables: bound variables *)
+(* orange variables: free variables from a local proof context *)
 (* ISAR schematic theorem, instantiating forall with fix *)
 lemma assumes ex: "\<exists>x. \<forall>y. P x y" shows "\<forall>y. \<exists>x. P x y"
 proof
@@ -215,5 +219,180 @@ lemma "A \<in> Fin \<Longrightarrow> \<forall>B. B \<subseteq> A \<longrightarro
   apply(erule subst) (* B - {a} matches asm *)
   apply(blast)
   done
+
+(* fixpoint exercise unfolding *)
+definition
+  closed :: "('a set \<Rightarrow> 'a set) \<Rightarrow> 'a set \<Rightarrow> bool" where
+  "closed f B \<equiv> f B \<subseteq> B"
+
+definition
+  lfpt :: "('a set \<Rightarrow> 'a set) \<Rightarrow> 'a set" where
+  "lfpt f \<equiv> \<Inter> {B. closed f B}"
+
+lemma lfpt_lower: "closed f B \<Longrightarrow> lfpt f \<subseteq> B"
+  apply(unfold closed_def lfpt_def)
+  apply fast
+  done
+
+lemma lfpt_fixpoint1:
+  "mono f \<Longrightarrow> f (lfpt f) \<subseteq> lfpt f"
+  apply(unfold lfpt_def)
+  apply(clarify) (* take any prefixed (closed) point, prove f(lfpt) is smaller *)
+  apply(frule lfpt_lower) (* lfp=meet is a lower bound (smaller than any prefixed set X) *)
+  apply(unfold mono_def)
+  apply(erule allE[where x="lfpt f"])
+  apply(erule_tac x="X" in allE)
+  apply(drule mp, assumption) (* f lfpt \<le> f X by monotonicity, but lfp is the greatest such set *)
+  apply(auto simp add: lfpt_def closed_def) (* done, but sets *)
+  done
+
+lemma lfpt_fixpoint2:
+  "mono f \<Longrightarrow> lfpt f \<subseteq> f(lfpt f)"
+  apply(insert lfpt_fixpoint1[where f=f])
+  apply(simp) (* can substitute frule mp *)
+  apply(unfold mono_def)
+  apply(erule allE[where x="f (lfpt f)"]) (* F lfpt is pre-fixed by monotonicity *)
+  apply(erule allE[where x="lfpt f"])
+  apply(simp)
+  thm lfpt_lower
+  apply(insert lfpt_lower[where f=f and B="f (lfpt f)"]) (* pre-fixed points smaller than lfp*)
+  apply(simp add: closed_def)
+  done
+
+lemma lfpt_fixpoint:
+  "mono f \<Longrightarrow> f (lfpt f) = lfpt f"
+  apply (rule equalityI)
+   apply (erule lfpt_fixpoint1, erule lfpt_fixpoint2)
+  done
+
+lemma lfpt_least:
+  "f A = A \<Longrightarrow> lfpt f \<subseteq> A"
+  apply(rule_tac B=A in lfpt_lower)
+  apply(simp add:closed_def)
+  done
+
+consts R :: "('a set \<times> 'a) set"
+definition
+  R_hat :: "'a set \<Rightarrow> 'a set" where
+  "R_hat A \<equiv> {x. \<exists>H. (H, x) \<in> R \<and> H \<subseteq> A}"
+
+lemma monoR': "mono R_hat"
+  apply (unfold mono_def)
+  apply (unfold R_hat_def)
+  apply blast
+  done
+
+lemma sound:
+  assumes hyp: "\<forall>(H,x) \<in> R. (\<forall>h \<in> H. P h) \<longrightarrow> P x" 
+  shows "\<forall>x \<in> lfpt R_hat. P x"
+proof -
+  from hyp
+  have "closed R_hat {x. P x}"
+    unfolding closed_def R_hat_def by blast
+  hence "lfpt R_hat \<subseteq> {x. P x}"
+    by (simp add: lfpt_lower)
+  thus ?thesis
+    by fast
+qed
+
+(* inductive types *)
+datatype 'a mylist = MyNil | MyCons 'a "'a mylist"
+datatype 'a tree = Tip | Node "'a tree" 'a "'a tree"
+
+(* mutually recursive types *)
+datatype 
+  ty = Integer | Real | RefT ref
+  and
+  ref = Class | Array ty
+
+term "MyCons (1::nat) MyNil"
+thm mylist.distinct mylist.inject
+(* string = char list, char = bool \<times> bool \<times> bool \<times> bool \<times> bool \<times> bool \<times> bool \<times> bool *)
+thm char.split_asm
+
+(* case split on variants *)
+lemma "length xs = length xs"
+proof(induct xs)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a xs)
+  then show ?case by simp
+qed
+
+text \<open> partial cases and dummy patterns: \<close>
+term "case t of Node _ b _ => b" 
+text \<open> partial case maps to 'undefined': \<close>
+lemma "(case Tip of Node _ _ _ => 0) = undefined" by simp
+text \<open> nested case and default pattern: \<close>
+term "case t of Node (Node _ _ _) x Tip => 0 | _ => 1"
+
+(* induction examples *)
+primrec app :: "'a list => 'a list => 'a list"
+where
+  "app Nil ys = ys" |
+  "app (Cons x xs) ys = Cons x (app xs ys)"
+
+text \<open> induction heuristics \<close>
+primrec
+  itrev :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list"
+where
+  "itrev [] ys = ys" |
+  "itrev (x#xs) ys = itrev xs (x#ys)"
+
+value "itrev [1::nat,2,3] [4,5,6]"
+
+lemma "itrev xs ys = app (rev xs) ys"
+  apply(induct xs)
+   apply simp
+  apply simp (* we once again have a useless induction hypothesis: ys changes with each
+                recursive call, but ys is the exact same in the induction hyp as in
+                the conclusion *)
+  oops
+
+(* We generalise by universally quantifying ys before induction. *)
+lemma "\<And>ys. itrev xs ys = (rev xs) @ ys"
+  apply(induct xs)
+   apply simp
+  thm meta_spec
+  apply(drule_tac x="a # ys" in meta_spec)
+  apply simp
+  done
+
+(* There is a more convenient way to do the same thing *)
+lemma bla[simp]: "itrev xs ys = (rev xs) @ ys"
+  (* The arbitrary variables are treated as if they were universally quantified *)
+  apply(induct xs arbitrary: ys rule: list.induct)
+   apply simp
+  apply simp
+  done
+
+lemma "itrev xs [] = rev xs"
+  by simp
+
+primrec lsum :: "nat list => nat"
+where
+  "lsum [] = 0" |
+  "lsum (n#ns) = n + (lsum ns)"
+
+lemma
+  "2 * lsum [0 ..< Suc n] = n * (n + 1)"
+  oops
+
+lemma 
+  "lsum (replicate n a) = n * a"
+  oops
+
+text \<open> tail recursive version: \<close>
+
+primrec
+  lsumT :: "nat list \<Rightarrow> nat \<Rightarrow> nat" 
+where
+  "lsumT [] s = s"
+| "lsumT (n#ns) s = lsumT ns (s+n)"
+
+lemma lsum_correct:
+  "lsumT xs 0 = lsum xs"
+  oops
 
 end
