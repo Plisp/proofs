@@ -352,57 +352,16 @@ lemma "itrev xs ys = app (rev xs) ys"
   oops
 
 (* We generalise by universally quantifying ys before induction. *)
-lemma "\<And>ys. itrev xs ys = (rev xs) @ ys"
+lemma itrev_gen: "\<And>ys. itrev xs ys = (rev xs) @ ys"
   apply(induct xs)
    apply simp
-  thm meta_spec
+  thm meta_spec (* very useful for instantiating big and *)
   apply(drule_tac x="a # ys" in meta_spec)
   apply simp
   done
 
-(* There is a more convenient way to do the same thing *)
-lemma bla[simp]: "itrev xs ys = (rev xs) @ ys"
-  (* The arbitrary variables are treated as if they were universally quantified *)
-  apply(induct xs arbitrary: ys rule: list.induct)
-   apply simp
-  apply simp
-  done
-
 lemma "itrev xs [] = rev xs"
-  by simp
-
-(* lsum *)
-primrec lsum :: "nat list => nat"
-where
-  "lsum [] = 0" |
-  "lsum (n#ns) = n + (lsum ns)"
-
-(* TODO how to rewrite these silly arithmetic exps *)
-lemma
-  "2 * lsum [0 ..< Suc n] = n * (n + 1)"
-  apply(induct n)
-   apply(simp)
-  apply(simp)
-  oops
-
-text \<open> tail recursive version: \<close>
-primrec
-  lsumT :: "nat list \<Rightarrow> nat \<Rightarrow> nat" 
-where
-  "lsumT [] s = s"
-| "lsumT (n#ns) s = lsumT ns (s+n)"
-
-lemma lsum_correct:
-  "\<forall>a. lsumT xs a = a + lsum xs"
-proof(induct xs)
-  case Nil
-  then show ?case
-    apply simp
-    done
-next
-  case (Cons a xs)
-  then show ?case
-    by simp
-qed
+  apply(simp add: itrev_gen)
+  done
 
 end

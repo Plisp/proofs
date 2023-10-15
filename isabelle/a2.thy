@@ -75,7 +75,7 @@ lemma m_count_corres: "(m_count ls x = None \<longleftrightarrow> count_list ls 
    apply(case_tac "m_count ls x")
     apply(drule_tac x=n in allE)
      apply(simp)
-  apply(simp)
+    apply(simp)
     apply(simp add: m_count_corres0)
    apply(simp)
    apply(fastforce)
@@ -221,26 +221,31 @@ lemma m_add_empty2[simp]: "m_add m Map.empty = m"
 
 text \<open>
 1-(g) Prove that @{term m_add} correctly returns the multiplicity of 
-added multisets, i.e., two lists appended by Isabelle @{term append}.\<close>
+added multisets, i.e., two lists appended by Isabelle @{term append}.
+\<close>
+
+lemma test: "a \<noteq> x \<Longrightarrow> m_count (a # ls1) x = m_count ls1 x"
+  sorry
 
 lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2)"
-proof(induct ls1 arbitrary: ls2)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons a ls1)
-  hence "m_add (m_count (a # ls1)) (m_count ls2) = m_count (a # ls1 @ ls2)"
-    thm m_count_def m_count_switch
-    apply(clarsimp)
-    apply(drule allI)
-    apply(cases "m_count ls1 a")
-     apply(cases "m_count (ls1 @ ls2) a")
-      apply(simp)
-    sorry
-  then show ?case
-    apply(simp only: List.append.append_Cons)
-    done
-qed
+  apply(induct ls1)
+   apply(simp)
+  apply(simp only: List.append.append_Cons)
+  apply(rule ext)
+  apply(case_tac "a\<noteq>x")
+   apply(subgoal_tac "m_add (m_count ls1) (m_count ls2) x = m_count (ls1 @ ls2) x")
+    apply(insert test)[1]
+    apply(drule_tac x=a in meta_spec)
+    apply(drule_tac x=x in meta_spec)
+    apply(drule_tac x=ls1 in meta_spec)
+    apply(insert test)[1]
+    apply(drule_tac x=a in meta_spec)
+    apply(drule_tac x=x in meta_spec)
+    apply(drule_tac x="ls1@ls2" in meta_spec)
+    apply(drule mp[OF impI], assumption)
+    apply(drule mp[OF impI], assumption)
+    apply(drule_tac arg_cong)
+    apply(simp only: m_add_def)
 
 
 
@@ -257,18 +262,55 @@ primrec insort' :: "'a::ord \<Rightarrow> 'a list \<Rightarrow> 'a list" where
 
 definition sort' :: "('a::ord) list \<Rightarrow> 'a list" where
   "sort' xs = foldr insort' xs []"
-
+find_theorems "foldr"
 
 text \<open>
 1-(h) With respect to the above sorting function, prove that the sorting of a list
 does not change the multiset it represents; in other words, that @{term sort'}
 preserves multiplicity.
 \<close>
+lemma m_count_consg:
+  "m_count xs = m_count ys \<Longrightarrow> m_count (b#xs) = m_count (b#ys)"
+  apply(simp add: m_count_def)
+  done
+
+lemma "m_count_insort":
+  "m_count (insort' a ys) = m_count (a#ys)"
+  apply(induct ys)
+   apply(simp)
+  apply(rename_tac b ys)
+  apply(case_tac "a \<le> b")
+   apply(simp)
+  apply(simp only:m_count_switch)
+  apply(subgoal_tac "m_count (b # (insort' a ys)) = m_count (b # (a # ys))")
+   apply(simp)
+  apply(erule m_count_consg)
+  done
+
+lemma m_count_sort_a:
+  "m_count (sort' (a # ls)) = m_count (a # sort' ls)"
+  apply(unfold sort'_def)
+  apply(simp)
+  apply(cases "(foldr insort' ls [])")
+   apply(simp)
+  apply(rename_tac y ys)
+  apply(simp only:)
+  apply(case_tac "a \<le> y")
+   apply(simp)
+  apply(simp only: m_count_insort)
+  apply(simp)
+  done
 
 lemma m_count_sort':
   "m_count (sort' ls) = m_count ls"
-  (* TODO *)
-  sorry
+  apply(induct ls)
+   apply(simp add: sort'_def)
+  apply(subgoal_tac " m_count (sort' (a # ls)) = m_count (a # sort' ls)")
+   apply(erule trans)
+  thm m_count_consg
+  apply(erule m_count_consg)
+  apply(rule m_count_sort_a)
+  done
 
 
 
@@ -288,7 +330,6 @@ definition m_union :: "('a, nat) map \<Rightarrow> ('a, nat) map \<Rightarrow> (
 text \<open>
 The union @{text m_Un} of two lists as multisets can be defined as follows:
 \<close>
-
 primrec m_Un' :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list \<Rightarrow> 'a list" where
   "m_Un' [] ys ac = ys @ ac"
 | "m_Un' (x#xs) ys ac =
@@ -300,11 +341,20 @@ definition m_Un where "m_Un l1 l2 = m_Un' l1 l2 []"
 text \<open>
 1-(i) Prove the following lemma about @{term m_Un'} and @{term append}.
 \<close>
-
+find_theorems "remove1" 
 lemma ac_append:
   "m_Un' l1 l2 (ac @ ls) = (m_Un' l1 l2 ac) @ ls"
-  (* TODO *)
-  sorry
+  apply(induct l1 arbitrary: l2 ac)
+   apply(simp)
+  apply(simp)
+  apply(safe)
+   apply(drule_tac x="(remove1 a l2)" in meta_spec)
+   apply(drule_tac x="a#ac" in meta_spec)
+   apply(simp)
+  apply(drule_tac x="l2" in meta_spec)
+  apply(drule_tac x="a#ac" in meta_spec)
+  apply(simp)
+  done
 
 text \<open>
 1-(j) Prove the following lemma about @{term remove1} and @{term m_count}.
