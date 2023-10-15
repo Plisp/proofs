@@ -1,4 +1,4 @@
-theory Scratch imports Main
+theory Ref imports Main
 begin
 
 term "x"
@@ -150,6 +150,7 @@ declare [[simp_trace=true]]
 
 (* auto to first n goals, auto simp is better? *)
 (* fastforce only touches current goal, arith solves linear equations *)
+(* no_asm_simp, no_asm_use *)
 lemma "True \<and> ((\<exists>u::nat. x=y+u) \<longrightarrow> a*(b+c)+y \<le> x + a*b+a*c)"
   apply(auto)[1]
   apply(simp (no_asm) add: add_mult_distrib2 split: nat.split)
@@ -370,21 +371,21 @@ lemma bla[simp]: "itrev xs ys = (rev xs) @ ys"
 lemma "itrev xs [] = rev xs"
   by simp
 
+(* lsum *)
 primrec lsum :: "nat list => nat"
 where
   "lsum [] = 0" |
   "lsum (n#ns) = n + (lsum ns)"
 
+(* TODO how to rewrite these silly arithmetic exps *)
 lemma
   "2 * lsum [0 ..< Suc n] = n * (n + 1)"
-  oops
-
-lemma 
-  "lsum (replicate n a) = n * a"
+  apply(induct n)
+   apply(simp)
+  apply(simp)
   oops
 
 text \<open> tail recursive version: \<close>
-
 primrec
   lsumT :: "nat list \<Rightarrow> nat \<Rightarrow> nat" 
 where
@@ -392,7 +393,16 @@ where
 | "lsumT (n#ns) s = lsumT ns (s+n)"
 
 lemma lsum_correct:
-  "lsumT xs 0 = lsum xs"
-  oops
+  "\<forall>a. lsumT xs a = a + lsum xs"
+proof(induct xs)
+  case Nil
+  then show ?case
+    apply simp
+    done
+next
+  case (Cons a xs)
+  then show ?case
+    by simp
+qed
 
 end
