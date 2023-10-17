@@ -62,7 +62,7 @@ lemma m_count_corres0:
   apply(simp)
   done
 
-lemma m_count_corres: "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0) \<and>
+lemma m_count_corres2: "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0) \<and>
                        (m_count ls x = Some n \<longleftrightarrow> count_list ls x = n+1)"
   apply(rule conjI)
    apply(simp add: m_count_corres0)
@@ -79,9 +79,13 @@ lemma m_count_corres: "(m_count ls x = None \<longleftrightarrow> count_list ls 
     apply(simp add: m_count_corres0)
    apply(simp)
    apply(fastforce)
-  apply(case_tac " m_count ls a")
+  apply(case_tac "m_count ls a")
    apply(simp)
   apply(simp)
+  done
+
+lemma m_count_corres: "count_list ls x = n \<longleftrightarrow> m_count ls x = (if n=0 then None else Some (n-1))"
+  apply(simp add: m_count_corres2)
   done
 
 text \<open>
@@ -90,7 +94,7 @@ text \<open>
 \<close>
 find_theorems "count_list"
 lemma m_notin: "m_count ls x = None \<longleftrightarrow> x \<notin> set ls"
-  by (auto simp add: m_count_corres count_list_0_iff)
+  by (auto simp add: m_count_corres2 count_list_0_iff)
 
 
 subsection "1.2 Ordering on multisets"
@@ -165,7 +169,6 @@ lemma m_count_switch:
   apply(auto)
   done
 
-
 lemma m_count_perm:
   "ls = xs @ (x # ys)  \<Longrightarrow> m_count ls = m_count (x # (xs @ ys))"
 proof(induct xs arbitrary: ys ls)
@@ -174,15 +177,10 @@ proof(induct xs arbitrary: ys ls)
 next
   case (Cons a xs)
   hence "m_count (xs @ x # ys) = m_count (x # xs @ ys) \<and>
-          ls = a # (xs @ x # ys)"
+         ls = a # (xs @ x # ys)"
     by simp
   hence "m_count ls = m_count (a # (x # xs @ ys))"
-    apply(simp only:)
-    apply(drule conjunct1)
-    apply(rule ext)
-    apply(simp (no_asm_simp))
-    apply(simp only:)
-    done
+    by (auto simp add: m_count_def)
   then show ?case
     by (simp only: m_count_switch List.append.append_Cons)
 qed
@@ -224,9 +222,24 @@ text \<open>
 added multisets, i.e., two lists appended by Isabelle @{term append}.
 \<close>
 
-lemma test: "a \<noteq> x \<Longrightarrow> m_count (a # ls1) x = m_count ls1 x"
-  sorry
+lemma m_count_x_not_a: "a \<noteq> x \<Longrightarrow> m_count (a # ls) x = m_count ls x"
+  apply(simp)
+  apply(cases "m_count ls x")
+   apply(cases "m_count ls a")
+    apply(simp)
+   apply(simp)
+  apply(cases "m_count ls a")
+   apply(simp)
+  apply(simp)
+  done
 
+lemma m_count_x_eq_a: "m_count ls x = None \<Longrightarrow> m_count (x # ls) x = Some 0 \<and>
+                       m_count ls x = Some k \<Longrightarrow> m_count (x # ls) x = Some (k+1)"
+  apply(simp)
+  done
+
+(* massaging these trivialities into an Isabelle proof made me question my beliefs *)
+(* I guess it's also possible to use the correspondence to count_list but... also annoying *)
 lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2)"
   apply(induct ls1)
    apply(simp)
@@ -234,11 +247,11 @@ lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2
   apply(rule ext)
   apply(case_tac "a\<noteq>x")
    apply(subgoal_tac "m_add (m_count ls1) (m_count ls2) x = m_count (ls1 @ ls2) x")
-    apply(insert test)[1]
+    apply(insert m_count_x_not_a)[1]
     apply(drule_tac x=a in meta_spec)
     apply(drule_tac x=x in meta_spec)
     apply(drule_tac x=ls1 in meta_spec)
-    apply(insert test)[1]
+    apply(insert m_count_x_not_a)[1]
     apply(drule_tac x=a in meta_spec)
     apply(drule_tac x=x in meta_spec)
     apply(drule_tac x="ls1@ls2" in meta_spec)
@@ -246,6 +259,33 @@ lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2
     apply(drule mp[OF impI], assumption)
     apply(drule_tac arg_cong)
     apply(simp only: m_add_def)
+   apply(simp)
+  thm SMT.smt_arith_simplify(277) (* I did the "easier" \<noteq> goal first, but it turned out harder *)
+  apply(simp only: SMT.smt_arith_simplify)
+  apply(clarify)
+  apply(case_tac "m_count (ls1@ls2) x")
+   apply(subgoal_tac "m_add (m_count (x # ls1)) (m_count ls2) x = Some 0")
+    apply(simp)
+   apply(drule ssubst, assumption)
+   apply(simp only: m_add_def)
+   apply(case_tac "m_count ls1 x")
+    apply(simp)
+   apply(simp add: m_count_x_eq_a)
+   apply(case_tac "m_count ls2 x")
+    apply(simp)
+   apply(simp)
+  apply(subgoal_tac "m_add (m_count (x # ls1)) (m_count ls2) x = Some (aa+1)")
+   apply(simp)
+  apply(drule ssubst, assumption)
+  apply(thin_tac "m_count (ls1 @ ls2) x = Some aa")
+  apply(simp only: m_add_def)
+  apply(case_tac "m_count ls1 x")
+   apply(simp)
+  apply(simp add: m_count_x_eq_a)
+  apply(case_tac "m_count ls2 x")
+   apply(simp)
+  apply(simp)
+  done
 
 
 
@@ -337,11 +377,11 @@ primrec m_Un' :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list \<Rightarr
       else m_Un' xs ys (x#ac))"
 
 definition m_Un where "m_Un l1 l2 = m_Un' l1 l2 []"
+declare [[simp]] m_Un_def
 
 text \<open>
 1-(i) Prove the following lemma about @{term m_Un'} and @{term append}.
 \<close>
-find_theorems "remove1" 
 lemma ac_append:
   "m_Un' l1 l2 (ac @ ls) = (m_Un' l1 l2 ac) @ ls"
   apply(induct l1 arbitrary: l2 ac)
@@ -360,22 +400,122 @@ text \<open>
 1-(j) Prove the following lemma about @{term remove1} and @{term m_count}.
 \<close>
 
+lemma count_list_remove1:
+  "count_list ls a = Suc n \<Longrightarrow> count_list (remove1 a ls) a = n"
+  apply(induct ls)
+   apply(simp)
+  apply(auto)
+  done
+
+lemma m_count_remove1_idem:
+  "x \<noteq> a \<Longrightarrow> m_count (remove1 a ls) x = m_count ls x"
+  apply(induct ls arbitrary: x)
+   apply(simp)
+  apply(case_tac "aa=x")
+   apply(clarsimp)
+  apply(case_tac "m_count ls x")
+    apply(simp)
+   apply(simp)
+  apply(clarsimp)
+  apply(rule conjI)
+   apply(case_tac "m_count ls aa")
+    apply(simp)
+   apply(simp)
+  apply(case_tac "m_count ls aa")
+   apply(simp)
+  apply(drule_tac x=x in meta_spec)
+  apply(simp)
+  done
+
 lemma m_count_remove1:
   "m_count (remove1 a ls) =
     (case m_count ls a of
       None \<Rightarrow> m_count ls
     | Some n \<Rightarrow> if n = 0 then (m_count ls)(a := None)
                 else (m_count ls)(a:= map_option (\<lambda>x. x - 1) (m_count ls a)))"
-  (* TODO *)
-  sorry
+  apply(cases "m_count ls a")
+   apply(simp)
+   apply(simp add: m_notin List.remove1_idem)
+  apply(auto)
+   apply(rule ext)
+   apply(case_tac "x=a")
+    apply(simp)
+    apply(subgoal_tac "count_list (remove1 a ls) a = 0")
+     apply(simp add: m_count_corres)
+    apply(simp add: m_count_corres2 count_list_remove1)
+   apply(simp)
+   apply(thin_tac "m_count ls a = Some 0")
+   apply(simp add: m_count_remove1_idem)
+  apply(rule ext)
+  apply(case_tac "x\<noteq>a")
+   apply(simp add: m_count_remove1_idem)
+  apply(clarsimp)
+  apply(simp add: m_count_corres2 count_list_remove1)
+  done
 
 text \<open>
 1-(k) Prove the correctness of @{term m_Un} with respect to @{term m_union}.
 \<close>
-lemma m_count_union:
-  "m_count (m_Un l1 l2) = m_union (m_count l1) (m_count l2)"
-  (* TODO *)
-  sorry
+lemma count_list_remove1_inv:
+  "a \<in> set ls \<Longrightarrow> count_list (remove1 a ls) a = n \<Longrightarrow> count_list ls a = Suc n"
+  apply(induct ls)
+   apply(simp)
+  apply(auto)
+  done
+
+lemma count_list_remove1_one:
+  "count_list (remove1 a ls) a = 0 \<Longrightarrow> count_list ls a = 1 \<or> count_list ls a = 0"
+  apply(induct ls)
+   apply(simp)
+  apply(auto)
+  done
+
+lemma count_list_remove_other:
+  "a\<noteq>x \<Longrightarrow> count_list (remove1 a ls) x = count_list ls x"
+  apply(induct ls)
+   apply(simp)
+  apply(auto)
+  done
+
+lemma m_un_add: "count_list l1 x = a \<Longrightarrow> count_list l2 x = b \<Longrightarrow> count_list l3 x = c
+             \<Longrightarrow> count_list (m_Un' l1 l2 l3) x = c + max a b"
+  apply(induct l1 arbitrary: l2 l3 a b c)
+   apply(simp)
+  apply(auto)
+   apply(case_tac "count_list (remove1 x l2) x")
+    apply(simp)
+    apply(drule count_list_remove1_one)
+    apply(fastforce)
+   apply(simp)
+   apply(drule count_list_remove1_inv, assumption)
+   apply(fastforce)
+  apply(simp add: count_list_remove_other)
+  done
+
+(* wow this one is nice. isomorphism to use existing list theorems :D I see! *)
+lemma m_count_union: "m_count (m_Un l1 l2) = m_union (m_count l1) (m_count l2)"
+  unfolding m_union_def
+  apply(rule ext)
+  apply(case_tac "m_count l1 x")
+   apply(case_tac "m_count l2 x")
+    apply(simp)
+    apply(subgoal_tac "count_list (m_Un l1 l2) x = 0")
+     apply(simp add: m_count_corres2 m_Un_def)
+    apply(simp add: m_count_corres2 m_un_add m_Un_def)
+   apply(simp)
+   apply(subgoal_tac "count_list (m_Un l1 l2) x = a+1")
+    apply(simp add: m_count_corres2 m_Un_def)
+   apply(simp add: m_count_corres2 m_un_add m_Un_def)
+  apply(case_tac "m_count l2 x")
+   apply(simp)
+   apply(subgoal_tac "count_list (m_Un l1 l2) x = a+1")
+    apply(simp add: m_count_corres2 m_Un_def)
+   apply(simp add: m_count_corres2 m_un_add m_Un_def)
+  apply(simp add: m_Un_def)
+  apply(subgoal_tac "count_list (m_Un l1 l2) x = (max a aa) + 1")
+   apply(simp add: m_count_corres2 m_Un_def)
+  apply(simp add: m_count_corres2 m_un_add m_Un_def)
+  done
 
 
 (*---------------------------------------------------------*)
