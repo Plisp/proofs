@@ -156,17 +156,7 @@ text \<open>
 lemma m_count_switch:
   "m_count (x # a # ys) = m_count (a # x # ys)"
   apply(rule ext)
-  apply(case_tac "xa=x")
-   apply(cases "m_count ys a")
-    apply(cases "m_count ys x")
-     apply(auto)[2]
-   apply(cases "m_count ys x")
-    apply(auto)[2]
-  apply(cases "m_count ys a")
-   apply(cases "m_count ys x")
-    apply(auto)[2]
-  apply(cases "m_count ys x")
-  apply(auto)
+  apply(simp split: option.split)
   done
 
 lemma m_count_perm:
@@ -223,14 +213,7 @@ added multisets, i.e., two lists appended by Isabelle @{term append}.
 \<close>
 
 lemma m_count_x_not_a: "a \<noteq> x \<Longrightarrow> m_count (a # ls) x = m_count ls x"
-  apply(simp)
-  apply(cases "m_count ls x")
-   apply(cases "m_count ls a")
-    apply(simp)
-   apply(simp)
-  apply(cases "m_count ls a")
-   apply(simp)
-  apply(simp)
+  apply(simp split: option.splits)
   done
 
 lemma m_count_x_eq_a: "m_count ls x = None \<Longrightarrow> m_count (x # ls) x = Some 0 \<and>
@@ -246,7 +229,8 @@ lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2
   apply(simp only: List.append.append_Cons)
   apply(rule ext)
   apply(case_tac "a\<noteq>x")
-   apply(subgoal_tac "m_add (m_count ls1) (m_count ls2) x = m_count (ls1 @ ls2) x")
+   apply(subgoal_tac "m_add (m_count ls1) (m_count ls2) x 
+                    = m_count (ls1 @ ls2) x")
     apply(insert m_count_x_not_a)[1]
     apply(drule_tac x=a in meta_spec)
     apply(drule_tac x=x in meta_spec)
@@ -260,7 +244,8 @@ lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2
     apply(drule_tac arg_cong)
     apply(simp only: m_add_def)
    apply(simp)
-  thm SMT.smt_arith_simplify(277) (* I did the "easier" \<noteq> goal first, but it turned out harder *)
+  (* I did the "easier" \<noteq> goal first, but it turned out harder *)
+  thm SMT.smt_arith_simplify(277)
   apply(simp only: SMT.smt_arith_simplify)
   apply(clarify)
   apply(case_tac "m_count (ls1@ls2) x")
@@ -351,7 +336,6 @@ lemma m_count_sort':
   apply(erule m_count_consg)
   apply(rule m_count_sort_a)
   done
-
 
 
 subsection "1.5 Union of multisets"
@@ -559,27 +543,31 @@ where
 
 
 (* ---------- *)
-
 text\<open>
 2-(a): Give an example of an arithmetic expression which evaluates to 7 and uses @{term Plus}
     twice or more. Prove that your example actually evaluates to 7.
 \<close>
 
-(* TODO *)
-
+value "(Plus (N 2) (Plus (N 1) (N 4)))"
+lemma "eval (Plus (N 2) (Plus (N 1) (N 4))) (\<lambda>x. 0) = 7"
+  apply(simp)
+  done
 
 text\<open>
 2-(b): Prove that the compiler always returns a register identifier strictly higher
   than the one given to it.
 \<close>
-
 lemma compile_reg_increase:
   "compile e r = (p, r') \<Longrightarrow> r' > r"
-  (* TODO *)
-  sorry
+  apply(induct e arbitrary: p r' r)
+    apply(auto)
+  apply(case_tac "compile e1 r")
+  apply(case_tac "compile e2 b")
+  apply(simp)
+  apply(fastforce)
+  done
 
 (* ---------- *)
-
 subsection "2.1 Target machine big-step semantics and compiler correctness"
 
 (* Big step operational semantics to programs for the register machine *)
@@ -592,17 +580,27 @@ inductive sem :: "mstate \<Rightarrow> rstate \<Rightarrow> bool"
 | sem_Load: "(rs, \<sigma>, Load r v) \<Down> rs(r := \<sigma> v)"
 | sem_Add: "(rs, \<sigma>, Add r1 r2) \<Down> rs(r1 := rs r1 + rs r2)"
 | sem_Seq: "\<lbrakk>(rs, \<sigma>, p) \<Down> rs'; (rs', \<sigma>, q) \<Down> rs''\<rbrakk> \<Longrightarrow> (rs, \<sigma>, p ;; q) \<Down> rs''"
-
 (* ---------- *)
-
 
 text\<open>
 2-(c): Prove that the register machine semantics is deterministic.
 \<close>
 
 lemma sem_det: "\<lbrakk>(rs, \<sigma>, e) \<Down> rs'; (rs, \<sigma>, e) \<Down> rs''\<rbrakk> \<Longrightarrow> rs' = rs''"
-  (* TODO *)
-  sorry
+  apply(induct arbitrary: rs rs' rs'')
+  apply(rule ext)
+      apply(erule sem.cases, simp_all)
+      apply(erule sem.cases, simp_all)
+     apply(erule sem.cases, simp_all)
+     apply(erule sem.cases, simp_all)
+    apply(erule sem.cases, simp_all)
+    apply(erule sem.cases, simp_all)
+   apply(erule sem.cases, simp_all)
+   apply(erule sem.cases, simp_all)
+   apply(clarsimp)
+   apply(metis)
+  apply(erule sem.cases, simp_all)
+  done
 
 
 text\<open>
@@ -615,8 +613,21 @@ lemma compile_no_modify_lower_reg:
    (rs, \<sigma>, p) \<Down> rs' \<Longrightarrow>
    r'' < r \<Longrightarrow>
    rs' r'' = rs r''"
-  (* TODO *)
-  sorry
+  thm compile_reg_increase
+  apply(induct e arbitrary: r r' r'' rs rs' p)
+    apply(clarsimp)
+  (* loadI evaluates to rs[r=x], equal rs' by sem_det, r'' < r *)
+    apply (metis fun_upd_other nat_neq_iff sem_LoadI sem_det)
+   apply(clarsimp)
+  apply (metis fun_upd_other nat_neq_iff sem_Load sem_det)
+  apply(clarsimp)
+  apply(case_tac "compile e1 r")
+  apply(clarsimp)
+  apply(case_tac "compile e2 b")
+  apply(clarsimp)
+  by (smt (verit) compile_reg_increase fun_upd_other nat_neq_iff 
+order_less_trans prod.inject prog.distinct(11) prog.distinct(15) 
+prog.distinct(5) prog.inject(4) sem.simps sem_Add sem_det)
 
 
 text\<open>
@@ -629,8 +640,19 @@ lemma compile_correct:
   "compile e r = (p, r') \<Longrightarrow>
    (rs, \<sigma>, p) \<Down> rs' \<Longrightarrow>
    rs' r = eval e \<sigma>"
-  (* TODO *)
-  sorry
+  apply(induct e arbitrary: r r' rs rs' p)
+  apply(simp)
+    apply (metis fun_upd_same sem_LoadI sem_det)
+  apply(simp)
+   apply (metis fun_upd_same sem_Load sem_det)
+  apply(simp)
+  apply(case_tac "compile e1 r")
+  apply(simp)
+  apply(case_tac "compile e2 b")
+  apply(clarsimp)
+  by (smt (verit) compile_no_modify_lower_reg compile_reg_increase 
+fst_conv fun_upd_same prog.distinct(11) prog.distinct(15) prog.distinct(5)
+ prog.inject(4) sem.simps sem_Add sem_det snd_conv)
 
 
 (* ---------- *)
@@ -648,8 +670,6 @@ inductive s_sem :: "mstate \<Rightarrow> mstate \<Rightarrow> bool" ("_ \<leadst
 primrec term_with_n_Suc :: "nat \<Rightarrow> aexp" where
   "term_with_n_Suc 0 = N 0"
 | "term_with_n_Suc (Suc n) = (Plus (term_with_n_Suc n) (N 0))"
-
-
 (* ---------- *)
 
 
