@@ -115,7 +115,7 @@ QED
   coinduction
  *)
 
-(* finite on all paths *)
+(* finite on all paths: generates backwards coind & forwards cases *)
 CoInductive itree_fin:
   (∀t. itree_fin t ⇒ itree_fin (Tau t)) ∧
   (∀e k. (∀r. itree_fin (k r)) ⇒ itree_fin (Vis e k)) ∧

@@ -2,12 +2,20 @@
  * actual pancake programs. simps used here
  *)
 
+open HolKernel boolLib bossLib BasicProvers;
+open itreeTauTheory;
 open panItreeSemTheory;
 open panSemTheory; (* eval_def *)
 
+Overload emit[local] = “itree_trigger”;
+Overload bind[local] = “itree_bind”;
+Overload iter[local] = “itree_iter”;
+
+val _ = temp_set_fixity "≈" (Infixl 500);
+Overload "≈" = “itree_wbisim”;
+
 (*/ equational theorems for mrec
    mrec expresses a recursive computation by iterating Vis INL
-   TODO should this be in the itreeTauTheory? Yes
  *)
 
 (* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
@@ -46,6 +54,12 @@ Proof
   rw[DefnBase.one_line_ify NONE mrec_cb_def] >>
   Cases_on ‘t’ >> fs[] >-
    (Cases_on ‘a’ >> fs[])
+QED
+
+Theorem itree_bind_ret_inv:
+  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
+Proof
+  Cases_on ‘t’ >> fs[itree_bind_thm]
 QED
 
 (* mrec iterates sequentially on its seed *)
@@ -152,7 +166,7 @@ Proof
 QED
 
 (*/ massaging into ffi itree
-   TODO merge
+   fix merged!
  *)
 
 Definition massage_cb_def[simp]:
@@ -190,7 +204,9 @@ QED
 open finite_mapTheory; (* FLOOKUP_UPDATE *)
 open helperLib; (* remove_whitespace *)
 (* open wordsTheory; (* n2w_def *) *)
+open stringLib; (* fromMLstring *)
 
+open alignmentTheory; (* byte_align_def *)
 open asmTheory; (* word_cmp_def *)
 open miscTheory; (* read_bytearray *)
 open panLangTheory; (* size_of_shape_def *)
@@ -221,10 +237,14 @@ end
 val ffi_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
   #f1(0, 0, 0, 0);
-  #f2(0, 0, 0, 0);
-  #f3(0, 0, 0, 0);
-  #f4(0, 0, 0, 0);
+  #f2(0, 0, @base, 1);
+  if ldb @base == 0 {
+    #f3(0, 0, 0, 0);
+  } else {
+    #f4(0, 0, 0, 0);
+  }
 }’;
+(* memaddrs *)
 
 Definition ffi_sem_def:
   ffi_sem (s:('a,'ffi) panSem$state) =
@@ -244,7 +264,7 @@ Inductive next:
   ((∀a. P (k a)) ⇒ next P (Vis e k))
 End
 
-(* RTC of above *)
+(* RTC of above AF CTL *)
 Inductive future:
   (P t ⇒ future P t) ∧
   (future P t ⇒ future P (Tau t)) ∧
@@ -258,7 +278,23 @@ Definition the_ffi_def:
             | FFI_final outcome => q outcome))
 End
 
-Theorem pull_ffi_case:
+Theorem pull_ffi_case2[simp]:
+  (to_ffi
+   (f (case res of
+         FFI_return new_ffi new_bytes => a new_ffi new_bytes
+       | FFI_final outcome => b outcome)))
+  =
+  (case res of
+     FFI_final outcome =>
+       to_ffi (f (b outcome))
+   | FFI_return new_ffi new_bytes =>
+       to_ffi (f (a new_ffi new_bytes)))
+Proof
+  rw[FUN_EQ_THM] >>
+  Cases_on ‘res’ >> rw[]
+QED
+
+Theorem pull_ffi_case[simp]:
   (to_ffi
    (iter (mrec_cb h_prog)
          (f (case res of
@@ -275,15 +311,42 @@ Proof
   Cases_on ‘res’ >> rw[]
 QED
 
-Theorem itree_wbisim_drop_tau:
-  ∀t. t ≈ t' ⇒ Tau t ≈ t
-Proof
-  metis_tac[itree_wbisim_tau_eq, itree_wbisim_trans]
-QED
+(* Theorem uart_drv_getcharFun_no_error: *)
+(*   ∀ck be mem memaddrs ffi base_addr res s. *)
+(*    read_bytearray base_addr 8 (mem_load_byte mem memaddrs be) = SOME x ∧ *)
+(*    read_bytearray (base_addr + 64w) 32 (mem_load_byte mem memaddrs be) = SOME x' ∧ *)
+(*    (∀f l. call_FFI ffi "read_reg_UTRSTAT" x x' = FFI_return f l ⇒ *)
+(*      (mem_stores (base_addr + 128w) (flatten (ValWord 0w)) memaddrs *)
+(*                (write_bytearray (base_addr + 64w) l mem memaddrs be) = SOME x'' ∧ *)
+(*      mem_store_byte x'' memaddrs be (base_addr + 160w) *)
+(*           (w2w (base_addr + 64w)) = SOME x''' ∧ *)
+(*      mem_store_byte x''' memaddrs be (base_addr + 168w) (w2w (base_addr + 72w)) = SOME x'''' ∧ *)
+(*      mem_store_byte x'⁴' memaddrs be (base_addr + 176w) (w2w (base_addr + 80w)) = SOME x''''' ∧ *)
+(*      mem_store_byte x'⁵' memaddrs be (base_addr + 184w) (w2w (base_addr + 88w)) = SOME x'''''' ∧ *)
+(*      mem_load One (base_addr + 128w) memaddrs x'⁶' = SOME x'⁷' ∧ x'⁷' = ValWord v ∧ *)
+(*      read_bytearray base_addr 8 (mem_load_byte x'⁶' memaddrs be) = SOME y ∧ *)
+(*      read_bytearray (base_addr + 64w) 32 (mem_load_byte x'⁶' memaddrs be) = SOME y' ∧ *)
+(*      (∀ f' l'. call_FFI f "read_reg_URXH" y y' = FFI_return f' l' *)
+(*                 ⇒ (mem_load_byte (write_bytearray (base_addr + 64w) l' x'⁶' memaddrs be) *)
+(*        memaddrs be (base_addr + 64w) = SOME y'')))) *)
 
+(*     ⇒ *)
+(*     case evaluate (Call Tail (Label (strlit "uart_drv_getchar")) [], *)
+(*                init_drv_state ck be mem memaddrs ffi base_addr) of *)
+(*       (SOME Error,s') => F *)
+(*     | _ => T *)
+(* Proof *)
+
+
+(* TODO simp future_cases *)
 Theorem ffi_sem_thm:
-  future (λt. (∃k k'. (t = Vis (FFI_call "f3" [] []) k) ∧
-                      k (FFI_return ARB ARB) ≈ (Vis (FFI_call "f4" [] []) k')) ∨
+  (s.base_addr = 0w) ⇒
+  (∀(b : word8). byte_align b = b) ⇒
+  (∀w. s.memory w = Word (0w : 8 word)) ⇒
+  0w ∈ s.memaddrs ⇒
+  r1 = [0w : 8 word] ⇒
+  future (λt. (∃k k'. k (FFI_return ARB r1) ≈ (Vis (FFI_call "f2" [] []) k') ∧
+                      (t = Vis (FFI_call "f1" [] []) k)) ∨
               (∃outcome. t = Ret (SOME (FinalFFI outcome))))
   (ffi_sem s)
 Proof
@@ -298,49 +361,19 @@ Proof
   rw[read_bytearray_def] >>
   (* massaging *)
   rw[Once future_cases] >> disj2_tac >>
-  rw[Once future_cases] >> disj2_tac >>
-  rw[Once future_cases] >> disj2_tac >>
-  rw[pull_ffi_case] >>
-  reverse (Cases_on ‘a’) >-
-   (fs[Once future_cases] >>
-    metis_tac[]) >>
-  rw[Once future_cases] >> disj2_tac >>
-  (* Seq *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
-  rw[Once itree_iter_thm, Once itree_bind_thm] >>
-  (* extcall *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[read_bytearray_def] >>
-  (* *)
-  rw[Once future_cases] >> disj2_tac >>
-  rw[Once future_cases] >> disj2_tac >>
-  rw[Once future_cases] >> disj2_tac >>
-  rw[pull_ffi_case] >>
-  reverse (Cases_on ‘a’) >-
-   (fs[Once future_cases] >>
-    metis_tac[]) >>
-  rw[Once future_cases] >> disj2_tac >>
-  (* extcall *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[read_bytearray_def] >>
-  (* seq *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
-  rw[Once itree_iter_thm, Once itree_bind_thm] >>
-  (* extcall *)
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[read_bytearray_def] >>
-  rw[Once future_cases] >> disj2_tac >>
   rw[Once future_cases] >> disj1_tac >>
-  qunabbrev_tac ‘P’ >>
-  rw[] >>
-  (* extcall *)
+  qunabbrev_tac ‘P’ >> rw[] >>
+  (* second call *)
+  rw[GSYM itree_mrec_alt, seq_thm] >>
+  qmatch_goalsub_abbrev_tac ‘(bind _ cb)’ >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[eval_def, FLOOKUP_UPDATE] >>
+  rw[write_bytearray_def] >>
+  rw[mem_store_byte_def] >>
   rw[read_bytearray_def] >>
-  metis_tac[itree_wbisim_drop_tau, itree_wbisim_trans, itree_wbisim_refl]
+  qunabbrev_tac ‘cb’ >>
+  rw[] >>
+  metis_tac[itree_wbisim_refl]
 QED
 
 (*/ loops work!
