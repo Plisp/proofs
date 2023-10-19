@@ -561,9 +561,7 @@ lemma compile_reg_increase:
   "compile e r = (p, r') \<Longrightarrow> r' > r"
   apply(induct e arbitrary: p r' r)
     apply(auto)
-  apply(case_tac "compile e1 r")
-  apply(case_tac "compile e2 b")
-  apply(simp)
+  apply(auto split: prod.splits)
   apply(fastforce)
   done
 
@@ -587,8 +585,7 @@ text\<open>
 \<close>
 
 lemma sem_det: "\<lbrakk>(rs, \<sigma>, e) \<Down> rs'; (rs, \<sigma>, e) \<Down> rs''\<rbrakk> \<Longrightarrow> rs' = rs''"
-  apply(induct arbitrary: rs rs' rs'')
-  apply(rule ext)
+  apply(induct e arbitrary: rs rs' rs'')
       apply(erule sem.cases, simp_all)
       apply(erule sem.cases, simp_all)
      apply(erule sem.cases, simp_all)
@@ -616,19 +613,14 @@ lemma compile_no_modify_lower_reg:
   thm compile_reg_increase
   apply(induct e arbitrary: r r' r'' rs rs' p)
     apply(clarsimp)
-  (* loadI evaluates to rs[r=x], equal rs' by sem_det, r'' < r *)
+    (* loadI evaluates to rs[r=x], equal rs' by sem_det, r'' < r *)
     apply (metis fun_upd_other nat_neq_iff sem_LoadI sem_det)
    apply(clarsimp)
-  apply (metis fun_upd_other nat_neq_iff sem_Load sem_det)
-  apply(clarsimp)
-  apply(case_tac "compile e1 r")
-  apply(clarsimp)
-  apply(case_tac "compile e2 b")
-  apply(clarsimp)
-  by (smt (verit) compile_reg_increase fun_upd_other nat_neq_iff 
-order_less_trans prod.inject prog.distinct(11) prog.distinct(15) 
-prog.distinct(5) prog.inject(4) sem.simps sem_Add sem_det)
-
+   apply (metis fun_upd_other nat_neq_iff sem_Load sem_det)
+  apply(simp split: prod.splits)
+  by (smt (verit) compile_reg_increase sem_Add sem_det
+      fun_upd_other nat_neq_iff order_less_trans prod.inject sem.simps
+      prog.distinct(11) prog.distinct(15) prog.distinct(5) prog.inject(4))
 
 text\<open>
 2-(e): Prove that the compiler produces programs that, when executed, yield the value
@@ -645,14 +637,11 @@ lemma compile_correct:
     apply (metis fun_upd_same sem_LoadI sem_det)
   apply(simp)
    apply (metis fun_upd_same sem_Load sem_det)
-  apply(simp)
-  apply(case_tac "compile e1 r")
-  apply(simp)
-  apply(case_tac "compile e2 b")
-  apply(clarsimp)
+  apply(simp split: prod.splits)
   by (smt (verit) compile_no_modify_lower_reg compile_reg_increase 
-fst_conv fun_upd_same prog.distinct(11) prog.distinct(15) prog.distinct(5)
- prog.inject(4) sem.simps sem_Add sem_det snd_conv)
+      sem_Add sem_det
+      fst_conv snd_conv fun_upd_same sem.simps
+      prog.distinct(11) prog.distinct(15) prog.distinct(5) prog.inject(4))
 
 
 (* ---------- *)
@@ -666,6 +655,7 @@ inductive s_sem :: "mstate \<Rightarrow> mstate \<Rightarrow> bool" ("_ \<leadst
 | "(rs, \<sigma>, Add r1 r2) \<leadsto> (rs(r1 := rs r1 + rs r2), \<sigma>, Skip)"
 | "(rs, \<sigma>, p) \<leadsto> (rs', \<sigma>, p') \<Longrightarrow> (rs, \<sigma>, p ;; q) \<leadsto> (rs', \<sigma>, p' ;; q)"
 | "(rs, \<sigma>, Skip ;; p) \<leadsto> (rs, \<sigma>, p)"
+print_theorems
 
 primrec term_with_n_Suc :: "nat \<Rightarrow> aexp" where
   "term_with_n_Suc 0 = N 0"
@@ -679,8 +669,9 @@ that executes n steps of the small-step semantics.
 \<close>
 
 primrec s_sem_n :: "nat \<Rightarrow> mstate \<Rightarrow> mstate \<Rightarrow> bool" where
-  TODO
-
+  "s_sem_n 0       a b = (a = b)" |
+  "s_sem_n (Suc n) a c = (\<exists>b. (a \<leadsto> b) \<and> s_sem_n n b c)"
+print_theorems
 
 text\<open>
 2-(g): Prove that two executions of resp. n and m steps according to
@@ -690,8 +681,16 @@ text\<open>
 
 lemma s_sem_n_add:
   "s_sem_n n ms ms' \<Longrightarrow> s_sem_n m ms' ms'' \<Longrightarrow> s_sem_n (n+m) ms ms''"
-  (* TODO *)
-  sorry
+  apply(induct n arbitrary: ms)
+   apply(simp)
+  apply(subgoal_tac "\<lbrakk>\<And>ms. \<lbrakk>s_sem_n n ms ms'; s_sem_n m ms' ms''\<rbrakk>
+              \<Longrightarrow> s_sem_n (n + m) ms ms'';
+       \<exists>b. (ms \<leadsto> b) \<and> s_sem_n n b ms'; s_sem_n m ms' ms''\<rbrakk>
+       \<Longrightarrow> s_sem_n (Suc n + m) ms ms''")
+   apply(simp)
+  apply(erule exE)
+  apply(fastforce)
+  done
 
 
 text\<open>
@@ -699,12 +698,38 @@ text\<open>
    p ;; q will execute to p' ;; q in n steps with all other parts of the
    state being the same as in the original execution.
 \<close>
+lemma s_sem_Seq:
+  "s_sem_n (Suc n) (rs, \<sigma>, p) (rs', \<sigma>, p')
+   \<Longrightarrow> \<exists>bs bp. ((rs, \<sigma>, p) \<leadsto> (bs, \<sigma>, bp)) \<and> s_sem_n n (bs, \<sigma>, bp) (rs', \<sigma>, p')"
+  apply(clarsimp)
+  using s_sem.cases
+  apply(fastforce)
+  done
 
 lemma s_sem_n_Seq:
   "s_sem_n n (rs, \<sigma>, p) (rs', \<sigma>, p') \<Longrightarrow>
      s_sem_n n (rs, \<sigma>, p;;q) (rs', \<sigma>, p';;q)"
-  (* TODO *)
-  sorry
+  apply(induct n arbitrary: rs p)
+   apply(simp)
+  apply(subgoal_tac "\<And>n rs.
+       \<lbrakk>\<And>rs p. s_sem_n n (rs, \<sigma>, p) (rs', \<sigma>, p') \<Longrightarrow>
+             s_sem_n n (rs, \<sigma>, p ;; q) (rs', \<sigma>, p' ;; q);
+        \<exists>bs bp. ((rs, \<sigma>, p) \<leadsto> (bs, \<sigma>, bp)) \<and> s_sem_n n (bs, \<sigma>, bp) (rs', \<sigma>, p')\<rbrakk>
+       \<Longrightarrow> s_sem_n (Suc n) (rs, \<sigma>, p ;; q)
+            (rs', \<sigma>, p' ;; q)")
+   apply(simp add: s_sem_Seq)
+  apply(clarsimp)
+  apply(thin_tac "\<And>rs p. s_sem_n n (rs, \<sigma>, p) (rs', \<sigma>, p') \<Longrightarrow>
+              s_sem_n n (rs, \<sigma>, p ;; q)
+               (rs', \<sigma>, p' ;; q)")
+  apply(thin_tac "s_sem_n n (a, aa, b) (rs', \<sigma>, p')")
+  apply(thin_tac "(rs, \<sigma>, p) \<leadsto> (a, aa, b)")
+  apply(rule_tac x=bs in exI)
+  apply(rule_tac x=\<sigma> in exI)
+  apply(rule_tac x="bp;;q" in exI)
+  apply(auto)
+  apply(simp add: s_sem.intros)
+  done
 
 
 text\<open>
@@ -713,11 +738,29 @@ text\<open>
    to the same resulting rstate and the resulting program Skip with
    no changes to the vstate.
 \<close>
+lemma s_sem_det:
+  "(rs, \<sigma>, p) \<leadsto> b \<Longrightarrow> (rs, \<sigma>, p) \<leadsto> c \<Longrightarrow> b = c"
+  apply(induct p arbitrary: rs)
+      apply(erule s_sem.cases, simp_all)
+      apply(erule s_sem.cases, simp_all)
+     apply(erule s_sem.cases, simp_all)
+     apply(erule s_sem.cases, simp_all)
+    apply(erule s_sem.cases, simp_all)
+    apply(erule s_sem.cases, simp_all)
+  sorry
 
 lemma s_sem_n_correct:
   "ms \<Down> rs' \<Longrightarrow> \<exists>n. s_sem_n n ms (rs', fst (snd ms), Skip)"
-  (* TODO *)
-  sorry
+  apply(erule sem.induct)
+     apply(simp_all del: Fun.fun_upd_apply)
+     apply(rule exI[where x=1])
+     apply(simp del: Fun.fun_upd_apply)
+     apply(rule_tac s_sem.intros(1))
+    apply (metis s_sem.intros s_sem_n.simps)
+   apply (metis s_sem.intros s_sem_n.simps)
+  apply(clarsimp)
+  apply(meson s_sem.intros s_sem_n.simps s_sem_n_Seq s_sem_n_add)
+  done
 
 
 text\<open>
@@ -727,8 +770,10 @@ text\<open>
 
 lemma compile_term_with_n_Suc_lower_bound_n:
    "h < snd (compile (term_with_n_Suc h) r) - r"
-  (* TODO *)
-  sorry
+  apply(induct h)
+   apply(simp)
+  apply(auto split: prod.splits)
+  done
 
 
 text\<open>
@@ -738,8 +783,11 @@ text\<open>
 
 lemma compile_has_no_universal_register_bound:
   "\<not> (\<exists>h. (\<forall>p. h \<ge> snd (compile p r) - r))"
-  (* TODO *)
-  sorry
+  apply(clarsimp)
+  apply(rule_tac x="(term_with_n_Suc h)" in exI)
+  apply(cut_tac h=h and r=r in compile_term_with_n_Suc_lower_bound_n)
+  apply(fastforce)
+  done
 
 
 (*---------------------------------------------------------*)
