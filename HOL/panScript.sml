@@ -2,221 +2,13 @@
  * actual pancake programs. simps used here
  *)
 
-open HolKernel boolLib bossLib BasicProvers;
-open itreeTauTheory;
-open panItreeSemTheory;
-open panSemTheory; (* eval_def *)
-
-Overload emit[local] = “itree_trigger”;
-Overload bind[local] = “itree_bind”;
-Overload iter[local] = “itree_iter”;
-
-val _ = temp_set_fixity "≈" (Infixl 500);
-Overload "≈" = “itree_wbisim”;
-
-(*/ equational theorems for mrec
-   mrec expresses a recursive computation by iterating Vis INL
- *)
-
-(* iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
-                           (mrec_cb h_prog (bind (rh state_res) k))) to continue *)
-(* mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog bind k)) *)
-(* mrec: Vis (INR (svis_ev × result->itree)) k → Ret (INL (h_prog prog bind k)) *)
-Definition mrec_cb_def[simp]:
-    mrec_cb rh (Ret r) = Ret (INR r)
-  ∧ mrec_cb rh (Tau t) = Ret (INL t)
-  ∧ mrec_cb rh (Vis (INL state_res) k) = Ret (INL (bind (rh state_res) k))
-  ∧ mrec_cb rh (Vis (INR   ffi_res) k) = Vis ffi_res (λx. Ret (INL (k x)))
-End
-
-Theorem itree_mrec_alt:
-  itree_mrec rh seed = iter (mrec_cb rh) (rh seed)
-Proof
-  rw[itree_mrec_def] >>
-  AP_THM_TAC >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE mrec_cb_def, combinTheory.o_DEF]
-QED
-
-Theorem iter_mrec_cb_thm[simp]:
-  iter (mrec_cb rh) (Ret x) = Ret x ∧
-  iter (mrec_cb rh) (Tau t) = Tau (iter (mrec_cb rh) t) ∧
-  iter (mrec_cb rh) (Vis (INL s) g) = Tau (iter (mrec_cb rh) (bind (rh s) g)) ∧
-  iter (mrec_cb rh) (Vis (INR e) k) = Vis e (λx. Tau (iter (mrec_cb rh) (k x)))
-Proof
-  rw[Once itree_iter_thm] >> rw[Once itree_iter_thm]
-QED
-
-Theorem mrec_cb_ret_inv:
-  mrec_cb rh t = Ret (INR r) ⇒ t = (Ret r)
-Proof
-  rw[DefnBase.one_line_ify NONE mrec_cb_def] >>
-  Cases_on ‘t’ >> fs[] >-
-   (Cases_on ‘a’ >> fs[])
-QED
-
-Theorem itree_bind_ret_inv:
-  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
-Proof
-  Cases_on ‘t’ >> fs[itree_bind_thm]
-QED
-
-(* mrec iterates sequentially on its seed *)
-Theorem itree_mrec_bind:
-  iter (mrec_cb rh) (bind t k) =
-  bind (iter (mrec_cb rh) t) (λx. iter (mrec_cb rh) (k x))
-Proof
-  rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λa b. ∃ps. a = iter (mrec_cb rh) (bind ps k) ∧
-                          b = bind (iter (mrec_cb rh) ps)
-                                (λx. iter (mrec_cb rh) (k x))’ >>
-  rw[] >-
-   (metis_tac[]) >-
-   (‘bind (mrec_cb rh (bind ps k))
-       (λx. case x of INL a => Tau (iter (mrec_cb rh) a) | INR b => Ret b)
-     = Ret x’
-      by gvs[Once itree_iter_thm] >>
-    qpat_x_assum ‘Ret x = iter _ _’ kall_tac >>
-    drule itree_bind_ret_inv >> pop_assum kall_tac >> strip_tac >>
-    Cases_on ‘r'’ >> gvs[] >>
-    drule mrec_cb_ret_inv >> strip_tac >>
-    drule itree_bind_ret_inv >> strip_tac >>
-    fs[Once itree_iter_thm] >>
-    fs[Once itree_iter_thm]) >-
-   (Cases_on ‘ps’ >-
-     (fs[] >> metis_tac[]) >-
-     (fs[] >> metis_tac[]) >-
-     (Cases_on ‘a’ >> fs[] >-
-       (fs[GSYM itree_bind_assoc] >> metis_tac[]))) >-
-   (Cases_on ‘ps’ >> fs[] >-
-     (metis_tac[]) >-
-     (Cases_on ‘a'’ >> fs[] >>
-      strip_tac >> disj1_tac >>
-      qexists_tac ‘Tau (g s)’ >>
-      rw[]))
-QED
-
-(*/ pancake theorems
-   equational pancake itrees
- *)
-
-Theorem seq_thm:
-  itree_mrec h_prog (Seq p p2, s) =
-  Tau (bind (itree_mrec h_prog (p, s))
-            (λ(res,s').
-               if res = NONE
-               then Tau (itree_mrec h_prog (p2, s'))
-               else (Ret (res, s'))))
-Proof
-  rw[itree_mrec_alt] >>
-  rw[h_prog_def, h_prog_rule_seq_def] >>
-  rw[itree_mrec_bind] >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘x’ >> rw[]
-QED
-
-Definition revert_binding_def:
-  revert_binding name old_s
-  = (λ(res,s').
-       Ret
-       (res,
-        s' with locals :=
-        res_var s'.locals (name,FLOOKUP old_s.locals name)))
-End
-
-Theorem h_prog_rule_dec_alt:
-  h_prog_rule_dec vname e p s =
-  case eval s e of
-    NONE => Ret (SOME Error,s)
-  | SOME value =>
-      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
-          (revert_binding vname s)
-Proof
-  rw[h_prog_rule_dec_def, revert_binding_def]
-QED
-
-(* f, f' type vars instantiated differently smh *)
-(* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
-Theorem itree_mrec_bind_ret:
-  ∀f f'.
-    (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒
-    ∀t. iter (mrec_cb h_prog) (bind t f) = (bind (iter (mrec_cb h_prog) t) f')
-Proof
-  rpt strip_tac >>
-  rw[itree_mrec_bind] >>
-  AP_TERM_TAC >> rw[FUN_EQ_THM] >>
-  pop_assum $ qspec_then ‘x’ strip_assume_tac >> fs[]
-QED
-
-Theorem dec_thm:
-  (eval s e = SOME k) ⇒
-  (itree_mrec h_prog (Dec name e p,s))
-  = Tau (bind
-         (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k)))
-         (revert_binding name s))
-Proof
-  rw[itree_mrec_alt] >>
-  rw[h_prog_def, h_prog_rule_dec_def] >>
-  rw[GSYM revert_binding_def] >>
-  irule itree_mrec_bind_ret >>
-  rw[revert_binding_def] >>
-  Cases_on ‘a’ >> rw[]
-QED
-
-(*/ massaging into ffi itree
-   fix merged!
- *)
-
-Definition massage_cb_def[simp]:
-  massage_cb (Ret (res, s)) = Ret' res ∧
-  massage_cb (Tau kt) = Tau' kt ∧
-  massage_cb (Vis (svis_ev, scb) st) = Vis' svis_ev (λffi_res. st (scb ffi_res))
-End
-
-(* massage Ret type from (η x state) -> η *)
-(* convert Vis (sem_vis_event x (FFI_result -> itree)) ((prog x state) -> %itree)
--> Vis sem_vis_event (FFI_result -> itree) *)
-Definition to_ffi_def:
-  to_ffi t = itree_unfold massage_cb t
-End
-
-Theorem to_ffi_alt[simp]:
-  to_ffi (Tau t) = Tau (to_ffi t) ∧
-  to_ffi (Ret (p,s)) = Ret p ∧
-  to_ffi (Vis (svis_ev,scb) g) = Vis svis_ev (λffi_res. to_ffi (g (scb (ffi_res))))
-Proof
-  rw[to_ffi_def] >> rw[Once itree_unfold] >>
-  rw[combinTheory.o_DEF]
-QED
-
-Theorem itree_evaluate_alt:
-  itree_evaluate p s = to_ffi (itree_mrec h_prog (p,s))
-Proof
-  rw[itree_evaluate_def, to_ffi_def] >>
-  AP_THM_TAC >> (* same fn => same on same arg, backwards *)
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  rw[DefnBase.one_line_ify NONE massage_cb_def, combinTheory.o_DEF]
-QED
-
-open finite_mapTheory; (* FLOOKUP_UPDATE *)
-open helperLib; (* remove_whitespace *)
-(* open wordsTheory; (* n2w_def *) *)
-open stringLib; (* fromMLstring *)
-
-open alignmentTheory; (* byte_align_def *)
-open asmTheory; (* word_cmp_def *)
-open miscTheory; (* read_bytearray *)
-open panLangTheory; (* size_of_shape_def *)
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
-open wordLangTheory; (* word_op_def *)
+open panSemTheory; (* eval_def *)
 
 local
   val f =
     List.mapPartial
-       (fn s => case remove_whitespace s of "" => NONE | x => SOME x) o
+       (fn s => case helperLib.remove_whitespace s of "" => NONE | x => SOME x) o
     String.tokens (fn c => c = #"\n")
 in
   fun quote_to_strings q =
@@ -229,6 +21,50 @@ fun parse_pancake q =
   in
     EVAL “parse_funs_to_ast ^code”
 end
+
+(* TODO needs to be in panSemTheory *)
+Theorem pan_eval_simps[simp]:
+    eval s (Const w) = SOME (ValWord w)
+  ∧ eval s (Var v) = FLOOKUP s.locals v
+  ∧ eval s BaseAddr = SOME (ValWord s.base_addr)
+  ∧ eval s (Label fname) = OPTION_IGNORE_BIND (FLOOKUP s.code fname)
+                                              (SOME (ValLabel fname))
+Proof
+  rw[eval_def] >>
+  Cases_on ‘FLOOKUP s.code fname’ >> rw[]
+QED
+
+(* word related nonsense *)
+Theorem load_write_bytearray_thm:
+  (∀(b : word8). byte_align b = b) ⇒
+  (∀(w : word8). w ∈ s.memaddrs) ⇒
+  (∀w. ∃(k : word8). oldmem w = Word k) ⇒
+  mem_load_byte (write_bytearray 0w [v] oldmem s.memaddrs s.be)
+                s.memaddrs s.be 0w
+  = SOME v
+Proof
+  rw[mem_load_byte_def] >>
+  rw[write_bytearray_def] >>
+  rw[mem_store_byte_def] >>
+  first_assum $ qspec_then ‘0w’ strip_assume_tac >>
+  rw[combinTheory.APPLY_UPDATE_THM] >>
+  rw[byteTheory.get_byte_set_byte]
+QED
+
+Theorem write_bytearray_preserve_words:
+  (∀w. ∃(k : word8). s.memory w = Word k) ⇒
+  ∀w. ∃(k : word8). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k
+Proof
+  strip_tac >>
+  qid_spec_tac ‘loc’ >>
+  Induct_on ‘l’ >>
+  rw[write_bytearray_def] >>
+  fs[mem_store_byte_def] >>
+  Cases_on ‘write_bytearray (loc+1w) l s.memory s.memaddrs s.be (byte_align loc)’ >>
+  rw[] >>
+  rw[combinTheory.APPLY_UPDATE_THM] >>
+  Cases_on ‘byte_align loc = w’ >> rw[]
+QED
 
 (*/
   ffi skip test
@@ -278,65 +114,17 @@ Definition the_ffi_def:
             | FFI_final outcome => q outcome))
 End
 
-Theorem pull_ffi_case[simp]:
-  (to_ffi
-   (iter (mrec_cb h_prog)
-         (f (case res of
-               FFI_return new_ffi new_bytes => a new_ffi new_bytes
-             | FFI_final outcome => b outcome))))
-  =
-  (case res of
-     FFI_final outcome =>
-       to_ffi (iter (mrec_cb h_prog) (f (b outcome)))
-   | FFI_return new_ffi new_bytes =>
-       to_ffi (iter (mrec_cb h_prog) (f (a new_ffi new_bytes))))
-Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
-
-(* TODO no higher order unification? *)
-Theorem pull_ffi_case2[simp]:
-  (to_ffi
-   (f (case res of
-         FFI_return new_ffi new_bytes => a new_ffi new_bytes
-       | FFI_final outcome => b outcome)))
-  =
-  (case res of
-     FFI_final outcome => to_ffi (f (b outcome))
-   | FFI_return new_ffi new_bytes => to_ffi (f (a new_ffi new_bytes)))
-Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
-
-Theorem write_bytearray_idem:
+Theorem write_bytearray_id:
   (∀(b : word8). byte_align b = b) ⇒
   (∀(w : word8). w ∈ s.memaddrs) ⇒
-  (∃v. s.memory 0w = Word v) ⇒
+  (∀w. s.memory w = Word (0w : 8 word)) ⇒
   mem_load_byte (write_bytearray 0w [v]
-                                 (write_bytearray 0w l s.memory s.memaddrs s.be)
+                                 (write_bytearray loc l s.memory s.memaddrs s.be)
                                  s.memaddrs s.be)
                 s.memaddrs s.be 0w
   = SOME v
 Proof
-  rw[mem_load_byte_def] >>
-  rw[write_bytearray_def] >>
-  rw[mem_store_byte_def] >>
-  Cases_on ‘write_bytearray 0w l s.memory s.memaddrs s.be 0w’ >-
-   (rw[write_bytearray_def] >>
-    rw[combinTheory.APPLY_UPDATE_THM] >>
-    rw[byteTheory.get_byte_set_byte]) >-
-   (fs[write_bytearray_def] >>
-    Cases_on ‘l’ >-
-     (fs[write_bytearray_def]) >-
-     (fs[write_bytearray_def] >>
-      fs[mem_store_byte_def] >>
-      Cases_on ‘write_bytearray 1w t s.memory s.memaddrs s.be (byte_align 0w)’ >>
-      Cases_on ‘byte_align 0w ∈ s.memaddrs’ >>
-      fs[] >>
-      last_x_assum (qspec_then ‘0w’ strip_assume_tac) >>
-      fs[combinTheory.APPLY_UPDATE_THM]))
+  metis_tac[write_bytearray_preserve_words, load_write_bytearray_thm]
 QED
 
 (* TODO simp for future_cases *)
@@ -358,8 +146,7 @@ Proof
   rw[Once itree_iter_thm, Once itree_bind_thm] >>
   (* extcall *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[read_bytearray_def] >>
+  rw[miscTheory.read_bytearray_def] >>
   (* massaging *)
   rw[Once future_cases] >> disj2_tac >>
   rw[Once future_cases] >> disj2_tac >>
@@ -375,17 +162,17 @@ Proof
   rw[Once itree_iter_thm, Once itree_bind_thm] >>
   (* extcall *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE, read_bytearray_def] >>
+  rw[miscTheory.read_bytearray_def] >>
   rw[Once future_cases] >> disj2_tac >>
   rw[Once future_cases] >> disj1_tac >>
   qunabbrev_tac ‘P’ >> rw[] >>
   (* cond *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
-  rw[eval_def, word_cmp_def] >>
-  rw[write_bytearray_idem] >>
+  rw[eval_def, asmTheory.word_cmp_def] >>
+  rw[write_bytearray_id] >>
   (* third call happens *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE, read_bytearray_def] >>
+  rw[miscTheory.read_bytearray_def] >>
   metis_tac[itree_wbisim_refl]
 QED
 
@@ -439,129 +226,3 @@ QED
 (*   rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >> *)
 (*   rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM]) *)
 (* QED *)
-
-(* Theorem cheat1: *)
-(*   0w < 1w (* supposed to be :4 word but weever *) *)
-(* Proof *)
-(*   cheat *)
-(* QED *)
-
-(* Theorem loop_thm: *)
-(*   loop_sem s =  Tau (Tau (Tau (Tau (Tau (Ret NONE))))) *)
-(* Proof *)
-(*   rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >> *)
-(*   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_alt] >> *)
-(*   rw[eval_def] >> *)
-(*   rw[Once itree_iter_thm, itree_bind_thm] >> *)
-(*   (* seq *) *)
-(*   rw[h_prog_def, h_prog_rule_seq_def] >> *)
-(*   rw[itree_bind_thm] >> *)
-(*   rw[Once itree_iter_thm] >> *)
-(*   rw[Once itree_bind_thm] >> *)
-(*   (* assign *) *)
-(*   rw[Once h_prog_def, h_prog_rule_assign_def] >> *)
-(*   rw[FLOOKUP_UPDATE, word_op_def, is_valid_value_def, shape_of_def, *)
-(*      Once eval_def, cheat1] >> *)
-(*   rw[itree_bind_thm] >> *)
-(*   rw[Once itree_iter_thm, Once itree_bind_thm] >> *)
-(*   (* while *) *)
-(*   rw[Once h_prog_def, h_prog_rule_while_alt] >> *)
-(*   rw[Once itree_iter_thm] >> rw[Once itree_iter_thm] >> *)
-(*   rw[Once eval_def] >> rw[Once eval_def] >> *)
-(*   rw[FLOOKUP_UPDATE] >> *)
-(*   rw[Once eval_def, word_cmp_def, cheat1] >> *)
-(*   rw[itree_bind_thm] >> *)
-(*   (* assignment *) *)
-(*   rw[Once h_prog_def, h_prog_rule_assign_def] >> *)
-(*   rw[Once eval_def] >> rw[Once eval_def] >> *)
-(*   rw[FLOOKUP_UPDATE, word_op_def, is_valid_value_def, shape_of_def, *)
-(*      Once eval_def, cheat1] >> *)
-(*   rw[Once itree_iter_thm, itree_bind_thm] >> *)
-(*   (* second while *) *)
-(*   (* rw[GSYM h_prog_rule_while_alt, GSYM h_prog_def] *) *)
-(*   rw[Once itree_iter_thm] >> rw[Once itree_iter_thm] >> *)
-(*   rw[eval_def, FLOOKUP_UPDATE, word_cmp_def] >> *)
-(*   rw[revert_binding_def] >> *)
-(*   rw[Once itree_iter_thm, itree_bind_thm] >> *)
-(*   (* massage *) *)
-(*   rw[massage_thm] *)
-(* QED *)
-
-(*/ interp nonsense
-   weird
- *)
-
-Definition interp_cb_def[simp]:
-  interp_cb rh (Ret r) = Ret (INR r) ∧
-  interp_cb rh (Tau t) = Ret (INL t) ∧
-  interp_cb rh (Vis e k) = bind (rh e) (λa. Ret (INL (k a)))
-End
-
-(* (E -> itree E' R) -> itree E R -> itree E' R *)
-Definition itree_interp_def:
-  itree_interp rh it = itree_iter (interp_cb rh) it
-End
-
-Theorem interp_cb_ret_inv:
-  interp_cb rh t = Ret (INR r) ⇒ t = (Ret r)
-Proof
-  rw[DefnBase.one_line_ify NONE interp_cb_def] >>
-  Cases_on ‘t’ >> fs[] >>
-  Cases_on ‘rh a’ >> fs[]
-QED
-
-Theorem itree_interp_ret:
-  itree_interp rh (Ret r) = Ret r
-Proof
-  rw[itree_interp_def] >>
-  rw[Once itree_iter_thm]
-QED
-
-Theorem itree_interp_trigger:
-  itree_interp rh (Vis e Ret) ≈ rh e
-Proof
-  rw[itree_interp_def] >>
-  rw[Once itree_iter_thm] >>
-  rw[itree_bind_assoc] >>
-  rw[Once itree_iter_thm] >>
-  irule itree_wbisim_coind >>
-  qexists_tac ‘λa b. ∃t. a = bind t (λa. Tau (Ret a)) ∧ b = t’ >>
-  rw[] >>
-  Cases_on ‘a1’ >> rw[]
-QED
-
-Theorem itree_interp_bind:
-  itree_interp rh (bind t k) = bind (itree_interp rh t) (λr. itree_interp rh (k r))
-Proof
-  rw[itree_interp_def] >>
-  rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λa b. ∃ps. a = iter (interp_cb rh) (bind ps k) ∧
-                          b = bind (iter (interp_cb rh) ps)
-                                   (λx. iter (interp_cb rh) (k x))’ >>
-  rw[] >-
-   (metis_tac[])
-   (cheat
-   )
-QED
-
-(* they are only weakly bisimilar *)
-Theorem itree_mrec_interp:
-  iter (mrec_cb rh) t ≈
-  itree_interp (λe. case e of
-                      (INL a) => (itree_mrec rh a)
-                    | (INR e) => Vis e Ret)
-  t
-Proof
-  rw[Once itree_mrec_alt, itree_interp_def] >>
-  rw[Once itree_iter_thm] >>
-  CONV_TAC $ RHS_CONV $ ONCE_REWRITE_CONV[itree_iter_thm] >>
-  Cases_on ‘e’ >> rw[] >-
-   (rw[itree_bind_assoc] >>
-    rw[itree_mrec_bind] >>
-    rw[GSYM itree_mrec_alt] >>
-    cheat
-   ) >-
-   (rw[FUN_EQ_THM] >>
-    rw[]
-   )
-QED
