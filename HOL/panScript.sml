@@ -238,7 +238,7 @@ val ffi_ast = rhs $ concl $ parse_pancake ‘
 fun fn() {
   #f1(0, 0, 0, 0);
   #f2(0, 0, @base, 1);
-  if ldb @base == 0 {
+  if (ldb @base) == 0 {
     #f3(0, 0, 0, 0);
   } else {
     #f4(0, 0, 0, 0);
@@ -278,22 +278,6 @@ Definition the_ffi_def:
             | FFI_final outcome => q outcome))
 End
 
-Theorem pull_ffi_case2[simp]:
-  (to_ffi
-   (f (case res of
-         FFI_return new_ffi new_bytes => a new_ffi new_bytes
-       | FFI_final outcome => b outcome)))
-  =
-  (case res of
-     FFI_final outcome =>
-       to_ffi (f (b outcome))
-   | FFI_return new_ffi new_bytes =>
-       to_ffi (f (a new_ffi new_bytes)))
-Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
-
 Theorem pull_ffi_case[simp]:
   (to_ffi
    (iter (mrec_cb h_prog)
@@ -311,42 +295,59 @@ Proof
   Cases_on ‘res’ >> rw[]
 QED
 
-(* Theorem uart_drv_getcharFun_no_error: *)
-(*   ∀ck be mem memaddrs ffi base_addr res s. *)
-(*    read_bytearray base_addr 8 (mem_load_byte mem memaddrs be) = SOME x ∧ *)
-(*    read_bytearray (base_addr + 64w) 32 (mem_load_byte mem memaddrs be) = SOME x' ∧ *)
-(*    (∀f l. call_FFI ffi "read_reg_UTRSTAT" x x' = FFI_return f l ⇒ *)
-(*      (mem_stores (base_addr + 128w) (flatten (ValWord 0w)) memaddrs *)
-(*                (write_bytearray (base_addr + 64w) l mem memaddrs be) = SOME x'' ∧ *)
-(*      mem_store_byte x'' memaddrs be (base_addr + 160w) *)
-(*           (w2w (base_addr + 64w)) = SOME x''' ∧ *)
-(*      mem_store_byte x''' memaddrs be (base_addr + 168w) (w2w (base_addr + 72w)) = SOME x'''' ∧ *)
-(*      mem_store_byte x'⁴' memaddrs be (base_addr + 176w) (w2w (base_addr + 80w)) = SOME x''''' ∧ *)
-(*      mem_store_byte x'⁵' memaddrs be (base_addr + 184w) (w2w (base_addr + 88w)) = SOME x'''''' ∧ *)
-(*      mem_load One (base_addr + 128w) memaddrs x'⁶' = SOME x'⁷' ∧ x'⁷' = ValWord v ∧ *)
-(*      read_bytearray base_addr 8 (mem_load_byte x'⁶' memaddrs be) = SOME y ∧ *)
-(*      read_bytearray (base_addr + 64w) 32 (mem_load_byte x'⁶' memaddrs be) = SOME y' ∧ *)
-(*      (∀ f' l'. call_FFI f "read_reg_URXH" y y' = FFI_return f' l' *)
-(*                 ⇒ (mem_load_byte (write_bytearray (base_addr + 64w) l' x'⁶' memaddrs be) *)
-(*        memaddrs be (base_addr + 64w) = SOME y'')))) *)
+(* TODO no higher order unification? *)
+Theorem pull_ffi_case2[simp]:
+  (to_ffi
+   (f (case res of
+         FFI_return new_ffi new_bytes => a new_ffi new_bytes
+       | FFI_final outcome => b outcome)))
+  =
+  (case res of
+     FFI_final outcome => to_ffi (f (b outcome))
+   | FFI_return new_ffi new_bytes => to_ffi (f (a new_ffi new_bytes)))
+Proof
+  rw[FUN_EQ_THM] >>
+  Cases_on ‘res’ >> rw[]
+QED
 
-(*     ⇒ *)
-(*     case evaluate (Call Tail (Label (strlit "uart_drv_getchar")) [], *)
-(*                init_drv_state ck be mem memaddrs ffi base_addr) of *)
-(*       (SOME Error,s') => F *)
-(*     | _ => T *)
-(* Proof *)
+Theorem write_bytearray_idem:
+  (∀(b : word8). byte_align b = b) ⇒
+  (∀(w : word8). w ∈ s.memaddrs) ⇒
+  (∃v. s.memory 0w = Word v) ⇒
+  mem_load_byte (write_bytearray 0w [v]
+                                 (write_bytearray 0w l s.memory s.memaddrs s.be)
+                                 s.memaddrs s.be)
+                s.memaddrs s.be 0w
+  = SOME v
+Proof
+  rw[mem_load_byte_def] >>
+  rw[write_bytearray_def] >>
+  rw[mem_store_byte_def] >>
+  Cases_on ‘write_bytearray 0w l s.memory s.memaddrs s.be 0w’ >-
+   (rw[write_bytearray_def] >>
+    rw[combinTheory.APPLY_UPDATE_THM] >>
+    rw[byteTheory.get_byte_set_byte]) >-
+   (fs[write_bytearray_def] >>
+    Cases_on ‘l’ >-
+     (fs[write_bytearray_def]) >-
+     (fs[write_bytearray_def] >>
+      fs[mem_store_byte_def] >>
+      Cases_on ‘write_bytearray 1w t s.memory s.memaddrs s.be (byte_align 0w)’ >>
+      Cases_on ‘byte_align 0w ∈ s.memaddrs’ >>
+      fs[] >>
+      last_x_assum (qspec_then ‘0w’ strip_assume_tac) >>
+      fs[combinTheory.APPLY_UPDATE_THM]))
+QED
 
-
-(* TODO simp future_cases *)
+(* TODO simp for future_cases *)
 Theorem ffi_sem_thm:
   (s.base_addr = 0w) ⇒
   (∀(b : word8). byte_align b = b) ⇒
   (∀w. s.memory w = Word (0w : 8 word)) ⇒
-  0w ∈ s.memaddrs ⇒
+  (∀(w : word8). w ∈ s.memaddrs) ⇒
   r1 = [0w : 8 word] ⇒
-  future (λt. (∃k k'. k (FFI_return ARB r1) ≈ (Vis (FFI_call "f2" [] []) k') ∧
-                      (t = Vis (FFI_call "f1" [] []) k)) ∨
+  future (λt. (∃k k'. k (FFI_return ARB r1) ≈ (Vis (FFI_call "f3" [] []) k') ∧
+                      (t = Vis (FFI_call "f2" [] []) k)) ∨
               (∃outcome. t = Ret (SOME (FinalFFI outcome))))
   (ffi_sem s)
 Proof
@@ -361,18 +362,30 @@ Proof
   rw[read_bytearray_def] >>
   (* massaging *)
   rw[Once future_cases] >> disj2_tac >>
+  rw[Once future_cases] >> disj2_tac >>
+  strip_tac >>
+  (* forall a?, doesn't matter here! *)
+  rw[Once future_cases] >> disj2_tac >>
+  reverse (Cases_on ‘a’) >-
+   (qunabbrev_tac ‘P’ >>
+    rw[Once future_cases] >> disj1_tac) >>
+  rw[Once future_cases] >> disj2_tac >>
+  (* second seq *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
+  rw[Once itree_iter_thm, Once itree_bind_thm] >>
+  (* extcall *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[eval_def, FLOOKUP_UPDATE, read_bytearray_def] >>
+  rw[Once future_cases] >> disj2_tac >>
   rw[Once future_cases] >> disj1_tac >>
   qunabbrev_tac ‘P’ >> rw[] >>
-  (* second call *)
-  rw[GSYM itree_mrec_alt, seq_thm] >>
-  qmatch_goalsub_abbrev_tac ‘(bind _ cb)’ >>
+  (* cond *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
+  rw[eval_def, word_cmp_def] >>
+  rw[write_bytearray_idem] >>
+  (* third call happens *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[eval_def, FLOOKUP_UPDATE] >>
-  rw[write_bytearray_def] >>
-  rw[mem_store_byte_def] >>
-  rw[read_bytearray_def] >>
-  qunabbrev_tac ‘cb’ >>
-  rw[] >>
+  rw[eval_def, FLOOKUP_UPDATE, read_bytearray_def] >>
   metis_tac[itree_wbisim_refl]
 QED
 
