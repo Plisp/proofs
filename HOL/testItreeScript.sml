@@ -344,7 +344,6 @@ Proof
   Cases_on ‘res’ >> rw[]
 QED
 
-(* TODO no higher order unification? *)
 Theorem pull_ffi_case2[simp]:
   (to_ffi
    (f (case res of

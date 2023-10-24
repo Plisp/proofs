@@ -23,7 +23,6 @@ fun parse_pancake q =
     rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
 end
 
-(* TODO needs to be in panSemTheory *)
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
   ∧ eval s (Var v) = FLOOKUP s.locals v
@@ -35,7 +34,11 @@ Proof
   Cases_on ‘FLOOKUP s.code fname’ >> rw[]
 QED
 
-(* word nonsense *)
+Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
+
+(*/ word nonsense
+   TODO look into cakeml & miscTheory
+ *)
 Theorem load_write_bytearray_thm:
   (∀(b : word8). byte_align b = b) ⇒
   (∀(w : word8). w ∈ s.memaddrs) ⇒
@@ -48,27 +51,25 @@ Proof
   rw[write_bytearray_def] >>
   rw[mem_store_byte_def] >>
   first_assum $ qspec_then ‘addr’ strip_assume_tac >>
-  rw[combinTheory.APPLY_UPDATE_THM] >>
   rw[byteTheory.get_byte_set_byte]
 QED
 
-(* Theorem write_bytearray_preserve_words: *)
-(*   (∀w. ∃(k : word8). loc ≤ w ∧ w ≤ (loc + LENGTH l) ⇒ s.memory w = Word k) ⇒ *)
-(*   ∀w. ∃(k : word8). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k *)
-(* Proof *)
-(*   strip_tac >> *)
-(*   qid_spec_tac ‘loc’ >> *)
-(*   Induct_on ‘l’ >> *)
-(*   rw[write_bytearray_def] >> *)
-(*   fs[mem_store_byte_def] >> *)
-(*   Cases_on ‘write_bytearray (loc+1w) l s.memory s.memaddrs s.be (byte_align loc)’ >> *)
-(*   rw[] >> *)
-(*   rw[combinTheory.APPLY_UPDATE_THM] >> *)
-(*   Cases_on ‘byte_align loc = w’ >> rw[] *)
-(* QED *)
+Theorem write_bytearray_preserve_words:
+  (∀w. ∃(k : word8). s.memory w = Word k) ⇒
+  ∀w. ∃(k : word8). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k
+Proof
+  strip_tac >>
+  qid_spec_tac ‘loc’ >>
+  Induct_on ‘l’ >>
+  rw[write_bytearray_def] >>
+  fs[mem_store_byte_def] >>
+  Cases_on ‘write_bytearray (loc+1w) l s.memory s.memaddrs s.be (byte_align loc)’ >>
+  rw[] >>
+  rw[combinTheory.APPLY_UPDATE_THM]
+QED
 
-(*/
-  ffi skip test
+(*/ skipping, conditional
+  ffi calls
  *)
 
 val ffi_ast = parse_pancake ‘
@@ -88,13 +89,13 @@ Definition ffi_sem_def:
 End
 
 (* Inductive walk: *)
-(* [~Tau:] (∀t. (walk t responses result ⇒ walk (Tau t) responses result)) ∧ *)
+(* [~Tau:] (∀t. (walk t responses result ⇒
+                 walk (Tau t) responses result)) ∧ *)
 (* [~Vis:] (∀k e r. walk (k r) responses result *)
 (*            ⇒ walk (Vis e k) (r::responses) ((e,r)::result)) ∧ *)
 (* [~Ret:] (∀r. walk (Ret r) [] []) *)
 (* End *)
 
-(* TODO simp for future_safe_cases *)
 Inductive next:
   (P (Ret r) ⇒ next P (Ret r)) ∧
   (P (Tau t) ⇒ next P t) ∧
@@ -112,20 +113,18 @@ End
 Inductive future_safe:
   (P t ⇒ future_safe P t) ∧
   (future_safe P t ⇒ future_safe P (Tau t)) ∧
-  ((∀a outcome new_ffi new_bytes.
-     (a = FFI_final outcome ∨
-      a = FFI_return new_ffi new_bytes ∧ (LENGTH new_bytes ≤ LENGTH array))
-        ⇒ future_safe P (k a))
+  (∀k s conf array.
+    (∀outcome. future_safe P (k (FFI_final outcome))) ∧
+    (∀new_ffi new_bytes. (LENGTH new_bytes = LENGTH array) ⇒
+                         future_safe P (k (FFI_return new_ffi new_bytes)))
    ⇒ future_safe P (Vis (FFI_call s conf array) k))
 End
 
-(* TODO why does this simp not work under ctx. no Taus in statements *)
 Theorem future_safe_ignore_tau[simp]:
   (∀(t' : (α ffi_result, sem_vis_event, 8 result option) itree).
      ¬P (Tau t')) ⇒ (future_safe P (Tau t) ⇔ future_safe P t)
 Proof
-  rw[] >>
-  rw[Once future_safe_cases]
+  rw[] >> rw[Once future_safe_cases]
 QED
 
 Definition ffi_pred_def:
@@ -144,8 +143,7 @@ QED
 
 (* byte_align means align (word in bytes) to implicit bit-sized k-word *)
 (* assume all (8-bit) byte-aligned accesses allowed, as in C *)
-(* assume infinite address space *)
-(* assume base memory initially contains some arbitrary word *)
+(* assume infinite address space: memaddrs (relax this later) *)
 Theorem ffi_sem_thm:
   (∀(b : word8). byte_align b = b) ⇒
   (∀(w : word8). w ∈ s.memaddrs) ⇒
@@ -192,8 +190,7 @@ Proof
   qpat_abbrev_tac ‘stat = (SOME Error, s with <| memory := _; ffi := _ |>)’ >>
   rw[write_bytearray_def] >>
   rw[mem_store_byte_def] >>
-  rw[mem_load_byte_def] >>
-  simp[combinTheory.APPLY_UPDATE_THM] >>
+  simp[mem_load_byte_def] >>
   simp[byteTheory.get_byte_set_byte] >>
   (* third call happens *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
@@ -202,7 +199,7 @@ Proof
 QED
 
 (*/ loops work!
-   manual loop unrolling isn't too bad with equational rewrites
+   TODO how to extract
  *)
 
 val loop_ast = parse_pancake ‘
@@ -215,31 +212,30 @@ fun fn() {
   }
 }’;
 
-(* Definition loop_sem_def: *)
-(*   loop_sem (s:('a,'ffi) panSem$state) = *)
-(*   itree_evaluate (SND $ SND $ HD $ THE ^loop_ast) s *)
-(* End *)
+Definition loop_sem_def:
+  loop_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD ^loop_ast) s
+End
 
-(* Definition h_prog_whilebody_cb_def[simp]: *)
-(*     h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s')) *)
-(*   ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s')) *)
-(*   ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s')) *)
-(*   (* nice! this syntax is valid *) *)
-(*   ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s')) *)
-(* End *)
+Definition h_prog_whilebody_cb_def[simp]:
+    h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
+  ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
+  ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
+  (* nice! this syntax is valid *)
+  ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
+End
 
-(* Definition h_prog_while_cb_def[simp]: *)
-(*     h_prog_while_cb (p,s) NONE = Ret (INR (SOME Error,s)) *)
-(*   ∧ h_prog_while_cb (p,s) (SOME (ValWord w)) *)
-(*     = (if (w ≠ 0w) *)
-(*        then Vis (INL (p,s)) *)
-(*                 (λ(res,s'). h_prog_whilebody_cb p res s') *)
-(*        else Ret (INR (NONE,s))) *)
-(*   ∧ h_prog_while_cb (p,s) (SOME (ValLabel _)) = Ret (INR (SOME Error,s)) *)
-(*   ∧ h_prog_while_cb (p,s) (SOME (Struct _)) = Ret (INR (SOME Error,s)) *)
-(* End *)
+Definition h_prog_while_cb_def[simp]:
+    h_prog_while_cb (p,s) NONE = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb (p,s) (SOME (ValWord w))
+    = (if (w ≠ 0w)
+       then Vis (INL (p,s))
+                (λ(res,s'). h_prog_whilebody_cb p res s')
+       else Ret (INR (NONE,s)))
+  ∧ h_prog_while_cb (p,s) (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb (p,s) (SOME (Struct _)) = Ret (INR (SOME Error,s))
+End
 
-(* (* PR submitted *) *)
 (* Theorem h_prog_rule_while_alt: *)
 (*   h_prog_rule_while g p s = *)
 (*   iter (λ(p',s'). (h_prog_while_cb (p',s') (eval s' g))) (p,s) *)
