@@ -1,3 +1,0 @@
-main =
-    let id :: Int -> Int x = x;
-    in id;

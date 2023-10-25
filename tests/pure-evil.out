@@ -1,6 +1,0 @@
-main :: (Int -> Int) = let id :: (Int -> Int) x = x;
-                       in letrec id2 :: (Int -> Int) y = id y;
-                                 id3 :: (Int -> Int) x = id2 x;
-                                 two :: (Bool -> Int -> Int) x y = one y x;
-                                 one :: (Int -> Bool -> Int) x y = id x;
-                          in id2;

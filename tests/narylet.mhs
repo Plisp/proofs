@@ -1,5 +1,0 @@
-main =
-    let id x = x;
-        f x y = x == y;
-        x = f;
-    in f 2;

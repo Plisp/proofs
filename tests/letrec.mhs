@@ -1,5 +1,0 @@
-main =
-    letrec id x = id2 x;
-           id2 x = x;
-           f x y = id x == y;
-    in f 2 2;

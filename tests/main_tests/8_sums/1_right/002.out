@@ -1,1 +1,0 @@
-main :: forall i. forall e. forall a. (a + (e + Int) * i + ()) = Inr ((Inr 1, Inr ()));

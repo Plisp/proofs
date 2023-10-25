@@ -1,2 +1,0 @@
-main :: forall f. forall g. ((g * f + g) -> g) = (recfun f :: ((g * f + g) -> g) x = (case snd x of Inl y -> fst x;
-                                                                                                    Inr z -> z;));

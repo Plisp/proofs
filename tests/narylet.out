@@ -1,4 +1,0 @@
-main :: (Int -> Bool) = let id :: forall a. (a -> a) x = x;
-                            f :: (Int -> Int -> Bool) x y = (==) x y;
-                            x :: (Int -> Int -> Bool) = f;
-                        in f 2;
