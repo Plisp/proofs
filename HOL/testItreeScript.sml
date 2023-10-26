@@ -234,7 +234,7 @@ Proof
 QED
 
 (*/ pancake theorems
-   syntax directed rewrites TODO figure out how to lift these to FFItree
+   syntax directed rewrites
  *)
 
 Theorem seq_thm:
@@ -361,13 +361,47 @@ QED
 Theorem itree_evaluate_alt:
   itree_evaluate p s = to_ffi (itree_mrec h_prog (p,s))
 Proof
-  rw[itree_evaluate_def, to_ffi_def] >>
+  rw[itree_evaluate_def, sem_outer, to_ffi_def] >>
   AP_THM_TAC >> (* same fn => same on same arg, backwards *)
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
   rw[DefnBase.one_line_ify NONE massage_cb_def, combinTheory.o_DEF]
 QED
 
+(*/ while
+   ??
+ *)
+Definition h_prog_whilebody_cb_def[simp]:
+    h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
+  ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
+  ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
+  (* nice! this syntax is valid *)
+  ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
+End
+
+Definition h_prog_while_cb_def[simp]:
+    h_prog_while_cb (p,s) NONE = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb (p,s) (SOME (ValWord w))
+    = (if (w ≠ 0w)
+       then Vis (INL (p,s))
+                (λ(res,s'). h_prog_whilebody_cb p res s')
+       else Ret (INR (NONE,s)))
+  ∧ h_prog_while_cb (p,s) (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
+  ∧ h_prog_while_cb (p,s) (SOME (Struct _)) = Ret (INR (SOME Error,s))
+End
+
+Theorem h_prog_rule_while_alt:
+  h_prog_rule_while g p s =
+  iter (λ(p',s'). (h_prog_while_cb (p',s') (eval s' g))) (p,s)
+Proof
+  rw[h_prog_rule_while_def] >>
+  AP_THM_TAC >>
+  AP_TERM_TAC >>
+  rw[FUN_EQ_THM] >>
+  rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >>
+  rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >>
+  rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
+QED
 
 
 

@@ -127,6 +127,8 @@ Proof
   rw[] >> rw[Once future_safe_cases]
 QED
 
+(*/ ffi proof *)
+
 Definition ffi_pred_def:
   ffi_pred t =
   ((∃k k' uninit.
@@ -198,14 +200,12 @@ Proof
   metis_tac[itree_wbisim_refl]
 QED
 
-(*/ loops work!
-   TODO how to extract
- *)
+(*/ loops! *)
 
 val loop_ast = parse_pancake ‘
 fun fn() {
   var x = 0;
-  #getnum(0, 0, @base, 1);
+  #getc(0, 0, @base, 1);
   while (x < (ldb @base)) {
      #ffi(0, 0, 0, 0);
      x = x + 1;
@@ -217,34 +217,30 @@ Definition loop_sem_def:
   itree_evaluate (SND $ SND $ HD ^loop_ast) s
 End
 
-Definition h_prog_whilebody_cb_def[simp]:
-    h_prog_whilebody_cb p (SOME Break) s' = Ret (INR (NONE,s'))
-  ∧ h_prog_whilebody_cb p (SOME Continue) s' = Ret (INL (p,s'))
-  ∧ h_prog_whilebody_cb p NONE s' = Ret (INL (p,s'))
-  (* nice! this syntax is valid *)
-  ∧ h_prog_whilebody_cb p res s' = Ret (INR (res,s'))
+Definition loop_pred_def:
+  loop_pred t =
+  ((∃k uninit.
+     (t = Vis (FFI_call "getc" [] [uninit]) k) ∧
+     ∀n. k (FFI_return ARB [n]) ≈ (Vis (FFI_call "ffi" [] []) k)) ∨
+   (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
 End
 
-Definition h_prog_while_cb_def[simp]:
-    h_prog_while_cb (p,s) NONE = Ret (INR (SOME Error,s))
-  ∧ h_prog_while_cb (p,s) (SOME (ValWord w))
-    = (if (w ≠ 0w)
-       then Vis (INL (p,s))
-                (λ(res,s'). h_prog_whilebody_cb p res s')
-       else Ret (INR (NONE,s)))
-  ∧ h_prog_while_cb (p,s) (SOME (ValLabel _)) = Ret (INR (SOME Error,s))
-  ∧ h_prog_while_cb (p,s) (SOME (Struct _)) = Ret (INR (SOME Error,s))
-End
+Theorem loop_pred_notau:
+  ¬loop_pred (Tau t)
+Proof
+  rw[loop_pred_def]
+QED
 
-(* Theorem h_prog_rule_while_alt: *)
-(*   h_prog_rule_while g p s = *)
-(*   iter (λ(p',s'). (h_prog_while_cb (p',s') (eval s' g))) (p,s) *)
-(* Proof *)
-(*   rw[h_prog_rule_while_def] >> *)
-(*   AP_THM_TAC >> *)
-(*   AP_TERM_TAC >> *)
-(*   rw[FUN_EQ_THM] >> *)
-(*   rw[DefnBase.one_line_ify NONE h_prog_while_cb_def] >> *)
-(*   rw[DefnBase.one_line_ify NONE h_prog_whilebody_cb_def] >> *)
-(*   rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM]) *)
-(* QED *)
+(* type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma] *)
+Theorem loop_sem_thm:
+  (∀b. byte_align b = b) ⇒
+  (∀w. w ∈ s.memaddrs) ⇒
+  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
+  future_safe loop_pred (loop_sem s)
+Proof
+  rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
+  assume_tac (GEN_ALL loop_pred_notau) >>
+  ‘eval s (Const 0w) = SOME (ValWord 0w)’ by rw[eval_def] >>
+  drule dec_thm
+  rw[] >>
+QED
