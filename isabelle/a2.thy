@@ -52,14 +52,7 @@ lemma m_count_corres0:
   "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0)"
   apply(induct ls)
    apply(simp)
-  apply(simp)
-  apply(rule conjI)
-   apply(case_tac "m_count ls x")
-    apply(simp)
-   apply(fastforce)
-  apply(case_tac "m_count ls a")
-   apply(simp)
-  apply(simp)
+  apply(simp split: option.splits)
   done
 
 lemma m_count_corres2: "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0) \<and>
@@ -85,8 +78,7 @@ lemma m_count_corres2: "(m_count ls x = None \<longleftrightarrow> count_list ls
   done
 
 lemma m_count_corres: "count_list ls x = n \<longleftrightarrow> m_count ls x = (if n=0 then None else Some (n-1))"
-  apply(simp add: m_count_corres2)
-  done
+  by (simp add: m_count_corres2)
 
 text \<open>
 1-(b) Prove that @{term "m_count ls x = None"} is equivalent to
@@ -94,7 +86,7 @@ text \<open>
 \<close>
 find_theorems "count_list"
 lemma m_notin: "m_count ls x = None \<longleftrightarrow> x \<notin> set ls"
-  by (auto simp add: m_count_corres2 count_list_0_iff)
+  by (simp add: m_count_corres2 count_list_0_iff)
 
 
 subsection "1.2 Ordering on multisets"
@@ -124,28 +116,17 @@ definition "my_ls1 = []"
 definition "my_ls2 = []"
 
 lemma le_example: "le (m_count my_ls1) (m_count my_ls2)"
-  apply(unfold le_def my_ls1_def my_ls2_def)
-  apply(simp)
-  done
+  unfolding le_def my_ls1_def my_ls2_def
+  by simp
 
 
 text \<open>
 1-(d) Prove that adding an element to a list by @{term Cons} always gives a list
   greater than the original list.\<close>
 
-lemma le_m_count: "le (m_count ls) (m_count (x#ls))" 
+lemma le_m_count: "le (m_count ls) (m_count (x#ls))"
   apply(unfold le_def)
-  apply(clarify)
-  apply(case_tac "xa=x")
-   apply(case_tac "m_count ls xa")
-    apply(simp)
-   apply(simp)
-  apply(case_tac "m_count ls xa")
-   apply(simp)
-  apply(simp)
-  apply(case_tac "m_count ls x")
-   apply(simp)
-  apply(simp)
+  apply(simp split: option.splits)
   done
 
 
@@ -160,7 +141,7 @@ lemma m_count_switch:
   done
 
 lemma m_count_perm:
-  "ls = xs @ (x # ys)  \<Longrightarrow> m_count ls = m_count (x # (xs @ ys))"
+  "ls = xs @ x # ys  \<Longrightarrow> m_count ls = m_count (x # xs @ ys)"
 proof(induct xs arbitrary: ys ls)
   case Nil
   then show ?case by simp
@@ -213,16 +194,14 @@ added multisets, i.e., two lists appended by Isabelle @{term append}.
 \<close>
 
 lemma m_count_x_not_a: "a \<noteq> x \<Longrightarrow> m_count (a # ls) x = m_count ls x"
-  apply(simp split: option.splits)
-  done
+  by (simp split: option.splits)
 
 lemma m_count_x_eq_a: "m_count ls x = None \<Longrightarrow> m_count (x # ls) x = Some 0 \<and>
                        m_count ls x = Some k \<Longrightarrow> m_count (x # ls) x = Some (k+1)"
-  apply(simp)
-  done
+  by simp
 
 (* massaging these trivialities into an Isabelle proof made me question my beliefs *)
-(* I guess it's also possible to use the correspondence to count_list but... also annoying *)
+(* I guess it's possible to use the correspondence to count_list but... also annoying *)
 lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2)"
   apply(induct ls1)
    apply(simp)
@@ -296,8 +275,7 @@ preserves multiplicity.
 \<close>
 lemma m_count_consg:
   "m_count xs = m_count ys \<Longrightarrow> m_count (b#xs) = m_count (b#ys)"
-  apply(simp add: m_count_def)
-  done
+  by (simp add: m_count_def)
 
 lemma "m_count_insort":
   "m_count (insort' a ys) = m_count (a#ys)"
@@ -306,7 +284,7 @@ lemma "m_count_insort":
   apply(rename_tac b ys)
   apply(case_tac "a \<le> b")
    apply(simp)
-  apply(simp only:m_count_switch)
+  apply(simp only: m_count_switch)
   apply(subgoal_tac "m_count (b # (insort' a ys)) = m_count (b # (a # ys))")
    apply(simp)
   apply(erule m_count_consg)
@@ -332,7 +310,6 @@ lemma m_count_sort':
    apply(simp add: sort'_def)
   apply(subgoal_tac " m_count (sort' (a # ls)) = m_count (a # sort' ls)")
    apply(erule trans)
-  thm m_count_consg
   apply(erule m_count_consg)
   apply(rule m_count_sort_a)
   done
@@ -586,17 +563,16 @@ text\<open>
 
 lemma sem_det: "\<lbrakk>(rs, \<sigma>, e) \<Down> rs'; (rs, \<sigma>, e) \<Down> rs''\<rbrakk> \<Longrightarrow> rs' = rs''"
   apply(induct e arbitrary: rs rs' rs'')
-      apply(erule sem.cases, simp_all)
-      apply(erule sem.cases, simp_all)
-     apply(erule sem.cases, simp_all)
-     apply(erule sem.cases, simp_all)
-    apply(erule sem.cases, simp_all)
-    apply(erule sem.cases, simp_all)
-   apply(erule sem.cases, simp_all)
-   apply(erule sem.cases, simp_all)
-   apply(clarsimp)
+      apply(erule sem.cases, auto)
+      apply(erule sem.cases, auto)
+     apply(erule sem.cases, auto)
+     apply(erule sem.cases, auto)
+    apply(erule sem.cases, auto)
+    apply(erule sem.cases, auto)
+   apply(erule sem.cases, auto)
+   apply(erule sem.cases, auto)
    apply(metis)
-  apply(erule sem.cases, simp_all)
+  apply(erule sem.cases, auto)
   done
 
 
@@ -740,14 +716,21 @@ text\<open>
 \<close>
 lemma s_sem_det:
   "(rs, \<sigma>, p) \<leadsto> b \<Longrightarrow> (rs, \<sigma>, p) \<leadsto> c \<Longrightarrow> b = c"
-  apply(induct p arbitrary: rs)
+  apply(induct p arbitrary: rs b c)
       apply(erule s_sem.cases, simp_all)
       apply(erule s_sem.cases, simp_all)
      apply(erule s_sem.cases, simp_all)
      apply(erule s_sem.cases, simp_all)
     apply(erule s_sem.cases, simp_all)
     apply(erule s_sem.cases, simp_all)
-  sorry
+   apply(erule s_sem.cases, simp_all)
+    apply(erule s_sem.cases, simp_all)
+     apply(fastforce)
+    apply(erule s_sem.cases, simp_all)
+   apply(erule s_sem.cases, simp_all)
+   apply(erule s_sem.cases, simp_all)
+  apply(erule s_sem.cases, simp_all)
+  done
 
 lemma s_sem_n_correct:
   "ms \<Down> rs' \<Longrightarrow> \<exists>n. s_sem_n n ms (rs', fst (snd ms), Skip)"
@@ -756,8 +739,8 @@ lemma s_sem_n_correct:
      apply(rule exI[where x=1])
      apply(simp del: Fun.fun_upd_apply)
      apply(rule_tac s_sem.intros(1))
-    apply (metis s_sem.intros s_sem_n.simps)
-   apply (metis s_sem.intros s_sem_n.simps)
+    apply(metis s_sem.intros s_sem_n.simps)
+   apply(metis s_sem.intros s_sem_n.simps)
   apply(clarsimp)
   apply(meson s_sem.intros s_sem_n.simps s_sem_n_Seq s_sem_n_add)
   done

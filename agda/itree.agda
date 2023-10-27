@@ -25,22 +25,24 @@ mutual
   Vis : E A → (A → Itree E A R) → Itree E A R
   Itree.alg (Vis e k) = vis e k
 
-  data wsim-ind (rel : itree-ind E A R → itree-ind E A R → Set) :
+  data wsim-ind (rel : Itree E A R → Itree E A R → Set) :
                 Itree E A R → Itree E A R → Set where
 
     wsim-ret : (r : R) → wsim-ind rel (Ret r) (Ret r)
 
+    wsim-ttau : {t t' : Itree E A R}
+              → rel t t' → wsim-ind rel (Tau t) (Tau t')
     wsim-ltau : {t t' : Itree E A R}
               → Wsim rel t t' → wsim-ind rel (Tau t) t'
     wsim-rtau : {t t' : Itree E A R}
               → Wsim rel t t' → wsim-ind rel t (Tau t')
 
     wsim-vis : (e : E A) → (k k' : A → Itree E A R)
-             → (∀ a → rel (Itree.alg (k a)) (Itree.alg (k' a)))
+             → (∀ a → rel (k a) (k' a))
              → wsim-ind rel (Vis e k) (Vis e k')
 
   record Wsim {E : Set → Set} {A R : Set}
-              (rel : itree-ind E A R → itree-ind E A R → Set)
+              (rel : Itree E A R → Itree E A R → Set)
               (a b : Itree E A R) : Set where
     coinductive
     constructor alg'
@@ -50,7 +52,7 @@ mutual
 open Itree
 open Wsim
 
-{-# ETA Itree #-}
+{-# ETA Wsim #-}
 -- ret-lem : (t : Itree E A R) → (r : R) → ret r ＝ (alg t) → Ret r ＝ t
 -- ret-lem t r p = ap alg' p
 
