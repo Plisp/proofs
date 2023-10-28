@@ -358,6 +358,23 @@ Proof
   Cases_on ‘res’ >> rw[]
 QED
 
+(* TODO for while, this is kinda silly *)
+Theorem pull_ffi_case3[simp]:
+  iter (mrec_cb h_prog)
+  (bind (f (case res of
+              FFI_return new_ffi new_bytes => a new_ffi new_bytes
+            | FFI_final outcome => b outcome))
+        k)
+  =
+  case res of
+    FFI_final outcome => iter (mrec_cb h_prog) (bind (f (b outcome)) k)
+  | FFI_return new_ffi new_bytes => iter (mrec_cb h_prog)
+                                                  (bind (f (a new_ffi new_bytes)) k)
+Proof
+  rw[FUN_EQ_THM] >>
+  Cases_on ‘res’ >> rw[]
+QED
+
 Theorem itree_evaluate_alt:
   itree_evaluate p s = to_ffi (itree_mrec h_prog (p,s))
 Proof
@@ -408,7 +425,7 @@ QED
 
 
 (*/ testing recursive specifications
-   TODO preludes and postludes, how to lift??
+   TODO preludes and postludes, how to lift through ffi??
  *)
 open arithmeticTheory;
 

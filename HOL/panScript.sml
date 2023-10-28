@@ -39,10 +39,12 @@ Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
 (*/ word nonsense
    TODO look into cakeml & miscTheory
  *)
+
+(* type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma] *)
 Theorem load_write_bytearray_thm:
   (∀(b : word8). byte_align b = b) ⇒
   (∀(w : word8). w ∈ s.memaddrs) ⇒
-  (∀w. ∃(k : word8). oldmem w = Word k) ⇒
+  (∃(k : word8). oldmem addr = Word k) ⇒
   mem_load_byte (write_bytearray addr [v] oldmem s.memaddrs s.be)
                 s.memaddrs s.be addr
   = SOME v
@@ -121,8 +123,7 @@ Inductive future_safe:
 End
 
 Theorem future_safe_ignore_tau[simp]:
-  (∀(t' : (α ffi_result, sem_vis_event, 8 result option) itree).
-     ¬P (Tau t')) ⇒ (future_safe P (Tau t) ⇔ future_safe P t)
+  (∀(t' : α sem8tree). ¬P (Tau t')) ⇒ (future_safe P (Tau t) ⇔ future_safe P t)
 Proof
   rw[] >> rw[Once future_safe_cases]
 QED
@@ -138,7 +139,7 @@ Definition ffi_pred_def:
 End
 
 Theorem ffi_pred_notau:
-  ¬ffi_pred (Tau (t : (α ffi_result, sem_vis_event, 8 result option) itree))
+  ∀(t : α sem8tree). ¬ffi_pred (Tau t)
 Proof
   rw[ffi_pred_def]
 QED
@@ -153,7 +154,7 @@ Theorem ffi_sem_thm:
   future_safe ffi_pred (ffi_sem s)
 Proof
   rw[ffi_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  assume_tac (GEN_ALL ffi_pred_notau) >>
+  assume_tac ffi_pred_notau >>
   (* Seq rw[seq_thm] *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
   rw[Once itree_iter_thm, Once itree_bind_thm] >>
@@ -178,7 +179,7 @@ Proof
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
   rw[panSemTheory.write_bytearray_def] >>
-  PURE_REWRITE_TAC[ONE] >> (* wtf *)
+  PURE_REWRITE_TAC[ONE] >> (* TODO wtf *)
   rw[Once $ cj 2 miscTheory.read_bytearray_def] >>
   rw[mem_load_byte_def] >>
   rw[miscTheory.read_bytearray_def] >>
@@ -202,45 +203,102 @@ QED
 
 (*/ loops! *)
 
-val loop_ast = parse_pancake ‘
+val while_ast = parse_pancake ‘
 fun fn() {
   var x = 0;
   #getc(0, 0, @base, 1);
   while (x < (ldb @base)) {
-     #ffi(0, 0, 0, 0);
-     x = x + 1;
+    #ffi(0, 0, 0, 0);
+    x = x + 1;
   }
 }’;
 
-Definition loop_sem_def:
-  loop_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate (SND $ SND $ HD ^loop_ast) s
+Definition while_sem_def:
+  while_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD ^while_ast) s
 End
 
-Definition loop_pred_def:
-  loop_pred t =
-  ((∃k uninit.
-     (t = Vis (FFI_call "getc" [] [uninit]) k) ∧
-     ∀n. k (FFI_return ARB [n]) ≈ (Vis (FFI_call "ffi" [] []) k)) ∨
-   (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
+Inductive loop_pred:
+  (loop_pred (0 : num) (Ret NONE)) ∧
+  (∀k. (∃vis. k (FFI_return ARB []) ≈ vis ∧ loop_pred (m-1) vis)
+  ⇒ loop_pred (m : num) (Vis (FFI_call "ffi" [] []) k))
 End
 
 Theorem loop_pred_notau:
-  ¬loop_pred (Tau t)
+  ∀(n : num) t. ¬loop_pred n (Tau (t : α sem8tree))
 Proof
-  rw[loop_pred_def]
+  rw[Once loop_pred_cases]
 QED
 
-(* type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma] *)
-Theorem loop_sem_thm:
-  (∀b. byte_align b = b) ⇒
-  (∀w. w ∈ s.memaddrs) ⇒
-  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
-  future_safe loop_pred (loop_sem s)
+Definition while_pred_def:
+  while_pred t =
+  ((∃k uninit.
+     (t = Vis (FFI_call "getc" [] [uninit]) k) ∧
+     (∀(n : word8).
+        ∃tl. (k (FFI_return ARB [n])) ≈ tl ∧ future_safe (loop_pred (w2n n)) tl)) ∨
+   (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
+End
+
+Theorem while_pred_notau:
+  ¬while_pred (Tau (t : α sem8tree))
 Proof
-  rw[loop_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  assume_tac (GEN_ALL loop_pred_notau) >>
+  rw[while_pred_def]
+QED
+
+Theorem future_safe_ignore_tau2[simp]:
+  (∀(t' : α sem8tree). ¬P x (Tau t'))
+  ⇒ (future_safe (P x) (Tau t) ⇔ future_safe (P x) t)
+Proof
+  rw[] >> rw[Once future_safe_cases]
+QED
+
+Theorem while_sem_thm:
+  (∀(b : word8). byte_align b = b) ⇒
+  (∀(w : word8). w ∈ s.memaddrs) ⇒
+  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
+  future_safe while_pred (while_sem s)
+Proof
+  rw[while_sem_def, itree_semantics_def, itree_evaluate_alt] >>
+  assume_tac (GEN_ALL while_pred_notau) >>
   ‘eval s (Const 0w) = SOME (ValWord 0w)’ by rw[eval_def] >>
-  drule dec_thm
-  rw[] >>
+  drule dec_thm >> rw[] >>
+  pop_assum kall_tac >> pop_assum kall_tac >>
+  (* seq *)
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[miscTheory.read_bytearray_def] >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  rw[mem_load_byte_def] >>
+  rw[Once future_safe_cases] >> disj1_tac >>
+  rw[while_pred_def] >>
+  rw[h_prog_rule_while_alt] >>
+  Induct_on ‘w2n n’ >-
+   (rw[Once itree_iter_thm, Once itree_iter_thm] >>
+    rw[GSYM itree_iter_thm] >>
+    rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+    rw[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
+    rw[revert_binding_def] >>
+    qexists_tac ‘Ret NONE’ >> rw[itree_wbisim_refl] >>
+    rw[Once future_safe_cases] >>
+    rw[Once loop_pred_cases]) >>
+  rw[Once itree_iter_thm, Once itree_iter_thm] >>
+  rw[GSYM itree_iter_thm] >>
+  rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+  ‘(0w : 8 word) < n’ by cheat >>
+  simp[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
+  pop_assum kall_tac >>
+  rw[h_prog_def, h_prog_rule_seq_def] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[miscTheory.read_bytearray_def] >>
+  qmatch_goalsub_abbrev_tac ‘vist ≈ _ ∧ _’ >>
+  qexists_tac ‘vist’ >> rw[itree_wbisim_refl] >>
+  qunabbrev_tac ‘vist’ >>
+  rw[Once future_safe_cases] >> disj1_tac >>
+  rw[Once loop_pred_cases] >>
+  rw[h_prog_def, h_prog_rule_assign_def] >>
+  rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE, wordLangTheory.word_op_def,
+     is_valid_value_def, finite_mapTheory.FLOOKUP_UPDATE, shape_of_def] >>
+  rw[Once panSemTheory.write_bytearray_def] >>
+  cheat
 QED
