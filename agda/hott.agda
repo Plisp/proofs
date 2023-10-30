@@ -8,7 +8,7 @@
 open import Agda.Primitive
 open import logic
 open import types
-open import eq
+open import paths
 
 {-
   -1-type

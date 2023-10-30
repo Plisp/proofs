@@ -5,9 +5,26 @@
 -}
 
 open import logic
-open import eq
+open import paths
 open import types
 open import hott
+
+{-
+  I love recursion principles
+-}
+
+ackermann : ℕ → ℕ → ℕ
+ackermann = recℕ mzero msucc
+  where
+    mzero : ℕ → ℕ
+    mzero = λ n → suc n
+    -- from ackermann m _, produce ackermann (suc m) _
+    msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
+    msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
+
+{-
+  an empty initial algebra
+-}
 
 data badalg : Set where
   co : (Bool → badalg) → badalg
@@ -18,7 +35,10 @@ badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
 badalg-contra : ¬ badalg
 badalg-contra (co f) = badalg-rec (λ f → f true) (co f)
 
--- TODO prove these
+{-
+  TODO prove these
+-}
+
 postulate
   funext :
     {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
@@ -203,10 +223,7 @@ map f []        = []
 map f (a ∷ as) = (f a) ∷ (map f as)
 
 map-id : {A : Set} {n : ℕ} (xs : Vec A n) → (map id xs) ＝ xs
-map-id [] =
-  begin
-    map id [] =⟨⟩ []
-  ∎
+map-id [] = refl _
 map-id (x ∷ xs) =
   begin
                                map id (x ∷ xs)
@@ -218,8 +235,7 @@ map-id (x ∷ xs) =
 map-compose : {A B C : Set} {n : ℕ} (f : B → C) (g : A → B) (xs : Vec A n)
             → map (f ∘ g) xs ＝ map f (map g xs)
 map-compose f g [] =
-  begin
-        map (f ∘ g) []
+  begin map (f ∘ g) []
     =⟨⟩ []
     =⟨⟩ map f []
     =⟨⟩ map f (map g [])

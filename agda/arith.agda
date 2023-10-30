@@ -6,7 +6,7 @@
 
 open import logic
 open import types
-open import eq
+open import paths
 open import op
 open import hott
 
@@ -114,10 +114,16 @@ commutes-+ (suc m) n =
     =⟨ commutes-sucr-+ n m ⟩     n + suc m
   ∎
 
+left-ac-+ = left-ac _+_ assoc-+ commutes-+
+right-ac-+ = right-ac _+_ assoc-+ commutes-+
+
 -- cancellation
 cancel-+ : (x y z : ℕ) → (x + y ＝ x + z) → (y ＝ z)
 cancel-+ 0       y z p = p
 cancel-+ (suc x) y z p = (cancel-+ x y z (ap pred p))
+
+n+1＝suc : (n : ℕ) → n + 1 ＝ suc n
+n+1＝suc n = commutes-+ n 1
 
 {-
   subtraction TODO prove inverse theorems
@@ -130,6 +136,68 @@ data ℤ : Set where
 {-# BUILTIN INTEGER ℤ #-}
 {-# BUILTIN INTEGERPOS pos #-}
 {-# BUILTIN INTEGERNEGSUC neg #-}
+
+{-
+  multiplication
+-}
+-- _*_ : ℕ → ℕ → ℕ
+-- zero    * b = 0
+-- (suc a) * b = (a * b) + b
+
+idr-* : (n : ℕ) → n * 1 ＝ n
+idr-* zero = refl _
+idr-* (suc n) = ap (λ e → e + 1) (idr-* n) ∙ n+1＝suc n
+
+ldistrib-*-+ : (a b c : ℕ) → a * (b + c) ＝ a * b + a * c
+ldistrib-*-+ zero b c = refl _
+ldistrib-*-+ (suc a) b c =
+  begin                                                    suc a * (b + c)
+    =⟨⟩                                                    a * (b + c) + (b + c)
+    =⟨ ap (λ e → e + (b + c)) (ldistrib-*-+ a b c) ⟩       (a * b + a * c) + (b + c)
+    =⟨ right-ac-+ (a * b) (a * c) (b + c) ⟩                (a * b + (b + c)) + a * c
+    =⟨ ap (λ e → e + a * c) (sym＝ (assoc-+ (a * b) b c)) ⟩ (suc a * b + c) + a * c
+    =⟨ assoc-+ (suc a * b) c (a * c) ⟩                     suc a * b + (c + a * c)
+    =⟨ ap (λ e → suc a * b + e) (commutes-+ c (a * c)) ⟩   suc a * b + suc a * c
+  ∎
+
+rdistrib-*-+ : (a b c : ℕ) → (a + b) * c ＝ a * c + b * c
+rdistrib-*-+ zero b c = refl _
+rdistrib-*-+ (suc a) b c =
+  begin                                        (suc a + b) * c
+    =⟨⟩                                        suc (a + b) * c
+    =⟨⟩                                        (a + b) * c + c
+    =⟨ ap (λ e → e + c) (rdistrib-*-+ a b c) ⟩ (a * c + b * c) + c
+    =⟨ right-ac-+ (a * c) (b * c) c ⟩          (a * c + c) + b * c
+    =⟨⟩                                        suc a * c + b * c
+  ∎
+
+zero-* : (n : ℕ) → n * 0 ＝ 0
+zero-* zero = refl _
+zero-* (suc n) = idr-+ (n * 0) ∙ zero-* n
+
+commutes-* : commut _*_
+commutes-* zero b = sym＝ (zero-* b)
+commutes-* (suc a) b =
+  begin                                        suc a * b
+    =⟨⟩                                        a * b + b
+    =⟨ ap (λ e → e + b) (commutes-* a b) ⟩     b * a + b
+    =⟨ ap (λ e → b * a + e) (sym＝ (idr-* b)) ⟩ b * a + b * 1
+    =⟨ sym＝ (ldistrib-*-+ b a 1) ⟩             b * (a + 1)
+    =⟨ ap (λ e → b * e) (n+1＝suc a) ⟩          b * suc a
+  ∎
+
+assoc-* : assoc _*_
+assoc-* 0       y z = refl _
+assoc-* (suc x) y z =
+  begin                                         (suc x * y) * z
+    =⟨⟩                                         ((x * y) + y) * z
+    =⟨ rdistrib-*-+ (x * y) y z ⟩               (x * y) * z + y * z
+    =⟨ ap (λ e → e + (y * z)) (assoc-* x y z) ⟩ x * (y * z) + y * z
+    =⟨⟩                                         suc x * (y * z)
+  ∎
+
+left-ac-* = left-ac _*_ assoc-* commutes-*
+right-ac-* = right-ac _*_ assoc-* commutes-*
 
 {-
   multiples

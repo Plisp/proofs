@@ -5,7 +5,7 @@
 -}
 
 open import logic
-open import eq
+open import paths
 
 data Bool : Set where
   true  : Bool
@@ -51,23 +51,16 @@ recℕ z f (suc n) = f n (recℕ z f n)
 plus : ℕ → ℕ → ℕ  -- 0-plus and vv a-plus → a+1 plus
 plus = recℕ (λ b → b) (λ a plus-a → λ b → suc (plus-a b))
 
-ackermann : ℕ → ℕ → ℕ
-ackermann = recℕ mzero msucc
-  where
-    mzero : ℕ → ℕ
-    mzero = λ n → suc n
-    -- from ackermann m _, produce ackermann (suc m) _
-    msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
-    msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
-
 -- peano +
 _+_ : ℕ → ℕ → ℕ
 zero    + b = b
 (suc a) + b = suc (a + b)
+infix 7 _+_
 
 _*_ : ℕ → ℕ → ℕ
 zero    * b = 0
 (suc a) * b = (a * b) + b
+infix 8 _*_
 
 _≤_ _≥_ : ℕ → ℕ → Set
 0 ≤ y     = 𝟙
