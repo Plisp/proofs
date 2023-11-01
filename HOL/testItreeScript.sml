@@ -425,7 +425,7 @@ QED
 
 
 (*/ testing recursive specifications
-   TODO preludes and postludes, how to lift through ffi??
+   TODO preludes and postludes, how to lift through to_ffi??
  *)
 open arithmeticTheory;
 

@@ -38,7 +38,6 @@ QED
 Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
 
 (*/ word nonsense
-   TODO look into cakeml & miscTheory
    inst type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma]
  *)
 
@@ -57,6 +56,37 @@ Proof
   rw[mem_store_byte_def] >>
   first_assum $ qspec_then ‘addr’ strip_assume_tac >>
   rw[byteTheory.get_byte_set_byte]
+QED
+
+Theorem w2n_lt_gt_eq:
+  w2n (n :word8) ≤ w2n (i :word32) ∧
+  w2n (i :word32) ≤ w2n (n :word8)
+  ⇒ i = w2w n
+Proof
+  rw[] >>
+  ‘w2n n = w2n i’ by rw[] >>
+  metis_tac[wordsTheory.w2w_def, wordsTheory.n2w_w2n]
+QED
+
+Theorem word_msb_w2w:
+  1 < dimindex (:β) ∧ dimindex (:α) < dimindex (:β)
+  ⇒ ¬word_msb (w2w (n : α word) : β word)
+Proof
+  Cases_on ‘n’ >>
+  rw[] >> EVAL_TAC >>
+  rw[] >> EVAL_TAC >>
+  irule bitTheory.BIT_OF_BITS_THM2 >>
+  rw[]
+QED
+
+Theorem w2w_lt_dimword:
+  (w2w (n :word8) :word32) < 256w
+Proof
+  rw[wordsTheory.w2w_def] >>
+  Cases_on ‘n’ >>
+  rw[wordsTheory.n2w_w2n] >>
+  pop_assum mp_tac >>
+  EVAL_TAC >> rw[]
 QED
 
 (* Theorem write_bytearray_preserve_words: *)
@@ -238,6 +268,7 @@ Definition while_pred_def:
   ((∃k uninit.
      (t = Vis (FFI_call "getc" [] [uninit]) k) ∧
      (∀(n : word8).
+        (0w : word8) < n ⇒ (* error in the spec ! *)
         ∃tl. (k (FFI_return ARB [n])) ≈ tl ∧
              future_safe (loop_pred (w2n n)) tl)) ∨
    (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
@@ -256,11 +287,36 @@ Proof
   rw[] >> rw[Once future_safe_cases]
 QED
 
+Theorem while_word_lem1:
+  w2n (n : word8) − w2n (i : word32) = SUC v ⇒
+  (0w :word8) < (n :word8) ⇒
+  i < w2w n
+Proof
+  rw[] >>
+  ‘w2n (i :word32) < w2n (n :word8)’ by rw[] >> last_x_assum kall_tac >>
+  gvs[wordsTheory.WORD_LT] >>
+  Cases_on ‘word_msb i’ >> rw[word_msb_w2w] >>
+  rw[wordsTheory.w2n_w2w]
+QED
+
+Theorem while_word_lem2:
+  (i :word32) < (w2w (n :word8) : word32) ⇒
+  (0w < i) ⇒
+  w2n n − w2n i = SUC v ⇒
+  v = w2n n − w2n (i + 1w) ∧ w2n (i + 1w) ≤ w2n n
+Proof
+  strip_tac >> strip_tac >>
+  ‘(w2n i + 1) = w2n (i + 1w)’ suffices_by rw[] >>
+  cheat
+QED
+
 Theorem while_sem_lem:
   (∀(w : word32). w ∈ s.memaddrs) ⇒
   (byte_align s.base_addr = s.base_addr) ⇒
   (s.memory s.base_addr = Word uninitb) ⇒
   (∀t. ¬while_pred (Tau t)) ⇒
+  (0w :word32) < (i : word32) ⇒
+  (0w :word8) < (n :word8) ⇒
   (w2n i ≤ w2n n) ⇒
   ∃tl.
   to_ffi
@@ -308,7 +364,7 @@ Proof
     rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
     simp[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
     fs[] >>
-    ‘i = w2w n’ by cheat >>
+    drule_all_then strip_assume_tac w2n_lt_gt_eq >>
     rw[revert_binding_def] >>
     qexists_tac ‘Ret NONE’ >>
     simp[itree_wbisim_refl, Once future_safe_cases, Once loop_pred_cases]) >>
@@ -318,7 +374,7 @@ Proof
   rw[GSYM itree_iter_thm] >>
   rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
   simp[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
-  ‘i < w2w n’ by cheat >>
+  ‘i < w2w n’ by rw[while_word_lem1] >>
   rw[h_prog_def, h_prog_rule_seq_def] >>
   rw[h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
@@ -331,9 +387,9 @@ Proof
      wordLangTheory.word_op_def, is_valid_value_def, shape_of_def] >>
   rw[Once panSemTheory.write_bytearray_def] >>
   first_x_assum $ qspecl_then [‘n’, ‘i + 1w’] strip_assume_tac >>
-  ‘v = w2n n − w2n (i + 1w)’ by cheat >>
-  ‘w2n (i + 1w) ≤ w2n n’ by cheat >>
+  ‘v = w2n n − w2n (i + 1w) ∧ w2n (i + 1w) ≤ w2n n’ by rw[while_word_lem2] >>
   first_x_assum $ drule_all_then strip_assume_tac >>
+  (* TODO broken on inductive 0 < i *)
   metis_tac[]
 QED
 
