@@ -71,17 +71,23 @@ fib 1 = 1
 fib (suc (suc a)) = fib a + fib (suc a)
 
 -- take any predicate P(n, m) including the least relation (n, fib n)
-fib-principle : {P : ℕ → ℕ → Set}
+fib-principle : (P : ℕ → ℕ → Set)
               → (P 0 0) → (P 1 1)
               → (∀{n fn fm : ℕ} → (P n fn) → (P (suc n) fm)
                                 → P (suc (suc n)) (fn + fm))
               → ∀ n → P n (fib n)
-fib-principle {P} p0 p1 psuc = fib-principle'
+fib-principle P p0 p1 psuc = fib-principle'
   where
     fib-principle' : ∀ n → P n (fib n)
     fib-principle' 0 = p0
     fib-principle' 1 = p1
     fib-principle' (suc (suc n)) = psuc (fib-principle' n) (fib-principle' (suc n))
+
+fib-principle2 : (Q : ℕ → Set)
+               → (Q 0) → (Q 1)
+               → (∀{n : ℕ} → (Q n) → (Q (suc n)) → (Q (suc (suc n))))
+               → ∀ n → Q n
+fib-principle2 Q q0 q1 qsuc = fib-principle (λ a fa → Q a) q0 q1 qsuc
 
 mutual
   data even : ℕ → Set where
@@ -92,11 +98,9 @@ mutual
     oddS : (n : ℕ) → even n → odd (suc n)
 
 -- (n = 0 mod 3, odd fn) (n = 1 mod 3, odd fn) (n = 3 mod 3, even fn)
--- fib-triples→even : (n : ℕ) → triple n → even (fib n)
-
--- fib-even→triple : (n : ℕ) → even (fib n) → triple n
--- fib-even→triple zero    is-even = triple-0
--- fib-even→triple (suc a) is-even = ?
+-- try both relational and Σ x. 3*x=n
+-- 0   mod 3 -> even : (n : ℕ) → triple n → even (fib n)
+-- 1/2 mod 3 -> odd fib n
 
 {-
   choice
@@ -109,4 +113,4 @@ choice-theorem : (X : Set ℓ) (A : X → Set ℓ₁)
                → (R : (x : X) → A x → Set ℓ₂)
                → ((x : X) → Σ a ∶ A x , R x a)
                → Σ f ∶ Π A , ((x : X) → R x (f x))
-choice-theorem X A R s = (λ x → pr₁ (s x)) , λ x → pr₂ (s x)
+choice-theorem X A R s = (λ x → pr₁ (s x)) , (λ x → pr₂ (s x))

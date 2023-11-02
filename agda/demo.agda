@@ -59,7 +59,7 @@ factorial-rec zero    = refl _
 factorial-rec (suc n) = fact-lemma (suc n) 1
 
 {-
-  fib
+  TODO fib
 -}
 
 -- fib : ℕ → ℕ
