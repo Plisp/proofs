@@ -21,8 +21,7 @@ fun parse_pancake q =
     val code = quote_to_strings q |> String.concatWith "\n" |> fromMLstring
   in
     rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
-        end
-
+end
 
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
@@ -39,13 +38,40 @@ Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
 
 (*/ word nonsense
    inst type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma]
+   word_add_n2w
  *)
 
 Type sem32tree[pp] = “:(β ffi_result, sem_vis_event, 32 result option) itree”;
 
+Theorem word_resize_msb:
+  1 < dimindex (:β) ∧ dimindex (:α) < dimindex (:β)
+  ⇒ ¬word_msb (w2w (n : α word) : β word)
+Proof
+  rw[wordsTheory.word_msb_def, wordsTheory.w2w]
+QED
+
+Theorem n2w_lt:
+  (0w:'a word) ≤ n2w a ∧ (0w:'a word) ≤ n2w b ∧
+  a < dimword (:'a) ∧ b < dimword (:'a)
+  ⇒
+  ((n2w a:'a word) < (n2w b:'a word) ⇔ a < b)
+Proof
+  srw_tac[][wordsTheory.WORD_LESS_OR_EQ] >> fs[wordsTheory.word_lt_n2w]
+QED
+
+Theorem n2w_le:
+  (0w:'a word) ≤ n2w a ∧ (0w:'a word) ≤ n2w b ∧
+  a < dimword (:'a) ∧ b < dimword (:'a)
+  ⇒
+  ((n2w a:'a word) ≤ (n2w b:'a word) ⇔ a ≤ b)
+Proof
+  srw_tac[][wordsTheory.WORD_LESS_OR_EQ] >> fs[wordsTheory.word_lt_n2w]
+QED
+
+(* generalize if needed to an arbitrary list + offset *)
 Theorem load_write_bytearray_thm:
-  (byte_align addr = addr) ⇒
-  (∀(w : word32). w ∈ s.memaddrs) ⇒
+  (byte_align addr = addr) ∧
+  (∀(w : word32). w ∈ s.memaddrs) ∧
   (∃(k : word32). oldmem addr = Word k) ⇒
   mem_load_byte (write_bytearray addr [v] oldmem s.memaddrs s.be)
                 s.memaddrs s.be addr
@@ -58,50 +84,19 @@ Proof
   rw[byteTheory.get_byte_set_byte]
 QED
 
-Theorem w2n_lt_gt_eq:
-  w2n (n :word8) ≤ w2n (i :word32) ∧
-  w2n (i :word32) ≤ w2n (n :word8)
-  ⇒ i = w2w n
+Theorem write_bytearray_preserve_words:
+  (∀w. ∃(k : word32). s.memory w = Word k) ⇒
+  ∀w. ∃(k : word32). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k
 Proof
+  strip_tac >>
+  qid_spec_tac ‘loc’ >>
+  Induct_on ‘l’ >>
+  rw[write_bytearray_def] >>
+  fs[mem_store_byte_def] >>
+  Cases_on ‘write_bytearray (loc+1w) l s.memory s.memaddrs s.be (byte_align loc)’ >>
   rw[] >>
-  ‘w2n n = w2n i’ by rw[] >>
-  metis_tac[wordsTheory.w2w_def, wordsTheory.n2w_w2n]
+  rw[combinTheory.APPLY_UPDATE_THM]
 QED
-
-Theorem word_msb_w2w:
-  1 < dimindex (:β) ∧ dimindex (:α) < dimindex (:β)
-  ⇒ ¬word_msb (w2w (n : α word) : β word)
-Proof
-  Cases_on ‘n’ >>
-  rw[] >> EVAL_TAC >>
-  rw[] >> EVAL_TAC >>
-  irule bitTheory.BIT_OF_BITS_THM2 >>
-  rw[]
-QED
-
-Theorem w2w_lt_dimword:
-  (w2w (n :word8) :word32) < 256w
-Proof
-  rw[wordsTheory.w2w_def] >>
-  Cases_on ‘n’ >>
-  rw[wordsTheory.n2w_w2n] >>
-  pop_assum mp_tac >>
-  EVAL_TAC >> rw[]
-QED
-
-(* Theorem write_bytearray_preserve_words: *)
-(*   (∀w. ∃(k : word8). s.memory w = Word k) ⇒ *)
-(*   ∀w. ∃(k : word8). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k *)
-(* Proof *)
-(*   strip_tac >> *)
-(*   qid_spec_tac ‘loc’ >> *)
-(*   Induct_on ‘l’ >> *)
-(*   rw[write_bytearray_def] >> *)
-(*   fs[mem_store_byte_def] >> *)
-(*   Cases_on ‘write_bytearray (loc+1w) l s.memory s.memaddrs s.be (byte_align loc)’ >> *)
-(*   rw[] >> *)
-(*   rw[combinTheory.APPLY_UPDATE_THM] *)
-(* QED *)
 
 (*/ skipping, conditional
   ffi calls
@@ -152,7 +147,7 @@ Inductive future_safe:
     (∀outcome. future_safe P (k (FFI_final outcome))) ∧
     (∀new_ffi new_bytes. (LENGTH new_bytes = LENGTH array) ⇒
                          future_safe P (k (FFI_return new_ffi new_bytes)))
-   ⇒ future_safe P (Vis (FFI_call s conf array) k))
+    ⇒ future_safe P (Vis (FFI_call s conf array) k))
 End
 
 (* needs to be α for type vars to match *)
@@ -167,8 +162,8 @@ QED
 Definition ffi_pred_def:
   ffi_pred (t : α sem32tree) =
   ((∃k k' uninit.
-      (t = Vis (FFI_call "f2" [] [uninit]) k) ∧
-      k (FFI_return ARB [1w]) ≈ (Vis (FFI_call "f4" [] []) k')) ∨
+     (t = Vis (FFI_call "f2" [] [uninit]) k) ∧
+     k (FFI_return ARB [1w]) ≈ (Vis (FFI_call "f4" [] []) k')) ∨
    (∃outcome. t = Ret (SOME (FinalFFI outcome))))
 End
 
@@ -182,8 +177,8 @@ QED
 (* assume all (8-bit) byte-aligned accesses allowed, as in C *)
 (* assume infinite address space: memaddrs (relax this later) *)
 Theorem ffi_sem_thm:
-  (∀(w : word32). w ∈ s.memaddrs) ⇒
-  (byte_align s.base_addr = s.base_addr) ⇒
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (byte_align s.base_addr = s.base_addr) ∧
   (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
   future_safe ffi_pred (ffi_sem s)
 Proof
@@ -212,7 +207,7 @@ Proof
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
   rw[panSemTheory.write_bytearray_def] >>
-  PURE_REWRITE_TAC[ONE] >> (* TODO wtf *)
+  PURE_REWRITE_TAC[ONE] >>
   rw[Once $ cj 2 miscTheory.read_bytearray_def] >>
   rw[mem_load_byte_def] >>
   rw[miscTheory.read_bytearray_def] >>
@@ -254,7 +249,7 @@ End
 Inductive loop_pred:
   (loop_pred (0 : num) (Ret NONE)) ∧
   (∀k. (∃vis. k (FFI_return ARB []) ≈ vis ∧ loop_pred (m-1) vis)
-  ⇒ loop_pred (m : num) (Vis (FFI_call "ffi" [] []) k))
+       ⇒ loop_pred (m : num) (Vis (FFI_call "ffi" [] []) k))
 End
 
 Theorem loop_pred_notau:
@@ -263,12 +258,13 @@ Proof
   rw[Once loop_pred_cases]
 QED
 
+(* byteTheory bytes_to_word *)
 Definition while_pred_def:
   while_pred t =
   ((∃k uninit.
      (t = Vis (FFI_call "getc" [] [uninit]) k) ∧
      (∀(n : word8).
-        (0w : word8) < n ⇒ (* error in the spec ! *)
+        (0w : word8) < n ⇒
         ∃tl. (k (FFI_return ARB [n])) ≈ tl ∧
              future_safe (loop_pred (w2n n)) tl)) ∨
    (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
@@ -287,37 +283,20 @@ Proof
   rw[] >> rw[Once future_safe_cases]
 QED
 
-Theorem while_word_lem1:
-  w2n (n : word8) − w2n (i : word32) = SUC v ⇒
-  (0w :word8) < (n :word8) ⇒
-  i < w2w n
+Theorem while_word_lem:
+  i < n ∧ n < 256 ⇒ (n2w i : word32) < n2w n
 Proof
   rw[] >>
-  ‘w2n (i :word32) < w2n (n :word8)’ by rw[] >> last_x_assum kall_tac >>
-  gvs[wordsTheory.WORD_LT] >>
-  Cases_on ‘word_msb i’ >> rw[word_msb_w2w] >>
-  rw[wordsTheory.w2n_w2w]
-QED
-
-Theorem while_word_lem2:
-  (i :word32) < (w2w (n :word8) : word32) ⇒
-  (0w < i) ⇒
-  w2n n − w2n i = SUC v ⇒
-  v = w2n n − w2n (i + 1w) ∧ w2n (i + 1w) ≤ w2n n
-Proof
-  strip_tac >> strip_tac >>
-  ‘(w2n i + 1) = w2n (i + 1w)’ suffices_by rw[] >>
-  cheat
+  ‘(0w : word32) ≤ n2w i ∧ (0w : word32) ≤ n2w n’ suffices_by rw[n2w_lt] >>
+  rw[wordsTheory.WORD_LESS_OR_EQ, miscTheory.word_lt_0w]
 QED
 
 Theorem while_sem_lem:
-  (∀(w : word32). w ∈ s.memaddrs) ⇒
-  (byte_align s.base_addr = s.base_addr) ⇒
-  (s.memory s.base_addr = Word uninitb) ⇒
-  (∀t. ¬while_pred (Tau t)) ⇒
-  (0w :word32) < (i : word32) ⇒
-  (0w :word8) < (n :word8) ⇒
-  (w2n i ≤ w2n n) ⇒
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (byte_align s.base_addr = s.base_addr) ∧
+  (s.memory s.base_addr = Word uninitb) ∧
+  (∀t. ¬while_pred (Tau (t : α sem32tree))) ∧
+  0 < n ∧ n < dimword (:8) ∧ i ≤ n ⇒
   ∃tl.
   to_ffi
   (bind
@@ -329,34 +308,15 @@ Theorem while_sem_lem:
      (Seq
       (ExtCall «ffi» (Const 0w) (Const 0w) (Const 0w) (Const 0w))
       (Assign «x» (Op Add [Var «x»; Const 1w])),
-      s with <|locals := s.locals |+ («x»,ValWord i);
-               memory := write_bytearray s.base_addr [n] s.memory
+      s with <|locals := s.locals |+ («x»,ValWord (n2w i));
+               memory := write_bytearray s.base_addr [n2w n] s.memory
                                          s.memaddrs s.be; ffi := ARB|>)))
    (revert_binding «x» s)) ≈ tl
-  ∧ future_safe (loop_pred ((w2n n) - (w2n i))) tl
+  ∧ future_safe (loop_pred (n - i)) tl
 Proof
-  strip_tac >> strip_tac >> strip_tac >> strip_tac >>
   rw[Once future_safe_cases] >>
-  (* TODO how to do this sanely *)
-  ‘∃(tl :δ sem32tree).
-    to_ffi
-    (bind
-     (iter (mrec_cb h_prog)
-           (iter
-            (λ(p',s').
-               h_prog_while_cb (p',s')
-                               (eval s' (Cmp Less (Var «x») (LoadByte BaseAddr))))
-            (Seq
-             (ExtCall «ffi» (Const 0w) (Const 0w) (Const 0w)
-                      (Const 0w))
-             (Assign «x» (Op Add [Var «x»; Const 1w])),
-             s with
-               <|locals := s.locals |+ («x»,ValWord i);
-                 memory :=
-                 write_bytearray s.base_addr [n] s.memory s.memaddrs
-                                 s.be; ffi := ARB|>))) (revert_binding «x» s))
-    ≈ tl ∧ (loop_pred (w2n n − w2n i) tl)’ suffices_by metis_tac[] >>
-  Induct_on ‘w2n n - w2n i’ >-
+  dsimp[] >> disj1_tac >>
+  Induct_on ‘n - i’ >-
    (strip_tac >> strip_tac >> strip_tac >>
     pop_assum $ assume_tac o GSYM >> rw[] >>
     rw[Once itree_iter_thm, Once itree_iter_thm] >>
@@ -364,17 +324,18 @@ Proof
     rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
     simp[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
     fs[] >>
-    drule_all_then strip_assume_tac w2n_lt_gt_eq >>
+    simp[wordsTheory.w2w_def] >>
+    ‘i = n’ by rw[] >>
     rw[revert_binding_def] >>
     qexists_tac ‘Ret NONE’ >>
     simp[itree_wbisim_refl, Once future_safe_cases, Once loop_pred_cases]) >>
-  strip_tac >> strip_tac >> strip_tac >>
-  pop_assum $ assume_tac o GSYM >> rw[] >>
   rw[Once itree_iter_thm, Once itree_iter_thm] >>
   rw[GSYM itree_iter_thm] >>
   rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
   simp[Once eval_def, load_write_bytearray_thm, asmTheory.word_cmp_def] >>
-  ‘i < w2w n’ by rw[while_word_lem1] >>
+  simp[wordsTheory.w2w_def] >>
+  ‘i < n’ by rw[] >>
+  ‘(n2w i : word32) < n2w n’ by rw[while_word_lem] >> rw[] >>
   rw[h_prog_def, h_prog_rule_seq_def] >>
   rw[h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
@@ -386,16 +347,16 @@ Proof
   rw[Once eval_def, finite_mapTheory.FLOOKUP_UPDATE,
      wordLangTheory.word_op_def, is_valid_value_def, shape_of_def] >>
   rw[Once panSemTheory.write_bytearray_def] >>
-  first_x_assum $ qspecl_then [‘n’, ‘i + 1w’] strip_assume_tac >>
-  ‘v = w2n n − w2n (i + 1w) ∧ w2n (i + 1w) ≤ w2n n’ by rw[while_word_lem2] >>
-  first_x_assum $ drule_all_then strip_assume_tac >>
-  (* TODO broken on inductive 0 < i *)
-  metis_tac[]
+  first_x_assum $ qspecl_then [‘n’, ‘i + 1’] strip_assume_tac >>
+  gvs[] >>
+  qexists_tac ‘tl’ >>
+  ‘n2w (i + 1) = (n2w i) + (1w : word32)’ by rw[wordsTheory.word_add_n2w] >>
+  fs[]
 QED
 
 Theorem while_sem_thm:
-  (∀(w : word32). w ∈ s.memaddrs) ⇒
-  (byte_align s.base_addr = s.base_addr) ⇒
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (byte_align s.base_addr = s.base_addr) ∧
   (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
   future_safe while_pred (while_sem s)
 Proof
@@ -414,6 +375,9 @@ Proof
   rw[Once future_safe_cases] >> disj1_tac >>
   rw[while_pred_def] >>
   rw[h_prog_rule_while_alt] >>
-  ‘w2n (0w :word32) ≤ w2n n’ by EVAL_TAC >>
-  drule_all (INST_TYPE [delta |-> alpha] while_sem_lem) >> rw[]
+  Cases_on ‘n’ >>
+  ‘w2n (n2w n' : word8) = n' - 0’ by rw[wordsTheory.w2n_n2w] >>
+  drule (INST_TYPE [gamma |-> alpha] while_sem_lem) >> rw[] >>
+  pop_assum $ qspecl_then [‘n'’, ‘0’] strip_assume_tac >>
+  fs[wordsTheory.WORD_LT]
 QED
