@@ -78,6 +78,12 @@ ind＋ : {A : Set ℓ₁} {B : Set ℓ₂}
 ind＋ C ax ay (inl x) = ax x
 ind＋ C ax ay (inr y) = ay y
 
+rec＋ : {A : Set ℓ₁} {B : Set ℓ₂}
+     → (C : Set ℓ)
+     → (A → C) → (B → C)
+     → (A ＋ B) → C
+rec＋ {ℓ₁} {ℓ₂} C = ind＋ (λ _ → C)
+
 {-
   dependent sum (there exists)
 -}

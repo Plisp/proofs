@@ -10,6 +10,7 @@ open import logic
 data _＝_ {A : Set ℓ} : A → A → Set ℓ where
   refl : (x : A) → x ＝ x
 infix 4 _＝_
+{-# BUILTIN EQUALITY _＝_ #-}
 
 -- induction
 ȷ : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
