@@ -37,8 +37,9 @@ ind⊥ A ()
 rec⊥ : (A : Set ℓ) → (⊥ → A)
 rec⊥ A ()
 
-¬ : Set ℓ → Set ℓ
+¬_ : Set ℓ → Set ℓ
 ¬ X = X → ⊥
+infix 3 ¬_
 
 {-
   product (AND)

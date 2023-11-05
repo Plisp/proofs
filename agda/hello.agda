@@ -42,8 +42,6 @@ badalg-contra (co f) = badalg-rec (λ f → f true) (co f)
 postulate
   funext :
     {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
-  invertibles-are-equivs :
-    {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → invertible f → is-equiv f
 
 isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')

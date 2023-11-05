@@ -134,6 +134,10 @@ p∙iv＝refl {ℓ} {A} {x}{y} = ȷ (λ x y p → p ∙ (sym＝ p) ＝ (refl x))
 iv∙p＝refl : {A : Set ℓ} {x y : A} (p : x ＝ y) → (sym＝ p) ∙ p ＝ (refl y)
 iv∙p＝refl {ℓ} {A} {x}{y} = ȷ (λ x y p → (sym＝ p) ∙ p ＝ (refl y)) refl-refl x y
 
+sym-homo-∙ : {A : Set ℓ} {x y z : A} (p : x ＝ y) (q : y ＝ z)
+           → sym＝ (p ∙ q) ＝ (sym＝ q ∙ sym＝ p)
+sym-homo-∙ (refl y) (refl y) = refl (refl y)
+
 sym-volution : {A : Set ℓ} {x y : A} (p : x ＝ y) → sym＝ (sym＝ p) ＝ p
 sym-volution {ℓ} {A} {x}{y} = ȷ (λ x y p → sym＝ (sym＝ p) ＝ p) refl-refl x y
 
@@ -204,6 +208,19 @@ transport-const : {A : Set ℓ} {B : Set ℓ₁} (b : B)
 transport-const {ℓ}{ℓ₁} {A}{B} b {x}{y} = ȷ (λ x y p → transport (λ _ → B) p b ＝ b)
                                             (λ x → refl b)
                                             x y
+transport-sym-p : {A : Set ℓ} {P : A → Set ℓ₁} {x y : A} (p : x ＝ y)
+                → transport P (sym＝ p) ∘ transport P p ＝ id
+transport-sym-p {ℓ}{ℓ₁} {A}{P} {x}{y} p
+  = ȷ (λ x y p → transport P (sym＝ p) ∘ transport P p ＝ id)
+      (λ x → refl id) -- transport P refl = id
+      x y p
+
+transport-p-sym : {A : Set ℓ} {P : A → Set ℓ₁} {x y : A} (p : x ＝ y)
+                → transport P p ∘ transport P (sym＝ p) ＝ id
+transport-p-sym {ℓ}{ℓ₁} {A}{P} {x}{y} p
+  = ȷ (λ x y p → transport P p ∘ transport P (sym＝ p) ＝ id)
+      (λ x → refl id) -- transport P refl = id
+      x y p
 
 transport∙ : {A : Set ℓ} {P : A → Set ℓ₁} → {x y z : A} (p : x ＝ y) (q : y ＝ z)
            → (u : P x) → transport P q (transport P p u) ＝ transport P (p ∙ q) u
@@ -242,15 +259,15 @@ transportpq＝q∙p {ℓ} {A} {a}{x}{y} p q
   equality in Σ
 -}
 
-to-Σ-＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
-       → (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
-       → σ ＝ τ
-to-Σ-＝ (refl x , refl a) = refl (x , a)
+to-Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
+      → (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
+      → σ ＝ τ
+to-Σ＝ (refl x , refl a) = refl (x , a)
 
-from-Σ-＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
-         → σ ＝ τ
-         → Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ
-from-Σ-＝ (refl (x , a)) = (refl x , refl a)
+from-Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
+        → σ ＝ τ
+        → Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ
+from-Σ＝ (refl (x , a)) = (refl x , refl a)
 
 {-
   homotopy
@@ -259,6 +276,10 @@ from-Σ-＝ (refl (x , a)) = (refl x , refl a)
 _~_ : {X : Set ℓ} {A : X → Set ℓ₁} → Π A → Π A → Set (ℓ ⊔ ℓ₁)
 f ~ g = ∀ x → (f x ＝ g x)
 infix 5 _~_
+
+id~ : {A : Set ℓ} {P : A → Set ℓ₁} → {f g : Π x ∶ A , P x}
+    → (f ＝ g) → (f ~ g)
+id~ (refl f) = λ x → refl (f x)
 
 -- equivalence relation
 refl~ : {A : Set ℓ} {P : A → Set ℓ₁} → (f : Π x ∶ A , P x) → (f ~ f)
