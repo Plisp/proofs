@@ -40,17 +40,29 @@ compute-3-factorial = refl _
 
 
 -- proof
+-- IH : fact-iter n k*acc ＝ k * fact-iter n acc
+-- fact-iter Sn k*acc = fact-iter n (Sn * (k * acc))
+--                   [ smh.. now I have to develop arithmetic theory
+-- fact-iter Sn k*acc = fact-iter n ((Sn * k) * acc)
+-- fact-iter Sn k*acc = fact-iter n ((k * Sn) * acc)
+--                   ]
+--                 ...= fact-iter n (k * (Sn * acc))
+--                    = k * fact-iter n (Sn * acc)
+--                    = k * fact-iter Sn acc
 fact-commut-mult : (n k acc : ℕ) → fact-iter n (k * acc) ＝ k * fact-iter n acc
-fact-commut-mult zero    k acc = refl _
-fact-commut-mult (suc n) k acc =
-  begin fact-iter (suc n) (k * acc)
-    =⟨ {!!} ⟩ k * fact-iter (suc n) acc
-  ∎
+fact-commut-mult n k acc = ?
+
 
 fact-lemma : (n acc : ℕ) → fact-iter (suc n) acc ＝ suc n * fact-iter n acc
 fact-lemma zero    acc = refl _
 fact-lemma (suc n) acc =
   begin fact-iter (suc (suc n)) acc
+  -- IH : fact-iter Sn acc ＝ Sn * fact-iter n acc
+-- fact-iter (SSn) acc = fact-iter Sn (SSn * acc)
+--                     = Sn * fact-iter n (SSn * acc)
+--                     = Sn * (SSn * fact-iter n acc)
+--                     = SSn * (Sn * fact-iter n acc)
+--                     = SSn * fact-iter Sn acc
     =⟨ {!!} ⟩ suc (suc n) * fact-iter (suc n) acc
   ∎
 
@@ -62,13 +74,12 @@ factorial-rec (suc n) = fact-lemma (suc n) 1
   TODO fib
 -}
 
--- fib : ℕ → ℕ
--- fib 0 = 1
--- fib (suc (suc a)) = fib a + fib (suc a)
+-- see solutions, I'm not redoing this live lol
 
 {-
   choice
 -}
+
 open import Agda.Primitive
 open import hott
 

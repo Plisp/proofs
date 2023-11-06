@@ -1,6 +1,9 @@
 {-# OPTIONS --without-K #-}
 
-open import Agda.Builtin.Nat using (Nat)
+import Relation.Binary.PropositionalEquality as Eq
+open Eq using (_≡_; refl; cong; sym; trans)
+open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
+open import Agda.Builtin.Nat using (Nat;zero;suc;_+_)
 open import Agda.Builtin.Unit using (⊤;tt)
 open import Agda.Primitive
 
@@ -113,3 +116,108 @@ f (badf ())
 negation : (0 ＝ 1) -> ⊥
 negation eq = f (subst Bad eq (badt tt))
 --negation eq = (\ {badf void -> void} ) (subst Bad eq (badt tt))
+
+{-
+  fib termination
+-}
+
+ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
+    → (f : A → B → C) → (w ≡ x) → (y ≡ z) → (f w y ≡ f x z)
+ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
+  = trans (cong (λ x → f x y) p) (cong (λ y → f x y) q)
+
+
+fib : Nat → Nat
+fib 0 = 0
+fib 1 = 1
+fib (suc (suc a)) = fib a + fib (suc a)
+
+data ℕ₂ : Set where
+  0₂ : ℕ₂
+  1₂ : ℕ₂
+
+data ℕ₃ : Set where
+  0₃ : ℕ₃
+  1₃ : ℕ₃
+  2₃ : ℕ₃
+
+suc₂ : ℕ₂ → ℕ₂
+suc₂ 0₂ = 1₂
+suc₂ 1₂ = 0₂
+
+mod2 : Nat → ℕ₂
+mod2 zero = 0₂
+mod2 (suc x) = suc₂ (mod2 x)
+
+_+₂_ : ℕ₂ → ℕ₂ → ℕ₂
+0₂ +₂ y = y
+1₂ +₂ 0₂ = 1₂
+1₂ +₂ 1₂ = 0₂
+
++₂-rule : ∀ {n m : ℕ₂} → (suc₂ n) +₂ m ≡ suc₂ (n +₂ m)
++₂-rule {0₂} {0₂} = refl
++₂-rule {0₂} {1₂} = refl
++₂-rule {1₂} {0₂} = refl
++₂-rule {1₂} {1₂} = refl
+
+plus-mod2 : (n m : Nat) → mod2 n +₂ mod2 m ≡ mod2 (n + m)
+plus-mod2 zero m = refl
+plus-mod2 (suc n) m =
+  begin mod2 (suc n) +₂ mod2 m
+    ≡⟨⟩ suc₂ (mod2 n) +₂ mod2 m
+    ≡⟨ +₂-rule {mod2 n} {mod2 m} ⟩ suc₂ (mod2 n +₂ mod2 m)
+    ≡⟨ cong suc₂ (plus-mod2 n m) ⟩ suc₂ (mod2 (n + m))
+    ≡⟨⟩ mod2 (suc (n + m))
+    ≡⟨⟩ mod2 ((suc n) + m)
+  ∎
+
+suc₃ : ℕ₃ → ℕ₃
+suc₃ 0₃ = 1₃
+suc₃ 1₃ = 2₃
+suc₃ 2₃ = 0₃
+
+mod3 : Nat → ℕ₃
+mod3 zero = 0₃
+mod3 (suc x) = suc₃ (mod3 x)
+
+-- can do without mutual: generalize the IH using data
+mutual
+  plus-mod2-lem : (n : Nat) → mod2 (fib n + fib (suc n))
+                          ≡ mod2 (fib n) +₂ mod2 (fib (suc n))
+  plus-mod2-lem n = sym (plus-mod2 (fib n) (fib (suc n)))
+
+  tripl-fib-even2 : (n : Nat) → mod3 n ≡ 0₃ → mod2 (fib n) ≡ 0₂
+  tripl-fib-even2 0 _ = refl
+  tripl-fib-even2 1 ()
+  tripl-fib-even2 (suc (suc n)) with mod3 n | ind1 n
+  ...                                | 0₃   | _   = λ ()
+  ...                                | 1₃   | lem = λ _ → lem refl
+  ...                                | 2₃   | _   = λ ()
+
+  ind1 : ∀ n → mod3 n ≡ 1₃ → mod2 (fib (suc (suc n))) ≡ 0₂
+  ind1 n p = begin       mod2 (fib n  +  fib (suc n))
+    ≡⟨ plus-mod2-lem n ⟩ mod2 (fib n) +₂ mod2 (fib (suc n))
+    ≡⟨ ap2 (λ a b → a +₂ b) (trip1-fib-odd2 n p)
+                            (trip2-fib-odd2 (suc n) (cong suc₃ p)) ⟩
+    1₂ +₂ 1₂ ≡⟨⟩ 0₂ ∎
+
+  trip1-fib-odd2 : (n : Nat) → mod3 n ≡ 1₃ → mod2 (fib n) ≡ 1₂
+  trip1-fib-odd2 0 ()
+  trip1-fib-odd2 1 _ = refl
+  trip1-fib-odd2 (suc (suc n)) with mod3 n  | ind2 n
+  ...                                | 0₃   | _   = λ ()
+  ...                                | 1₃   | _   = λ ()
+  ...                                | 2₃   | lem = λ _ → lem refl
+
+  ind2 : ∀ n → mod3 n ≡ 2₃ → mod2 (fib (suc (suc n))) ≡ 1₂
+  ind2 n p = trans (plus-mod2-lem n)
+                   (ap2 (λ a b → a +₂ b) (trip2-fib-odd2 n p)
+                                         (tripl-fib-even2 (suc n) (cong suc₃ p)))
+
+  trip2-fib-odd2 : (n : Nat) → mod3 n ≡ 2₃ → mod2 (fib n) ≡ 1₂
+  trip2-fib-odd2 0 ()
+  trip2-fib-odd2 1 ()
+  trip2-fib-odd2 (suc (suc n)) with mod3 n
+  ...                          | 0₃ = {!!}
+  ...                          | 1₃ = λ ()
+  ...                          | 2₃ = λ ()
