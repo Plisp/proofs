@@ -66,10 +66,10 @@ apd f (refl x) = refl (f x)
   proof boilerplate
 -}
 
--- ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
---     → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
--- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
---   = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q)
+ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
+    → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
+ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
+  = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q)
 -- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q = ȷ (λ w x _ → f w y ＝ f x z)
 --                                                (λ x → ȷ (λ y z _ → f x y ＝ f x z)
 --                                                         (λ y → (refl (f x y)))
@@ -233,25 +233,25 @@ transport∙ {ℓ}{ℓ₁} {A}{P} {x}{y}{z} p q u
         z q
 
 transport∘ : {A : Set ℓ} {B : Set ℓ₁} {P : B → Set ℓ₂} → (f : A → B)
-           → {x y : A} (p : x ＝ y)
-           → (u : P (f x)) → transport (P ∘ f) p u ＝ transport P (ap f p) u
+           → {x y : A} (p : x ＝ y) (u : P (f x))
+           → transport (P ∘ f) p u ＝ transport P (ap f p) u
 transport∘ {ℓ}{ℓ₁}{ℓ₂} {A}{B}{P} f {x}{y}
   = ȷ (λ x y p → ∀ u → transport (P ∘ f) p u ＝ transport P (ap f p) u)
       (λ x → λ u → refl u)
       x y
 
 transport-fam : {A : Set ℓ} {P Q : A → Set ℓ₁} → (f : Π x ∶ A , (P x → Q x))
-              → {x y : A} (p : x ＝ y)
-              → (u : P x) → transport Q p (f x u) ＝ f y (transport P p u)
+              → {x y : A} (p : x ＝ y) (u : P x)
+              → transport Q p (f x u) ＝ f y (transport P p u)
 transport-fam {ℓ}{ℓ₁} {A}{P}{Q} f {x}{y}
   = ȷ (λ x y p → ∀ u → transport Q p (f x u) ＝ f y (transport P p u))
       (λ x → λ u → refl (f x u))
       x y
 
-transportpq＝q∙p : {A : Set ℓ} {a x y : A}
-                → (p : x ＝ y) (q : a ＝ x) → transport (λ x → a ＝ x) p q ＝ q ∙ p
-transportpq＝q∙p {ℓ} {A} {a}{x}{y} p q
-  = ȷ (λ x y p → (q : a ＝ x) → transport (λ x → a ＝ x) p q ＝ q ∙ p)
+transport-startpoint : {A : Set ℓ} {a x y : A} → (p : x ＝ y) (q : a ＝ x)
+                   → transport (λ - → a ＝ -) p q ＝ q ∙ p
+transport-startpoint {ℓ} {A} {a}{x}{y} p q
+  = ȷ (λ x y p → (q : a ＝ x) → transport (λ - → a ＝ -) p q ＝ q ∙ p)
       (λ x → λ q → sym＝ (p∙refl＝p q))
       x y p q
 

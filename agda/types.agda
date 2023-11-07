@@ -37,7 +37,7 @@ data ℕ : Set where
 {-# BUILTIN NATURAL ℕ #-}
 
 indℕ : (A : ℕ → Set ℓ) → (A 0) → ((n : ℕ) → A n → A (suc n))
-      → ((x : ℕ) → A x)
+     → ((x : ℕ) → A x)
 indℕ A a₀ s = h
   where
     h : (n : ℕ) → A n

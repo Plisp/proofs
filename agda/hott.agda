@@ -29,7 +29,7 @@ centrality : (X : Set ℓ) (i : is-contr X) → (x : X) → center X i ＝ x
 centrality X (c , p) = p
 
 singleton-type : {X : Set ℓ} → X → Set ℓ
-singleton-type {ℓ} {X} x = Σ y ∶ X , y ＝ x
+singleton-type {ℓ} {X} x = Σ c ∶ X , c ＝ x
 
 singleton-type-center : {X : Set ℓ} (x : X) → singleton-type x
 singleton-type-center x = (x , refl x)
@@ -54,8 +54,8 @@ is-subsingleton X = (x y : X) → x ＝ y
 
 is-prop = is-subsingleton
 
-singleton→subsingleton : (X : Set ℓ) → is-contr X → is-subsingleton X
-singleton→subsingleton X (c , p) x y = sym＝ (p x) ∙ p y
+singletons-are-subsingletons : (X : Set ℓ) → is-contr X → is-subsingleton X
+singletons-are-subsingletons X (c , p) x y = sym＝ (p x) ∙ p y
 
 pointed-subsingleton→singleton : (X : Set ℓ) → X
                                → is-subsingleton X → is-contr X
@@ -77,23 +77,34 @@ _is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
 X is-of-hlevel zero    = is-contr X
 X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
 
+-- if all points connected, then all 2-paths are trivial
 subsingleton→set : (X : Set ℓ) → is-subsingleton X → is-set X
 subsingleton→set X ss = proof
   where
-    g : {x : X} (y : X) → x ＝ y
-    g {x} y = ss x y
-
-    lemma : {x y y' : X} (r : y ＝ y') → (g y) ∙ r ＝ g y'
-    lemma {x}{y} r = sym＝ (transportpq＝q∙p r (g y)) ∙ apd (g {x}) r
+    lemma0 : {x y : X} (p : x ＝ y) → (ss x x) ∙ p ＝ (ss x y)
+    lemma0 {x} {y} p = sym＝ (transport-startpoint p (ss x x)) ∙ apd (λ - → ss x -) p
+    -- x＝x ∙ p ＝ transp(λ - → x ＝ -) p (ss x x) | (transp (λ - → x ＝ -) p x＝x) ＝ x＝y
+    -- sym＝ (transport-startpoint p (ss x x))   ∙ apd (λ - → ss x -) p
+    --
+    -- any path factors through the subsingleton proof
+    -- x -p→ y
+    --  \    ↑
+    ---  ↓  /
+    --    x
+    -- p ∙ q ＝ r  ≃  q ＝ sym＝ p ∙ r, or just make holes and C-c C-a
+    lemma : {x y : X} (p : x ＝ y) → p ＝ sym＝ (ss x x) ∙ (ss x y)
+    lemma {x} {y} p = p＝refl∙p p ∙ ap (λ e → e ∙ p) (sym＝ (iv∙p＝refl (ss x x)))
+                    ∙ assoc∙ (sym＝ (ss x x)) (ss x x) p
+                    ∙ ap (λ e → sym＝ (ss x x) ∙ e) (lemma0 p)
 
     proof : (x y : X) (p q : x ＝ y) → p ＝ q
-    proof x y p q = lcancel∙ (g {x} x) p q (lemma p ∙ sym＝ (lemma q))
+    proof x y p q = lemma p ∙ sym＝ (lemma q)
 
 -- the levels are upper closed
 hlevel-suc : (X : Set ℓ) (n : ℕ)
            → X is-of-hlevel n → X is-of-hlevel (suc n)
 hlevel-suc X zero    = λ h → λ x y →
-                         let k = singleton→subsingleton X h in
+                         let k = singletons-are-subsingletons X h in
                              (k x y , subsingleton→set X k x y (k x y))
 -- lift H (suc n) X using X = (x＝y) in ind (H n T -> H (suc n) T)
 hlevel-suc X (suc n) = λ h → λ x y → hlevel-suc (x ＝ y) n (h x y)
@@ -154,6 +165,7 @@ _◁∙_ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} → X ◁ Y → Y ◁
 
 _◁⟨_⟩_ : (X : Set ℓ) {Y : Set ℓ₁} {Z : Set ℓ₂} → X ◁ Y → Y ◁ Z → X ◁ Z
 X ◁⟨ x◁y ⟩ y◁z = x◁y ◁∙ y◁z
+infixr 2 _◁⟨_⟩_
 
 -- a natural transformation between two fibrations
 Nat : {X : Set ℓ} → (X → Set ℓ₁) → (X → Set ℓ₂) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
@@ -277,41 +289,37 @@ equivs-are-invertible f e = inverse f e ,
                             inverses-are-sections f e
 
 -- the hard direction
-invertibles-are-equivs : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
-                       → invertible f → is-equiv f
-invertibles-are-equivs f (g , gf , fg) = p
-  where
-    p1 : ∀ y → ((x , _) : (fiber f y)) → g y ＝ x
-    p1 y (x , fx＝y) = sym＝ (ap g fx＝y) ∙ gf x
 
-    p2 : ∀ y → ((x , fx＝y) : fiber f y) --                 f(g y) = y
-       → transport (λ e → f e ＝ y) (sym＝ (ap g fx＝y) ∙ gf x) (fg y) ＝ fx＝y
-    p2 y (x , refl y) = transport (λ e' → transport _ e' _ ＝ _) q2 q3
-      where -- f(g(f x)) ＝ (f x)                    x ＝ g(f(x))    f (x!) = f x
-        q0 : fg (f x) ＝ transport (λ e → f e ＝ f x) (sym＝ (gf x)) (refl (f x))
-        q0 = refl (fg (f x))
+-- invertibles-are-equivs : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+--                        → invertible f → is-equiv f
+-- invertibles-are-equivs {ℓ}{ℓ₁} {X} f (g , gf , fg) y = proof
+--   where
+--     -- p1 : ∀ (x : X) → (f x ＝ y) ◁ (g (f x) ＝ g y)
+--     -- p1 x = (λ x＝gy → (ap f x＝gy) ∙ fg y ) ,
+--     --        (λ fx＝y → sym＝ (sym＝ (ap g fx＝y) ∙ gf x)) ,
+--     --        (λ p → (sym＝ (ap f (fg x)) ∙ fg y) ＝ refl)
+--     --sym＝ (ap g fx＝y) ∙ gf x
 
-        q2 : gf x ＝ sym＝ (ap g (refl y)) ∙ gf x
-        q2 = begin (gf x)
-               =⟨ sym＝ (sym-volution (gf x)) ⟩
-                   sym＝ (sym＝ (gf x))
-               =⟨ sym＝ (ap sym＝ (p∙refl＝p (sym＝ (gf x)))) ⟩
-                   sym＝ (sym＝ (gf x) ∙ refl (g y))
-               =⟨ sym-homo-∙ (sym＝ (gf x)) (refl (g (f x))) ⟩
-                   sym＝ (refl (g y)) ∙ sym＝ (sym＝ (gf x))
-               =⟨ ap (_∙_ (refl (g (f x)))) (sym-volution (gf x)) ⟩
-                   sym＝ (refl (g y)) ∙ gf x
-               =⟨⟩ sym＝ (ap g (refl y)) ∙ gf x ∎
+--     -- want to show this type is a retract of a singleton
+--     -- fibre type (Σ x , f x ＝ y) ◁ (Σ x , x ＝ g y) ◁ (Σ x , g y ＝ x)
+--     -- use X ◁⟨x◁y⟩ y◁z
+--     fiber-is-singleton-Σ-retract : (fiber f y) ◁ (Σ x ∶ X , x ＝ (g y))
+--     fiber-is-singleton-Σ-retract
+--       = (Σ x ∶ X , f x ＝ y) ◁⟨ {!!} ⟩ (Σ x ∶ X  , g (f x) ＝ g y)
+--                             ◁⟨ {!!} ⟩ (refl◁ (Σ x ∶ X , x ＝ (g y)))
 
-        q3 : transport (λ e → f e ＝ f x) (gf x) (fg (f x)) ＝ refl (f x)
-        q3 = ap (λ e → transport (λ e → f e ＝ f x) (gf x) e) q0
-           ∙ transport-is-retraction _ (gf x) (refl (f x))
+--     -- giving is-contr Σ c ∶ X , c ＝ (g y)
+--     fiber-is-singleton : (fb : fiber f y) → (g y , fg y) ＝ fb
+--     fiber-is-singleton (fb@(x , fx＝y))
+--       = (g y , fg y) =  (x , (transport () gy＝x  fg y))
+--          -- singletons-are-subsingletons _
+--          --  (retract-of-singleton fiber-is-singleton-Σ-retract
+--          --     (singleton-types-are-singletons _ (g y)))
+--          --  (g y , fg y)
+--          --  fb
 
-    p3 : ∀ y → ∀ (fb : (fiber f y)) → (g y , fg y) ＝ fb
-    p3 y fb@(x , fx＝y) = to-Σ＝ (p1 y fb , p2 y fb)
-
-    p : ∀ y → Σ c ∶ (fiber f y) , is-center (fiber f y) c
-    p y = (g y , fg y) , p3 y
+--     proof : Σ c ∶ (fiber f y) , is-center _ c
+--     proof = (g y , fg y) , fiber-is-singleton
 
 
 -- corollaries

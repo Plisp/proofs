@@ -56,6 +56,9 @@ open import arith
 -- and can be used as transport for theorems proven about e.g. Peano -> bit numbers
 -- These equalities are nontrivial! the transport isomorphism matters: bool -> bool
 --
+-- test : {X : Set} {x : X} → (p : x ＝ x) → refl x ＝ p -- without-K
+-- test (refl x) = ? -- (not all equalities are trivial, programs are different)
+--
 -- the whole system has a model in some weird category/space, e.g. simplicial sets
 -- Generally this will be more complicated than sets, but the foundation within
 -- the system itself becomes much more intuitive - no representation, the tools
