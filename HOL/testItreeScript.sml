@@ -328,51 +328,10 @@ Proof
 QED
 
 Theorem pull_ffi_case[simp]:
-  (to_ffi
-   (iter (mrec_cb h_prog)
-         (f (case res of
-               FFI_return new_ffi new_bytes => a new_ffi new_bytes
-             | FFI_final outcome => b outcome))))
-  =
-  (case res of
-     FFI_final outcome =>
-       to_ffi (iter (mrec_cb h_prog) (f (b outcome)))
-   | FFI_return new_ffi new_bytes =>
-       to_ffi (iter (mrec_cb h_prog) (f (a new_ffi new_bytes))))
+  f (ffi_result_CASE ffi ret final) =
+  ffi_result_CASE ffi (λ x y. f (ret x y)) (f ∘ final)
 Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
-
-Theorem pull_ffi_case2[simp]:
-  (to_ffi
-   (f (case res of
-         FFI_return new_ffi new_bytes => a new_ffi new_bytes
-       | FFI_final outcome => b outcome)))
-  =
-  (case res of
-     FFI_final outcome => to_ffi (f (b outcome))
-   | FFI_return new_ffi new_bytes => to_ffi (f (a new_ffi new_bytes)))
-Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
-
-(* TODO for while, this is kinda silly *)
-Theorem pull_ffi_case3[simp]:
-  iter (mrec_cb h_prog)
-  (bind (f (case res of
-              FFI_return new_ffi new_bytes => a new_ffi new_bytes
-            | FFI_final outcome => b outcome))
-        k)
-  =
-  case res of
-    FFI_final outcome => iter (mrec_cb h_prog) (bind (f (b outcome)) k)
-  | FFI_return new_ffi new_bytes => iter (mrec_cb h_prog)
-                                                  (bind (f (a new_ffi new_bytes)) k)
-Proof
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
+  Cases_on ‘ffi’ >> simp[]
 QED
 
 Theorem itree_evaluate_alt:

@@ -53,15 +53,24 @@ open Itree
 open Wsim
 
 {-# ETA Wsim #-}
--- ret-lem : (t : Itree E A R) → (r : R) → ret r ＝ (alg t) → Ret r ＝ t
--- ret-lem t r p = ap alg' p
+{-# ETA Itree #-}
+
+ret-refl : (t : Itree E A R) {r : R} → (alg t ＝ ret r) → wsim-ind _＝_ t t
+ret-refl t {r} (refl _) = wsim-ret r
+
+tau-refl : (t : Itree E A R) {t' : Itree E A R} → (alg t ＝ tau t') → wsim-ind _＝_ t t
+tau-refl t {t'} (refl _) = wsim-ttau (refl _)
+
+vis-refl : (t : Itree E A R) {e : E A} {g : A → Itree E A R}
+         → (alg t ＝ vis e g) → wsim-ind _＝_ t t
+vis-refl t {e}{g} (refl _) = wsim-vis e g g (λ a → refl (g a))
 
 wsim-refl : {E : Set → Set} {A R : Set}
           → (t : Itree E A R) → Wsim _＝_ t t
-alg (wsim-refl t) with (alg t)
-...               | ret r = wsim-ret r
-...               | tau t' = ?
-...               | vis e g = ? -- wsim-vis e g g (λ a → refl (alg (g a)))
+alg (wsim-refl t) with (alg t) | ret-refl t | tau-refl t | vis-refl t
+...               | ret r      | retfn      | _          | _ = retfn (refl _)
+...               | tau t'     | _          | taufn      | _ = taufn (refl _)
+...               | vis e g    | _          | _          | visfn = visfn (refl _)
 
 {-
   combinators

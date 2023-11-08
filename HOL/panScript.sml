@@ -23,6 +23,8 @@ fun parse_pancake q =
     rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
 end
 
+Globals.max_print_depth := 16;
+
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
   ∧ eval s (Var v) = FLOOKUP s.locals v
@@ -371,7 +373,6 @@ Proof
   PURE_REWRITE_TAC[ONE] >>
   rw[miscTheory.read_bytearray_def] >>
   rw[mem_load_byte_def] >>
-  fs[alignmentTheory.byte_align_aligned] >>
   rw[Once future_safe_cases] >> disj1_tac >>
   rw[while_pred_def] >>
   rw[h_prog_rule_while_alt] >>
@@ -381,3 +382,162 @@ Proof
   pop_assum $ qspecl_then [‘n'’, ‘0’] strip_assume_tac >>
   fs[wordsTheory.WORD_LT]
 QED
+
+(*/ real *)
+
+val muxrx_ast = parse_pancake ‘
+fun fn() {
+  var drv_dequeue_c = @base;
+  var drv_dequeue_a = @base + 1;
+
+  #drv_dequeue_used(drv_dequeue_c, 1, drv_dequeue_a, 1);
+
+  var drv_dequeue_ret = ldb drv_dequeue_c;
+
+  if drv_dequeue_ret != 0 {
+      return 1;
+  }
+
+  var got_char = ldb drv_dequeue_a;
+
+  // Get the current status of the escape character from the ffi file
+  var escape_character_a = @base + 3;
+
+  #get_escape_character(0,0,escape_character_a, 1);
+
+  var escape_character = ldb escape_character_a;
+
+  if escape_character == 1 {
+      #escape_1(0,0,0,0);
+      // give the char to the client, previous character was an escape character
+
+      // Get the client
+      var client_a = @base + 4;
+
+      #get_client(0, 0, client_a, 1);
+
+      var client = ldb client_a;
+
+      // Check that we have requests by this client to get a char
+      var check_num_to_get_chars_a = @base + 5;
+
+      #check_num_to_get_chars(0, 0, check_num_to_get_chars_a, 1);
+
+      var num_to_get_chars_ret = ldb check_num_to_get_chars_a;
+
+      if num_to_get_chars_ret == 0 {
+          return 0;
+      }
+
+      // Batch the dequeue and enqueue into the client's rings
+
+      var cli_dequeue_enqueue_c = @base + 6;
+      var cli_dequeue_enqueue_a = @base + 8;
+
+      strb cli_dequeue_enqueue_c, client;
+      strb cli_dequeue_enqueue_c + 1, got_char;
+
+      #batch_cli_dequeue_enqueue(cli_dequeue_enqueue_c,2, cli_dequeue_enqueue_a,1);
+
+      var set_escape_character_c = @base + 9;
+      strb set_escape_character_c, 0;
+
+      #set_escape_character(set_escape_character_c, 1, 0, 0);
+
+      return 0;
+  }
+
+  if escape_character == 2 {
+      #escape_2(0,0,0,0);
+      // The previous character was "@". Switch input to a new client.
+
+      var new_client = got_char - 48;
+
+      if new_client >= 1 {
+          var get_num_clients_a = @base + 4;
+          #get_num_clients(0,0,get_num_clients_a, 1);
+          var num_clients = ldb get_num_clients_a;
+
+          if new_client <= num_clients {
+              var set_client_c = @base + 5;
+              strb set_client_c, new_client;
+
+              #set_client(set_client_c, 1, 0, 0);
+          }
+      }
+
+      var set_escape_character_c = @base + 9;
+      strb set_escape_character_c, 0;
+
+      #set_escape_character(set_escape_character_c, 1, 0, 0);
+
+      return 0;
+  }
+
+  if escape_character == 0 {
+      #escape_0(0,0,0,0);
+      // No escape character has been set
+
+      // Ascii for '\'
+      if got_char == 92 {
+          #escape_case(0,0,0,0);
+          var set_escape_character_c = @base + 9;
+          strb set_escape_character_c, 1;
+          #set_escape_character(set_escape_character_c, 1, 0, 0);
+
+          return 0;
+      }
+
+      // Ascii for '@'
+      if got_char == 64 {
+          #at_case(0,0,0,0);
+          var set_escape_character_c = @base + 9;
+          strb set_escape_character_c, 2;
+          #set_escape_character(set_escape_character_c, 1, 0, 0);
+
+          return 0;
+      }
+
+      // Otherwise we just want to give the client the character
+
+      var client_a = @base + 4;
+
+      #get_client(0, 0, client_a, 1);
+
+      var client = ldb client_a;
+
+      // Check that we have requests by this client to get a char
+      var check_num_to_get_chars_a = @base + 5;
+
+      #check_num_to_get_chars(0, 0, check_num_to_get_chars_a, 1);
+
+      var num_to_get_chars_ret = ldb check_num_to_get_chars_a;
+
+      if num_to_get_chars_ret == 0 {
+          return 0;
+      }
+
+      // Batch the dequeue and enqueue into the client's rings
+
+      var cli_dequeue_enqueue_c = @base + 6;
+      var cli_dequeue_enqueue_a = @base + 8;
+
+      strb cli_dequeue_enqueue_c, client;
+      strb cli_dequeue_enqueue_c + 1, got_char;
+
+      #batch_cli_dequeue_enqueue(cli_dequeue_enqueue_c,2, cli_dequeue_enqueue_a,1);
+
+      var set_escape_character_c = @base + 9;
+      strb set_escape_character_c, 0;
+
+      #set_escape_character(set_escape_character_c, 1, 0, 0);
+
+      return 0;
+  }
+  return 0;
+}’;
+
+Definition muxrx_sem_def:
+  muxrx_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD ^muxrx_ast) s
+End
