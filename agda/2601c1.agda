@@ -6,7 +6,7 @@
 
 open import Agda.Primitive
 open import logic
-open import paths
+open import path
 open import op
 
 record Group (S : Set ℓ) : Set (lsuc ℓ) where

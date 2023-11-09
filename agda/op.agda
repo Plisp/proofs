@@ -5,8 +5,8 @@
 -}
 
 open import logic
-open import paths
-open import hott
+open import path
+
 
 assoc : {X : Set ℓ} → (X → X → X) → Set ℓ
 assoc _·_ = ∀ a b c → (a · b) · c ＝ a · (b · c)

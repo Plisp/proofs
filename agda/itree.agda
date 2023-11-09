@@ -1,7 +1,7 @@
 {-# OPTIONS --copatterns --guardedness #-}
 
 open import logic
-open import paths
+open import path
 
 variable B A R S : Set
 variable E : Set → Set

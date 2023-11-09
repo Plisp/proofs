@@ -6,9 +6,9 @@
 
 open import logic
 open import types
-open import paths
+open import path
 open import op
-open import hott
+open import hlevel
 
 -- lambda style predecessor
 pred' : ℕ → ℕ

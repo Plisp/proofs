@@ -3,7 +3,7 @@
 -}
 
 open import logic
-open import paths
+open import path
 open import types
 open import arith
 
@@ -316,7 +316,6 @@ even-triples-only = contrℕ tripl-decidable (λ n → odd-not-even ∘ not-trip
 -}
 
 open import Agda.Primitive
-open import hott
 
 choice-theorem : (X : Set ℓ) (A : X → Set ℓ₁) -- for every indexed family A
                → (R : (x : X) → A x → Set ℓ₂)

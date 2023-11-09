@@ -5,7 +5,7 @@
 -}
 
 open import logic
-open import paths
+open import path
 
 data Bool : Set where
   true  : Bool

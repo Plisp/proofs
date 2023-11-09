@@ -5,9 +5,11 @@
 -}
 
 open import logic
-open import paths
+open import path
 open import types
-open import hott
+open import hlevel
+open import retract
+open import univalence
 
 {-
   I love recursion principles
@@ -100,7 +102,7 @@ uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd 
 uniq× (a , b) = refl (a , b)
 
 uniq⋆ : (a : 𝟙) → ⋆ ＝ a
-uniq⋆ = centerality ⊤ 𝟙-is-singleton
+uniq⋆ = centrality ⊤ 𝟙-is-singleton
 
 {-
   \j the fun way!
