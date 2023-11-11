@@ -1,5 +1,5 @@
 (*
- * COMP4161 Assignment 3.
+ * COMP4161 Assignment 3
  *)
 
 theory a3
@@ -34,7 +34,6 @@ primrec freq_of :: "'a list \<Rightarrow> 'a freq_list" where
 
 value "freq_of ''abcdaa''"
 
-find_theorems "_ ` _"
 lemma fst_set_add_one:
   "fst ` set (add_one x xs) = {x} \<union> fst ` set xs"
   apply(induct xs)
@@ -90,7 +89,6 @@ value "code_list some_tree"
 value "code_map some_tree"
 
 (* Q1 c): *)
-find_theorems List.concat
 definition encoder :: "('a \<Rightarrow> code option) \<Rightarrow> 'a list \<Rightarrow> code" where
   "encoder mp xs = concat (map (\<lambda>x. the (mp x)) xs)"
 
@@ -148,17 +146,18 @@ lemma is_inv_map_of:
   apply(induct xs)
    apply(simp add: is_inv_def)
   apply(clarsimp simp add: is_inv_def)
-  by (smt (verit, ccfv_SIG) Some_eq_map_of_iff case_prod_beta
-      image_iff map_upd_Some_unfold old.prod.inject prod.collapse)
+  by (smt (verit) Some_eq_map_of_iff case_prod_beta image_iff map_upd_Some_unfold old.prod.inject prod.collapse)
 
 (* Q1 f): *)
 primrec letters_of :: "'a htree \<Rightarrow> 'a set" where
   "letters_of (Leaf c _) = { c }" |
   "letters_of (Branch l r) = letters_of l \<union> letters_of r"
 
-(* Q1 g): TODO *)
+(* Q1 g): checks if letters are distinct *)
 fun distinct_tree :: "'a htree \<Rightarrow> bool"  where
-  "distinct_tree (Leaf _ _) = undefined"
+  "distinct_tree (Leaf c _) = True" |
+  "distinct_tree (Branch l r) = (distinct_tree l \<and> distinct_tree r \<and>
+                                letters_of l \<inter> letters_of r = {})"
 
 fun distinct_forest :: "'a htree list \<Rightarrow> bool" where
   "distinct_forest [] = True" |
@@ -180,26 +179,54 @@ lemma fst_code_list:
 (* Q1 h): *)
 lemma distinct_fst_code_list[simp]:
   "distinct_tree t \<Longrightarrow> distinct (map fst (code_list t))"
-  sorry (* TODO *)
+  apply(induct t rule: distinct_tree.induct)
+   apply(simp)
+  apply(simp add: fst_code_list[symmetric])
+  by (smt (verit) add_bit_fst_idem comp_apply image_cong map_eq_conv prod.collapse)
 
+(* inserts t tree into ts tree list ordered by fx \<le> fy *)
 lemma distinct_forest_insort:
   "distinct_forest (insort_key f t ts) =
-   (distinct_tree t \<and> distinct_forest ts \<and> letters_of t \<inter> \<Union> (set (map letters_of ts)) = {})"
-  oops
-
+   (distinct_tree t \<and> distinct_forest ts \<and>
+   letters_of t \<inter> \<Union> (set (map letters_of ts)) = {})"
+  apply(induct ts)
+  by (auto simp add: set_insort_key)
 
 lemma distinct_build_tree:
   "distinct_forest ts \<Longrightarrow> distinct_tree (build_tree ts)"
-  oops
+  apply(induct ts rule: build_tree.induct)
+  apply(auto)
+  by (simp add: Int_Un_distrib Int_Un_distrib2 distinct_forest_insort)
 
+(* unused? not sure how it factors in
 lemma distinct_insort_map:
   "distinct (map g (insort_key f x xs)) = (g x \<notin> g ` set xs \<and> distinct (map g xs))"
-  oops
+  apply(induct xs)
+  by (auto simp add: set_insort_key)
+*)
+
+lemma pull_insort_key:
+  " (map (\<lambda>(x, y). htree.Leaf x y) (insort_key snd (a, b) l))
+  = (insort_key (\<lambda>la. case la of Leaf a b \<Rightarrow> b) (htree.Leaf a b)
+      (map (\<lambda>(x, y). htree.Leaf x y) l))"
+  apply(induct l)
+  by auto
 
 (* Q1 i): *)
 lemma distinct_huffman[simp]:
   "distinct (map fst fs) \<Longrightarrow> distinct_tree (huffman_tree fs)"
-  sorry (* TODO *)
+  unfolding huffman_tree_def
+  apply(simp)
+  apply(rule distinct_build_tree)
+  apply(induct fs)
+   apply(simp)
+  apply(auto simp add: sort_key_def pull_insort_key)
+  apply(simp add: distinct_forest_insort)
+  apply(subgoal_tac "set fs = set (foldr (insort_key snd) fs [])")
+  subgoal
+    by (simp add: case_prod_beta image_iff)
+  apply(simp only: sort_key_def[symmetric])
+  by (rule set_sort[symmetric])
 
 
 (* If you're curious, this would be the overall correctness statement.
@@ -225,15 +252,40 @@ autocorres "stack.c"
 context stack
 begin
 
+(*
+The file stack.c contains a global array content of length LEN storing the
+contents of the stack (of type unsigned int).
+
+The global variable 'top' is the index of the top-most element of the stack
+when the stack contains elements and -1 otherwise.
+Top is an unsigned int, which means that -1 is the same as MAX_INT.
+
+The predicate is_stack is true iff 'xs' contains the contents of state 's'
+
+The global state is an Isabelle record with fields top_'' and contents_''.
+The contents_'' field is of Isabelle type array.
+Array types are written t[n] where t is the element type, and n is the size
+of the array. The type provides an Arrays.index and an Arrays.update.
+Array.index a i is written a.[i]. Use find_theorems array
+
+The function unat converts a machine word into a natural number.
+The operators < and \<le> on machine words can also be expressed via unat.
+Use find_theorems unat
+*)
+
 thm is_empty'_def
 thm has_capacity'_def
 thm push'_def
 thm pop'_def
 thm sum'_def
 
+thm content_'_def content_''_def
+thm top_'_def top_''_def
+
 primrec stack_from :: "machine_word list \<Rightarrow> machine_word \<Rightarrow> lifted_globals \<Rightarrow> bool" where
   "stack_from [] n s = (n = -1 )" |
-  "stack_from (x # xs) n s = (n < LEN \<and> content_'' s.[unat n] = x \<and> stack_from xs (n - 1) s)"
+  "stack_from (x # xs) n s 
+    = (n < LEN \<and> content_'' s.[unat n] = x \<and> stack_from xs (n - 1) s)"
 
 definition is_stack where
   "is_stack xs s \<equiv> stack_from xs (top_'' s) s"
@@ -241,57 +293,78 @@ definition is_stack where
 (* Q2 a) *)
 lemma is_stack_Nil_top[simp]:
   "is_stack [] s = (top_'' s = -1)"
-  sorry (* TODO *)
+  unfolding is_stack_def
+  by simp
 
 (* Q2 b) *)
 lemma is_stack_Nil_is_empty:
   "is_stack [] s = (is_empty' s = 1)"
-  sorry (* TODO *)
+  unfolding is_stack_def
+  by (simp add: is_empty'_def)
 
 (* Q2 c) *)
 lemma stack_from_neg[simp]:
   "stack_from xs (- 1) s = (xs = [])"
-  sorry (* TODO *)
+  unfolding is_stack_def
+  apply(cases xs)
+  by auto
 
 (* Q2 d) *)
 lemma is_stack_single:
   "is_stack [x] s = (top_'' s = 0 \<and> content_'' s.[0] = x)"
-  sorry (* TODO *)
+  unfolding is_stack_def
+  by auto
 
 (* Q2 e) *)
 lemma is_stack_Cons[simp]:
   "is_stack (x # xs) s =
    (top_'' s < LEN \<and> content_'' s.[unat (top_'' s)] = x \<and> stack_from xs (top_'' s - 1) s)"
-  sorry (* TODO *)
-
+  unfolding is_stack_def
+  by auto
 
 (* Q2 f) *)
 lemma stack_from_top_upd[simp]:
   "stack_from xs n (s\<lparr>top_'' := t\<rparr>) = stack_from xs n s"
-  sorry (* TODO *)
+  apply(induct xs arbitrary: n)
+  by auto
 
-(* Helper lemma -- you can prove this one or state your own *)
+(* same up to n means assigning a leaves it same up to n *)
 lemma stack_from_top_and_array_upd':
   "\<lbrakk> \<forall>i \<le> unat n. a.[i] = content_'' s.[i] \<rbrakk> \<Longrightarrow>
    stack_from xs n (s\<lparr>top_'' := t, content_'' := a\<rparr>) = stack_from xs n s"
-  oops
+  apply(induct xs arbitrary: n)
+   apply(auto)
+  using stack_from_neg
+  by (metis diff_0 i_hate_words_helper unat_sub word_less_1 word_not_le)+
 
+declare [[show_types]]
 (* Q2 g) *)
 lemma stack_from_top_and_array_upd[simp]:
-  "unat (n + 1) < LEN \<Longrightarrow>
+  "unat (n) < LEN \<Longrightarrow>
    stack_from xs n (s\<lparr>top_'' := n+1, content_'' := Arrays.update (content_'' s) (unat (n+1)) x\<rparr>) = 
    stack_from xs n s"
-  sorry (* TODO *)
-
+  apply(rule stack_from_top_and_array_upd')
+  apply(auto)
+  apply(rule Arrays.index_update2)
+   apply(auto)
+  apply(cut_tac x=n in word_overflow_unat)
+  apply(simp)
+  apply(drule Word.max_word_wrap)
+  apply(simp add: WordAbstract.unat_max_word) (* the hardest part *)
+  done
+declare [[show_types=false]]
 
 (* Q2 h) *)
 lemma pop_correct_partial:
-  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace> pop' \<lbrace> \<lambda>rv s. rv = x \<and> TODO \<rbrace>"
-  sorry (* TODO *)
+  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<and> (top_'' s) = t \<rbrace> pop'
+   \<lbrace> \<lambda>rv s. rv = x \<and> (top_'' s) = t-1 \<rbrace>"
+  apply(unfold pop'_def)
+  apply(auto)
+  sorry
 
 (* Q2 i) *)
 lemma pop_correct_total:
-  "\<lbrace> \<lambda>s. TODO \<rbrace> pop' \<lbrace> \<lambda>rv s. TODO \<rbrace>!"
+  "\<lbrace> \<lambda>s. TODO \<rbrace> pop' \<lbrace> \<lambda>rv s. TODO \<rbrace>!" (* ! syntax *)
   sorry (* TODO *)
 
 (* Q2 j) *)
@@ -304,6 +377,7 @@ lemma push_correct_total:
 lemma sum_correct_partial:
   "\<lbrace> \<lambda>s. is_stack xs s \<rbrace> sum' \<lbrace> \<lambda>rv s. is_stack [] s \<and> rv = sum_list xs \<rbrace>"
   unfolding sum'_def
+  find_theorems "whileLoop"
   apply (subst whileLoop_add_inv[where
                  I="TODO"])
   sorry (* TODO *)
