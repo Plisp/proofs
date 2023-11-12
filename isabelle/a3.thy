@@ -273,15 +273,6 @@ The operators < and \<le> on machine words can also be expressed via unat.
 Use find_theorems unat
 *)
 
-thm is_empty'_def
-thm has_capacity'_def
-thm push'_def
-thm pop'_def
-thm sum'_def
-
-thm content_'_def content_''_def
-thm top_'_def top_''_def
-
 primrec stack_from :: "machine_word list \<Rightarrow> machine_word \<Rightarrow> lifted_globals \<Rightarrow> bool" where
   "stack_from [] n s = (n = -1 )" |
   "stack_from (x # xs) n s 
@@ -352,15 +343,43 @@ lemma stack_from_top_and_array_upd[simp]:
   apply(drule Word.max_word_wrap)
   apply(simp add: WordAbstract.unat_max_word) (* the hardest part *)
   done
-declare [[show_types=false]]
+declare [[show_types = false]]
+
 
 (* Q2 h) *)
 lemma pop_correct_partial:
-  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<and> (top_'' s) = t \<rbrace> pop'
-   \<lbrace> \<lambda>rv s. rv = x \<and> (top_'' s) = t-1 \<rbrace>"
+  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace> pop'
+   \<lbrace> \<lambda>rv s. rv = x \<and> is_stack xs s \<rbrace>"
   apply(unfold pop'_def)
-  apply(auto)
-  sorry
+  apply(rule_tac
+      C="\<lambda>s. is_stack (x#xs) s" and
+      B="\<lambda>rv s. is_stack (x#xs) s" and
+      P="\<lambda>t. True" in seq)
+    prefer 3
+    apply(simp)
+  using Nondet_VCG.hoare_vcg_prop
+   apply (smt (verit) hoare_pre(1) state_assert_wp)
+  apply(simp del: is_stack_Cons)
+  apply(rule_tac
+      C="\<lambda>s. is_stack (x#xs) s" and
+      B="\<lambda>rv s. is_stack (x#xs) s \<and> rv = x" and
+      P="\<lambda>rv. rv=x" in seq)
+    prefer 3
+    apply(simp)
+   apply fastforce
+  apply(simp del: is_stack_Cons)
+  apply(rule_tac
+      C="\<lambda>s. is_stack xs s" and
+      B="\<lambda>rv s. is_stack xs s" and
+      P="\<lambda>t. True" in seq)
+    prefer 3
+    apply(simp)
+   prefer 2
+   apply(simp add: hoare_return_simp)
+  apply(rule hoare_modifyE_var)
+  apply(cases xs)
+   apply(auto)
+  done
 
 (* Q2 i) *)
 lemma pop_correct_total:
