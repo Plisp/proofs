@@ -12,10 +12,10 @@ section "Huffman Code"
 
 (* The template for this question contains hints in the form of lemmas
    that are not one of the direct questions a)-j). They are marked with
-   "oops". You can, but do not have to prove these lemma. There is more
+   "oop". You can, but do not have to prove these lemma. There is more
    than one way to arrive at a correct proof.
 
-   The lemmas marked with sorry and TODO are the ones you should prove
+   The lemmas marked with TODO are the ones you should prove
    unchanged for Q1. In Q2 you are allowed to tune the lemma statements.
 *)
 
@@ -230,12 +230,12 @@ lemma distinct_huffman[simp]:
 
 
 (* If you're curious, this would be the overall correctness statement.
-   You do not need to prove this one.
+   You do not need to prove this one. *)
 theorem huffman_decoder:
   "\<lbrakk>set xs \<subseteq> set ys; tree = huffman_tree (freq_of ys); 2 \<le> length (freq_of ys) \<rbrakk> \<Longrightarrow>
    decoder (map_of (code_map tree)) [] (encoder (map_of (code_list tree)) xs) = xs"
-oops
- *)
+  oops
+
 
 (* ------------------------------------------------------------------------------------ *)
 
@@ -345,10 +345,16 @@ lemma stack_from_top_and_array_upd[simp]:
   done
 declare [[show_types = false]]
 
+lemma stack_pop_upd:
+  "is_stack (x # xs) s \<Longrightarrow>
+   is_stack xs (s\<lparr>top_'' := top_'' s - 1\<rparr>)"
+  apply(cases xs)
+  by auto
 
 (* Q2 h) *)
 lemma pop_correct_partial:
-  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace> pop'
+  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace>
+   pop'
    \<lbrace> \<lambda>rv s. rv = x \<and> is_stack xs s \<rbrace>"
   apply(unfold pop'_def)
   apply(rule_tac
@@ -358,15 +364,15 @@ lemma pop_correct_partial:
     prefer 3
     apply(simp)
   using Nondet_VCG.hoare_vcg_prop
-   apply (smt (verit) hoare_pre(1) state_assert_wp)
+   apply(smt (verit) hoare_pre(1) state_assert_wp)
   apply(simp del: is_stack_Cons)
   apply(rule_tac
       C="\<lambda>s. is_stack (x#xs) s" and
       B="\<lambda>rv s. is_stack (x#xs) s \<and> rv = x" and
-      P="\<lambda>rv. rv=x" in seq)
+      P="\<lambda>rv. rv=x" in seq) (* P captures the return value *)
     prefer 3
     apply(simp)
-   apply fastforce
+   apply(fastforce)
   apply(simp del: is_stack_Cons)
   apply(rule_tac
       C="\<lambda>s. is_stack xs s" and
@@ -377,29 +383,95 @@ lemma pop_correct_partial:
    prefer 2
    apply(simp add: hoare_return_simp)
   apply(rule hoare_modifyE_var)
-  apply(cases xs)
-   apply(auto)
+  apply(simp add: stack_pop_upd)
   done
 
 (* Q2 i) *)
 lemma pop_correct_total:
-  "\<lbrace> \<lambda>s. TODO \<rbrace> pop' \<lbrace> \<lambda>rv s. TODO \<rbrace>!" (* ! syntax *)
-  sorry (* TODO *)
+  "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace> pop'
+   \<lbrace> \<lambda>rv s. rv = x \<and> is_stack xs s \<rbrace>!"
+  unfolding pop'_def
+  apply(wp)
+  apply(cases xs)
+  by (auto simp add: unat_0)
 
-(* Q2 j) *)
+declare [[show_types=false]]
+  (* Q2 j) *)
 lemma push_correct_total:
-  "\<lbrace> \<lambda>s. TODO \<rbrace> push' x \<lbrace> \<lambda>_ s. TODO \<rbrace>!"
+  "\<lbrace> \<lambda>s. is_stack xs s \<and> top_'' s + 1 < 1000 \<rbrace> push' x
+   \<lbrace> \<lambda>_ s. is_stack (x#xs) s \<rbrace>!"
   supply word_less_nat_alt[simp]
-  sorry (* TODO *)
+  unfolding push'_def
+  apply(wp)
+  apply(simp)
+  apply(cases xs)
+   apply(simp)
+  apply(subgoal_tac "unat (top_'' s) < LEN")
+   apply(simp only: stack_from_top_and_array_upd)
+   apply(auto)
+  done
+
+lemma drop_one:
+  "drop n xs = a # list \<Longrightarrow> drop (Suc n) xs = list"
+  by (metis Cons_nth_drop_Suc drop_all le_def list.distinct(1) list.inject)
+
+lemma stack_size:
+  "top_'' s \<noteq> - 1 \<and> top_'' s < 0x3E8
+   \<Longrightarrow> is_stack xs s \<Longrightarrow> unat (top_'' s) = length xs - 1"
+  apply(induct xs arbitrary: s)
+   apply(simp)
+  apply(case_tac "top_'' s = 0")
+   apply(simp)
+  apply(drule_tac x="s\<lparr>top_'' := top_'' s - 1\<rparr>" in meta_spec)
+  apply(auto)
+  apply(subgoal_tac "top_'' s - 1 < 0x3E8 \<and> 
+                     is_stack xs (s\<lparr>top_'' := top_'' s - 1\<rparr>)")
+   apply(metis One_nat_def Suc_pred' Suc_unat_minus_one diff_0_eq_0 length_greater_0_conv list.size(3) stack.stack_from.simps(1) unat_max_word_pos)
+  apply(thin_tac "\<lbrakk>top_'' s - 1 < 0x3E8;
+         is_stack xs (s\<lparr>top_'' := top_'' s - 1\<rparr>)\<rbrakk>
+        \<Longrightarrow> unat (top_'' s - 1) = length xs - Suc 0")
+  apply(rule conjI)
+   apply(metis less_imp_diff_less unat_sub word_less_1 word_less_nat_alt word_not_le)
+  apply(simp add: stack_pop_upd)
+  done
 
 (* Q2 k) *)
 lemma sum_correct_partial:
-  "\<lbrace> \<lambda>s. is_stack xs s \<rbrace> sum' \<lbrace> \<lambda>rv s. is_stack [] s \<and> rv = sum_list xs \<rbrace>"
+  "\<lbrace> \<lambda>s. is_stack xs s \<rbrace> sum'
+   \<lbrace> \<lambda>rv s. is_stack [] s \<and> rv = sum_list xs \<rbrace>"
   unfolding sum'_def
   find_theorems "whileLoop"
   apply (subst whileLoop_add_inv[where
-                 I="TODO"])
-  sorry (* TODO *)
+        I="\<lambda>r s. \<exists>n. n \<le> length xs \<and>
+                 r = sum_list (take n xs) \<and> is_stack (drop n xs) s"])
+  apply(wp)
+    prefer 3
+    apply(rule_tac x=0 in exI)
+    apply(simp)
+   prefer 2
+   apply(clarsimp)
+   apply(subgoal_tac "n = length xs")
+    apply(simp)
+   apply(simp add: is_stack_def)
+  apply(unfold pop'_def)
+  apply(wp)
+  apply(auto)
+  apply(rule_tac x="n+1" in exI)
+  apply(subgoal_tac "n \<noteq> length xs")
+   apply(auto)
+   apply(subgoal_tac "content_'' s.[unat (top_'' s)]
+                    = nth xs n")
+    apply(simp add: take_Suc_conv_app_nth)
+   prefer 2
+   apply(case_tac "(drop n xs)")
+    apply(simp)
+   apply(frule drop_one)
+   apply(simp add: stack_pop_upd)
+  apply(subgoal_tac "unat (top_'' s) = length (drop n xs) - 1")
+   apply(simp)
+   apply(metis is_stack_Cons Cons_nth_drop_Suc le_neq_implies_less)
+  apply(simp add: stack_size)
+  done
 
 end
 
