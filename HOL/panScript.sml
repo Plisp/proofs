@@ -23,7 +23,9 @@ fun parse_pancake q =
     rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
 end
 
-Globals.max_print_depth := 16;
+(*
+ Globals.max_print_depth := 18;
+*)
 
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
@@ -103,6 +105,73 @@ QED
 (*/ skipping, conditional
   ffi calls
  *)
+
+val test_ast = parse_pancake ‘
+fun fn() {
+  #f(0, 0, 0, 0);
+  #g(0, 0, 0, 0);
+}’;
+
+Definition test_sem_def:
+  test_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD ^test_ast) s
+End
+
+Theorem test_thm:
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (byte_align s.base_addr = s.base_addr) ∧
+  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
+  ∃k. test_sem s ≈
+               Vis (FFI_call "f" [] [])
+               (λres.
+                  ffi_result_CASE
+                  res
+                  (λnew_ffi new_bytes. k new_ffi new_bytes)
+                  (Tau ∘ to_ffi ∘ Ret ∘
+                       (λoutcome. (SOME (FinalFFI outcome),empty_locals s)))) ∧
+      k f l =
+      Vis (FFI_call "g" [] [])
+          (λres.
+             ffi_result_CASE
+             res
+             (λnew_ffi' new_bytes'. Tau (Ret NONE))
+             (Tau ∘ to_ffi ∘ Ret ∘
+                  (λoutcome.
+                     (SOME (FinalFFI outcome),
+                      empty_locals
+                      (s with
+                         <|memory :=
+                           write_bytearray 0w l s.memory s.memaddrs s.be;
+                           ffi := f|>)))))
+Proof
+  rw[test_sem_def, itree_semantics_def, itree_evaluate_alt] >>
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[miscTheory.read_bytearray_def] >>
+  rw[Once itree_wbisim_cases] >>
+  (* return case *)
+  qexists_tac
+  ‘λf l. Vis (FFI_call "g" [] [])
+             (λres.
+                ffi_result_CASE
+                res
+                (λnew_ffi' new_bytes'. Tau (Ret NONE))
+                (Tau ∘ to_ffi ∘ Ret ∘
+                     (λoutcome.
+                        (SOME (FinalFFI outcome),
+                         empty_locals
+                         (s with
+                            <|memory :=
+                              write_bytearray 0w l s.memory s.memaddrs s.be;
+                              ffi := f|>)))))’ >>
+  rw[] >-
+   (Cases_on ‘r’ >-
+     (rw[combinTheory.o_DEF] >>
+      rw[itree_wbisim_refl]) >>
+    rw[itree_wbisim_refl]) >>
+  rw[FUN_EQ_THM] >>
+  Cases_on ‘res’ >> rw[]
+QED
 
 val ffi_ast = parse_pancake ‘
 fun fn() {
@@ -389,40 +458,32 @@ val muxrx_ast = parse_pancake ‘
 fun fn() {
   var drv_dequeue_c = @base;
   var drv_dequeue_a = @base + 1;
-
   #drv_dequeue_used(drv_dequeue_c, 1, drv_dequeue_a, 1);
-
   var drv_dequeue_ret = ldb drv_dequeue_c;
+  var got_char = ldb drv_dequeue_a;
 
   if drv_dequeue_ret != 0 {
       return 1;
   }
 
-  var got_char = ldb drv_dequeue_a;
-
   // Get the current status of the escape character from the ffi file
+
   var escape_character_a = @base + 3;
-
   #get_escape_character(0,0,escape_character_a, 1);
-
   var escape_character = ldb escape_character_a;
 
   if escape_character == 1 {
-      #escape_1(0,0,0,0);
       // give the char to the client, previous character was an escape character
+      #escape_1(0,0,0,0);
 
-      // Get the client
       var client_a = @base + 4;
-
       #get_client(0, 0, client_a, 1);
-
       var client = ldb client_a;
 
       // Check that we have requests by this client to get a char
+
       var check_num_to_get_chars_a = @base + 5;
-
       #check_num_to_get_chars(0, 0, check_num_to_get_chars_a, 1);
-
       var num_to_get_chars_ret = ldb check_num_to_get_chars_a;
 
       if num_to_get_chars_ret == 0 {
@@ -433,26 +494,22 @@ fun fn() {
 
       var cli_dequeue_enqueue_c = @base + 6;
       var cli_dequeue_enqueue_a = @base + 8;
-
       strb cli_dequeue_enqueue_c, client;
       strb cli_dequeue_enqueue_c + 1, got_char;
-
       #batch_cli_dequeue_enqueue(cli_dequeue_enqueue_c,2, cli_dequeue_enqueue_a,1);
 
       var set_escape_character_c = @base + 9;
       strb set_escape_character_c, 0;
-
       #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
   }
 
   if escape_character == 2 {
-      #escape_2(0,0,0,0);
       // The previous character was "@". Switch input to a new client.
+      #escape_2(0,0,0,0);
 
       var new_client = got_char - 48;
-
       if new_client >= 1 {
           var get_num_clients_a = @base + 4;
           #get_num_clients(0,0,get_num_clients_a, 1);
@@ -461,22 +518,20 @@ fun fn() {
           if new_client <= num_clients {
               var set_client_c = @base + 5;
               strb set_client_c, new_client;
-
               #set_client(set_client_c, 1, 0, 0);
           }
       }
 
       var set_escape_character_c = @base + 9;
       strb set_escape_character_c, 0;
-
       #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
   }
 
   if escape_character == 0 {
-      #escape_0(0,0,0,0);
       // No escape character has been set
+      #escape_0(0,0,0,0);
 
       // Ascii for '\'
       if got_char == 92 {
@@ -501,16 +556,13 @@ fun fn() {
       // Otherwise we just want to give the client the character
 
       var client_a = @base + 4;
-
       #get_client(0, 0, client_a, 1);
-
       var client = ldb client_a;
 
       // Check that we have requests by this client to get a char
+
       var check_num_to_get_chars_a = @base + 5;
-
       #check_num_to_get_chars(0, 0, check_num_to_get_chars_a, 1);
-
       var num_to_get_chars_ret = ldb check_num_to_get_chars_a;
 
       if num_to_get_chars_ret == 0 {
@@ -521,15 +573,12 @@ fun fn() {
 
       var cli_dequeue_enqueue_c = @base + 6;
       var cli_dequeue_enqueue_a = @base + 8;
-
       strb cli_dequeue_enqueue_c, client;
       strb cli_dequeue_enqueue_c + 1, got_char;
-
       #batch_cli_dequeue_enqueue(cli_dequeue_enqueue_c,2, cli_dequeue_enqueue_a,1);
 
       var set_escape_character_c = @base + 9;
       strb set_escape_character_c, 0;
-
       #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
