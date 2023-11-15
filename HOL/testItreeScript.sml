@@ -379,12 +379,58 @@ Proof
   rpt (PURE_TOP_CASE_TAC >> gvs[] >> rw[FUN_EQ_THM])
 QED
 
+(*/ lifted versions
+   not sure how to do seq?
+*)
+
+Theorem to_ffi_revert_bind:
+  to_ffi (bind t (revert_binding name s)) = to_ffi t
+Proof
+  rw[Once itree_strong_bisimulation] >>
+  qexists_tac ‘λa b. ∃t. a = to_ffi (bind t (revert_binding name s)) ∧
+                         b = to_ffi t’ >>
+  rw[] >-
+   (metis_tac[]) >-
+   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
+     (fs[revert_binding_def] >> Cases_on ‘x'’ >> fs[]) >- (* impossible *)
+     (Cases_on ‘a’ >> fs[])) >-
+   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
+     (fs[revert_binding_def] >> Cases_on ‘x’ >> fs[]) >-
+     (metis_tac[]) >-
+     (Cases_on ‘a’ >> fs[])) >-
+   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
+     (fs[revert_binding_def] >> Cases_on ‘x’ >> fs[]) >>
+    Cases_on ‘a'’ >> fs[] >>
+    metis_tac[])
+QED
+
+Theorem dec_lifted:
+  (eval s e = SOME k) ⇒
+  to_ffi (itree_mrec h_prog (Dec name e p,s))
+  = Tau (to_ffi (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k))))
+Proof
+  rw[] >>
+  drule dec_thm >>
+  rw[to_ffi_revert_bind]
+QED
+
+(* TODO fix this statement to be a case *)
+Theorem seq_lifted:
+  ∃k. (to_ffi (itree_mrec h_prog (Seq p p2,s)))
+      = (bind (to_ffi (itree_mrec h_prog (p,s))) k)
+      ∧ (k = Ret ∨ k = (λffi. (Tau (to_ffi (itree_mrec h_prog (p2,s'))))))
+       (* ∧ ((itree_mrec h_prog (Seq p p2,s)) = Ret (SOME res, _) ⇒ k = Ret) *)
+       (* ∧ ((itree_mrec h_prog (Seq p p2,s))= Ret (NONE, s') *)
+       (*    ⇒ k = (λffi. (Tau (to_ffi (itree_mrec h_prog (p2,s'))))))) *)
+Proof
+  cheat
+QED
 
 
 
 
-(*/ testing recursive specifications
-   TODO preludes and postludes, how to lift through to_ffi??
+(*/ recursive specifications
+   testing
  *)
 open arithmeticTheory;
 

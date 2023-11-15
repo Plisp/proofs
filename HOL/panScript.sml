@@ -1,5 +1,9 @@
 (*
- * actual pancake programs. simps used here
+ * actual pancake programs. simps used here.
+ * properties needed for verification
+ * - describing trees given a restricted set of responses, correlated to
+ *   the generated semantics
+ * - skipping 'uninteresting' (e.g. logging) calls, not mandatory
  *)
 
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
@@ -102,8 +106,52 @@ Proof
   rw[combinTheory.APPLY_UPDATE_THM]
 QED
 
-(*/ skipping, conditional
-  ffi calls
+(*/ spec combinators
+   - temporal logic?
+ *)
+
+(* Inductive walk: *)
+(* [~Tau:] (∀t. (walk t responses result ⇒
+                 walk (Tau t) responses result)) ∧ *)
+(* [~Vis:] (∀k e r. walk (k r) responses result *)
+(*            ⇒ walk (Vis e k) (r::responses) ((e,r)::result)) ∧ *)
+(* [~Ret:] (∀r. walk (Ret r) [] []) *)
+(* End *)
+
+Inductive next:
+  (P (Ret r) ⇒ next P (Ret r)) ∧
+  (P (Tau t) ⇒ next P t) ∧
+  ((∀a. P (k a)) ⇒ next P (Vis e k))
+End
+
+(* RTC of above: AF in CTL *)
+Inductive future:
+  (P t ⇒ future P t) ∧
+  (future P t ⇒ future P (Tau t)) ∧
+  (∀a. future P (k a) ⇒ future P (Vis e k))
+End
+
+(* future but with assumption that bytes written back fit in the passed array *)
+Inductive future_safe:
+  (P t ⇒ future_safe P t) ∧
+  (future_safe P t ⇒ future_safe P (Tau t)) ∧
+  (∀k s conf array.
+    (∀outcome. future_safe P (k (FFI_final outcome))) ∧
+    (∀new_ffi new_bytes. (LENGTH new_bytes = LENGTH array) ⇒
+                         future_safe P (k (FFI_return new_ffi new_bytes)))
+    ⇒ future_safe P (Vis (FFI_call s conf array) k))
+End
+
+(* needs to be α for type vars to match *)
+Theorem future_safe_ignore_tau[simp]:
+  (∀(t' : α sem32tree). ¬P (Tau t')) ⇒ (future_safe P (Tau t) ⇔ future_safe P t)
+Proof
+  rw[] >> rw[Once future_safe_cases]
+QED
+
+
+
+(*/ ffi calls
  *)
 
 val test_ast = parse_pancake ‘
@@ -173,6 +221,8 @@ Proof
   Cases_on ‘res’ >> rw[]
 QED
 
+(*/ ffi proof *)
+
 val ffi_ast = parse_pancake ‘
 fun fn() {
   #f1(2, 0, 0, 0);
@@ -188,47 +238,6 @@ Definition ffi_sem_def:
   ffi_sem (s:('a,'ffi) panSem$state) =
   itree_evaluate (SND $ SND $ HD ^ffi_ast) s
 End
-
-(* Inductive walk: *)
-(* [~Tau:] (∀t. (walk t responses result ⇒
-                 walk (Tau t) responses result)) ∧ *)
-(* [~Vis:] (∀k e r. walk (k r) responses result *)
-(*            ⇒ walk (Vis e k) (r::responses) ((e,r)::result)) ∧ *)
-(* [~Ret:] (∀r. walk (Ret r) [] []) *)
-(* End *)
-
-Inductive next:
-  (P (Ret r) ⇒ next P (Ret r)) ∧
-  (P (Tau t) ⇒ next P t) ∧
-  ((∀a. P (k a)) ⇒ next P (Vis e k))
-End
-
-(* RTC of above: AF in CTL *)
-Inductive future:
-  (P t ⇒ future P t) ∧
-  (future P t ⇒ future P (Tau t)) ∧
-  (∀a. future P (k a) ⇒ future P (Vis e k))
-End
-
-(* future but with assumption that bytes written back fit in the passed array *)
-Inductive future_safe:
-  (P t ⇒ future_safe P t) ∧
-  (future_safe P t ⇒ future_safe P (Tau t)) ∧
-  (∀k s conf array.
-    (∀outcome. future_safe P (k (FFI_final outcome))) ∧
-    (∀new_ffi new_bytes. (LENGTH new_bytes = LENGTH array) ⇒
-                         future_safe P (k (FFI_return new_ffi new_bytes)))
-    ⇒ future_safe P (Vis (FFI_call s conf array) k))
-End
-
-(* needs to be α for type vars to match *)
-Theorem future_safe_ignore_tau[simp]:
-  (∀(t' : α sem32tree). ¬P (Tau t')) ⇒ (future_safe P (Tau t) ⇔ future_safe P t)
-Proof
-  rw[] >> rw[Once future_safe_cases]
-QED
-
-(*/ ffi proof *)
 
 Definition ffi_pred_def:
   ffi_pred (t : α sem32tree) =
@@ -370,19 +379,18 @@ Theorem while_sem_lem:
   0 < n ∧ n < dimword (:8) ∧ i ≤ n ⇒
   ∃tl.
   to_ffi
-  (bind
+  (iter
+   (mrec_cb h_prog)
    (iter
-    (mrec_cb h_prog)
-    (iter
-     (λ(p',s'). h_prog_while_cb (p',s') (eval s' (Cmp Less (Var «x»)
-                                                      (LoadByte BaseAddr))))
-     (Seq
-      (ExtCall «ffi» (Const 0w) (Const 0w) (Const 0w) (Const 0w))
-      (Assign «x» (Op Add [Var «x»; Const 1w])),
-      s with <|locals := s.locals |+ («x»,ValWord (n2w i));
-               memory := write_bytearray s.base_addr [n2w n] s.memory
-                                         s.memaddrs s.be; ffi := ARB|>)))
-   (revert_binding «x» s)) ≈ tl
+    (λ(p',s'). h_prog_while_cb (p',s') (eval s' (Cmp Less (Var «x»)
+                                                     (LoadByte BaseAddr))))
+    (Seq
+     (ExtCall «ffi» (Const 0w) (Const 0w) (Const 0w) (Const 0w))
+     (Assign «x» (Op Add [Var «x»; Const 1w])),
+     s with <|locals := s.locals |+ («x»,ValWord (n2w i));
+              memory := write_bytearray s.base_addr [n2w n] s.memory
+                                        s.memaddrs s.be; ffi := ARB|>)))
+  ≈ tl
   ∧ future_safe (loop_pred (n - i)) tl
 Proof
   rw[Once future_safe_cases] >>
@@ -397,8 +405,7 @@ Proof
     fs[] >>
     simp[wordsTheory.w2w_def] >>
     ‘i = n’ by rw[] >>
-    rw[revert_binding_def] >>
-    qexists_tac ‘Ret NONE’ >>
+    rw[] >> qexists_tac ‘Ret NONE’ >>
     simp[itree_wbisim_refl, Once future_safe_cases, Once loop_pred_cases]) >>
   rw[Once itree_iter_thm, Once itree_iter_thm] >>
   rw[GSYM itree_iter_thm] >>
@@ -434,7 +441,7 @@ Proof
   rw[while_sem_def, itree_semantics_def, itree_evaluate_alt] >>
   assume_tac (GEN_ALL while_pred_notau) >>
   ‘eval s (Const 0w) = SOME (ValWord 0w)’ by rw[eval_def] >>
-  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
   (* seq *)
   rw[seq_thm] >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
