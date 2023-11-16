@@ -1,9 +1,9 @@
 (*
  * actual pancake programs. simps used here.
  * properties needed for verification
- * - describing trees given a restricted set of responses, correlated to
- *   the generated semantics
- * - skipping 'uninteresting' (e.g. logging) calls, not mandatory
+ * - describing trees given arbitrary restrictions on ffi responses
+ * - spec must be transparently related to the (correct) result of itree_evaluate
+ * - skipping 'uninteresting' (e.g. logging) calls, optional
  *)
 
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
@@ -28,7 +28,7 @@ fun parse_pancake q =
 end
 
 (*
- Globals.max_print_depth := 18;
+Globals.max_print_depth := 18;
 *)
 
 Theorem pan_eval_simps[simp]:
@@ -151,75 +151,8 @@ QED
 
 
 
-(*/ ffi calls
- *)
 
-val test_ast = parse_pancake ‘
-fun fn() {
-  #f(0, 0, 0, 0);
-  #g(0, 0, 0, 0);
-}’;
 
-Definition test_sem_def:
-  test_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate (SND $ SND $ HD ^test_ast) s
-End
-
-Theorem test_thm:
-  (∀(w : word32). w ∈ s.memaddrs) ∧
-  (byte_align s.base_addr = s.base_addr) ∧
-  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
-  ∃k. test_sem s ≈
-               Vis (FFI_call "f" [] [])
-               (λres.
-                  ffi_result_CASE
-                  res
-                  (λnew_ffi new_bytes. k new_ffi new_bytes)
-                  (Tau ∘ to_ffi ∘ Ret ∘
-                       (λoutcome. (SOME (FinalFFI outcome),empty_locals s)))) ∧
-      k f l =
-      Vis (FFI_call "g" [] [])
-          (λres.
-             ffi_result_CASE
-             res
-             (λnew_ffi' new_bytes'. Tau (Ret NONE))
-             (Tau ∘ to_ffi ∘ Ret ∘
-                  (λoutcome.
-                     (SOME (FinalFFI outcome),
-                      empty_locals
-                      (s with
-                         <|memory :=
-                           write_bytearray 0w l s.memory s.memaddrs s.be;
-                           ffi := f|>)))))
-Proof
-  rw[test_sem_def, itree_semantics_def, itree_evaluate_alt] >>
-  rw[seq_thm] >>
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[miscTheory.read_bytearray_def] >>
-  rw[Once itree_wbisim_cases] >>
-  (* return case *)
-  qexists_tac
-  ‘λf l. Vis (FFI_call "g" [] [])
-             (λres.
-                ffi_result_CASE
-                res
-                (λnew_ffi' new_bytes'. Tau (Ret NONE))
-                (Tau ∘ to_ffi ∘ Ret ∘
-                     (λoutcome.
-                        (SOME (FinalFFI outcome),
-                         empty_locals
-                         (s with
-                            <|memory :=
-                              write_bytearray 0w l s.memory s.memaddrs s.be;
-                              ffi := f|>)))))’ >>
-  rw[] >-
-   (Cases_on ‘r’ >-
-     (rw[combinTheory.o_DEF] >>
-      rw[itree_wbisim_refl]) >>
-    rw[itree_wbisim_refl]) >>
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘res’ >> rw[]
-QED
 
 (*/ ffi proof *)
 
@@ -264,7 +197,7 @@ Theorem ffi_sem_thm:
 Proof
   rw[ffi_sem_def, itree_semantics_def, itree_evaluate_alt] >>
   assume_tac ffi_pred_notau >>
-  (* Seq rw[seq_thm] *)
+  (* Seq *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_seq_def] >>
   rw[Once itree_iter_thm, Once itree_bind_thm] >>
   (* extcall *)

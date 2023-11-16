@@ -137,7 +137,7 @@ lemma decoder:
    apply(simp add: encoder_def)
   apply(simp add: encoder_def)
   using decoder_step is_inv_def
-  by (metis (lifting) domIff option.collapse self_append_conv2)
+  by (metis domIff option.collapse self_append_conv2)
 
 (* Q1 e): *)
 lemma is_inv_map_of:
@@ -174,7 +174,7 @@ lemma fst_code_list:
    apply(simp)
   apply(simp)
   using add_bit_fst_idem
-  by (metis (no_types) image_Un image_cong image_image prod.collapse)
+  by (metis image_Un image_cong image_image prod.collapse)
 
 (* Q1 h): *)
 lemma distinct_fst_code_list[simp]:
@@ -195,8 +195,7 @@ lemma distinct_forest_insort:
 lemma distinct_build_tree:
   "distinct_forest ts \<Longrightarrow> distinct_tree (build_tree ts)"
   apply(induct ts rule: build_tree.induct)
-  apply(auto)
-  by (simp add: Int_Un_distrib Int_Un_distrib2 distinct_forest_insort)
+  by (auto simp add: Int_Un_distrib Int_Un_distrib2 distinct_forest_insort)
 
 (* unused? not sure how it factors in
 lemma distinct_insort_map:
@@ -223,10 +222,10 @@ lemma distinct_huffman[simp]:
   apply(auto simp add: sort_key_def pull_insort_key)
   apply(simp add: distinct_forest_insort)
   apply(subgoal_tac "set fs = set (foldr (insort_key snd) fs [])")
-  subgoal
-    by (simp add: case_prod_beta image_iff)
+   apply(simp add: case_prod_beta image_iff)
   apply(simp only: sort_key_def[symmetric])
-  by (rule set_sort[symmetric])
+  apply(rule set_sort[symmetric])
+  done
 
 
 (* If you're curious, this would be the overall correctness statement.
@@ -363,8 +362,10 @@ lemma pop_correct_partial:
       P="\<lambda>t. True" in seq)
     prefer 3
     apply(simp)
-  using Nondet_VCG.hoare_vcg_prop
-   apply(smt (verit) hoare_pre(1) state_assert_wp)
+   apply(rule_tac Q="\<lambda>s. top_'' s < 0x3E8 \<longrightarrow> is_stack (x # xs) s"
+      in hoare_pre(1))
+    apply(rule state_assert_wp)
+   apply(simp)
   apply(simp del: is_stack_Cons)
   apply(rule_tac
       C="\<lambda>s. is_stack (x#xs) s" and
@@ -415,32 +416,11 @@ lemma drop_one:
   "drop n xs = a # list \<Longrightarrow> drop (Suc n) xs = list"
   by (metis Cons_nth_drop_Suc drop_all le_def list.distinct(1) list.inject)
 
-lemma stack_size:
-  "top_'' s \<noteq> - 1 \<and> top_'' s < 0x3E8
-   \<Longrightarrow> is_stack xs s \<Longrightarrow> unat (top_'' s) = length xs - 1"
-  apply(induct xs arbitrary: s)
-   apply(simp)
-  apply(case_tac "top_'' s = 0")
-   apply(simp)
-  apply(drule_tac x="s\<lparr>top_'' := top_'' s - 1\<rparr>" in meta_spec)
-  apply(auto)
-  apply(subgoal_tac "top_'' s - 1 < 0x3E8 \<and> 
-                     is_stack xs (s\<lparr>top_'' := top_'' s - 1\<rparr>)")
-   apply(metis One_nat_def Suc_pred' Suc_unat_minus_one diff_0_eq_0 length_greater_0_conv list.size(3) stack.stack_from.simps(1) unat_max_word_pos)
-  apply(thin_tac "\<lbrakk>top_'' s - 1 < 0x3E8;
-         is_stack xs (s\<lparr>top_'' := top_'' s - 1\<rparr>)\<rbrakk>
-        \<Longrightarrow> unat (top_'' s - 1) = length xs - Suc 0")
-  apply(rule conjI)
-   apply(metis less_imp_diff_less unat_sub word_less_1 word_less_nat_alt word_not_le)
-  apply(simp add: stack_pop_upd)
-  done
-
 (* Q2 k) *)
 lemma sum_correct_partial:
   "\<lbrace> \<lambda>s. is_stack xs s \<rbrace> sum'
    \<lbrace> \<lambda>rv s. is_stack [] s \<and> rv = sum_list xs \<rbrace>"
   unfolding sum'_def
-  find_theorems "whileLoop"
   apply (subst whileLoop_add_inv[where
         I="\<lambda>r s. \<exists>n. n \<le> length xs \<and>
                  r = sum_list (take n xs) \<and> is_stack (drop n xs) s"])
@@ -449,28 +429,19 @@ lemma sum_correct_partial:
     apply(rule_tac x=0 in exI)
     apply(simp)
    prefer 2
-   apply(clarsimp)
-   apply(subgoal_tac "n = length xs")
-    apply(simp)
-   apply(simp add: is_stack_def)
+   apply(clarsimp simp add: is_stack_def)
+  prefer 1
   apply(unfold pop'_def)
   apply(wp)
   apply(auto)
   apply(rule_tac x="n+1" in exI)
   apply(subgoal_tac "n \<noteq> length xs")
-   apply(auto)
-   apply(subgoal_tac "content_'' s.[unat (top_'' s)]
-                    = nth xs n")
-    apply(simp add: take_Suc_conv_app_nth)
-   prefer 2
-   apply(case_tac "(drop n xs)")
-    apply(simp)
-   apply(frule drop_one)
-   apply(simp add: stack_pop_upd)
-  apply(subgoal_tac "unat (top_'' s) = length (drop n xs) - 1")
+  thm take_Suc_conv_app_nth
+   apply(auto simp add: take_Suc_conv_app_nth drop_Suc_nth)
+  apply(case_tac "(drop n xs)")
    apply(simp)
-   apply(metis is_stack_Cons Cons_nth_drop_Suc le_neq_implies_less)
-  apply(simp add: stack_size)
+  apply(frule drop_one)
+  apply(simp add: stack_pop_upd)
   done
 
 end

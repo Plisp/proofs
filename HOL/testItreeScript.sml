@@ -380,7 +380,7 @@ Proof
 QED
 
 (*/ lifted versions
-   not sure how to do seq?
+   not sure how to do seq? I guess internal lemmas are fine
 *)
 
 Theorem to_ffi_revert_bind:
@@ -414,17 +414,7 @@ Proof
   rw[to_ffi_revert_bind]
 QED
 
-(* TODO fix this statement to be a case *)
-Theorem seq_lifted:
-  ∃k. (to_ffi (itree_mrec h_prog (Seq p p2,s)))
-      = (bind (to_ffi (itree_mrec h_prog (p,s))) k)
-      ∧ (k = Ret ∨ k = (λffi. (Tau (to_ffi (itree_mrec h_prog (p2,s'))))))
-       (* ∧ ((itree_mrec h_prog (Seq p p2,s)) = Ret (SOME res, _) ⇒ k = Ret) *)
-       (* ∧ ((itree_mrec h_prog (Seq p p2,s))= Ret (NONE, s') *)
-       (*    ⇒ k = (λffi. (Tau (to_ffi (itree_mrec h_prog (p2,s'))))))) *)
-Proof
-  cheat
-QED
+
 
 
 
