@@ -407,7 +407,7 @@ QED
 Theorem dec_lifted:
   (eval s e = SOME k) ⇒
   to_ffi (itree_mrec h_prog (Dec name e p,s))
-  = Tau (to_ffi (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k))))
+  = Tau (to_ffi (itree_mrec h_prog (p, s with locals := s.locals |+ (name,k))))
 Proof
   rw[] >>
   drule dec_thm >>
@@ -526,7 +526,7 @@ End
 
 (* (E -> itree E' R) -> itree E R -> itree E' R *)
 Definition itree_interp_def:
-  itree_interp rh it = itree_iter (interp_cb rh) it
+  itree_interp rh t = itree_iter (interp_cb rh) t
 End
 
 Theorem interp_cb_ret_inv:
@@ -539,6 +539,13 @@ QED
 
 Theorem itree_interp_ret:
   itree_interp rh (Ret r) = Ret r
+Proof
+  rw[itree_interp_def] >>
+  rw[Once itree_iter_thm]
+QED
+
+Theorem itree_interp_tau:
+  itree_interp rh (Tau t) = Tau (iter (interp_cb rh) t)
 Proof
   rw[itree_interp_def] >>
   rw[Once itree_iter_thm]

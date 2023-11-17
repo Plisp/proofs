@@ -149,9 +149,19 @@ Proof
   rw[] >> rw[Once future_safe_cases]
 QED
 
+(* looks_like_echo P t = t ≈ Vis e1 Vis e2 ∧ P k *)
 
+(*                                             Seq (input output) ... *)
+(*                                             --> bind (t) ... *)
 
+(* looks_like_echo_pred t = (t ≈ Vis e1 Vis e2 Ret) *)
 
+(* Vis "input" *)
+(*   Vis "output" *)
+(*     (λ a -> k1) *)
+(* Vis e1 *)
+(* (λa → Vis e2 *)
+(*    (λ a -> k2) *)
 
 
 (*/ ffi proof *)
@@ -530,3 +540,9 @@ Definition muxrx_sem_def:
   muxrx_sem (s:('a,'ffi) panSem$state) =
   itree_evaluate (SND $ SND $ HD ^muxrx_ast) s
 End
+
+(*
+  steps:
+  - prove no Error return possible
+  - trim
+ *)

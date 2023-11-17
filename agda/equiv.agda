@@ -1,0 +1,146 @@
+{-# OPTIONS --without-K --exact-split --safe #-}
+
+{-
+  equivalence
+-}
+
+open import Agda.Primitive
+open import logic
+open import path
+open import hlevel
+open import retract
+
+{-
+  invertibles
+-}
+
+invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
+invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
+
+id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
+id-invertible {ℓ}{X} = id , refl , refl
+
+inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
+                   → ((g , _) : invertible f) → invertible g
+inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
+
+invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
+             → invertible f' → invertible f → invertible (f' ∘ f)
+-- middle terms cancel
+invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
+  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
+
+{-
+  Voevodsky's equivalence
+-}
+
+-- space: witnesses x' × f x' = y
+fiber : {X :  Set ℓ} {Y : Set ℓ₁} (f : X → Y) → Y → Set (ℓ ⊔ ℓ₁)
+fiber {ℓ}{ℓ₁} {X}{Y} f y = Σ x ∶ X , f x ＝ y
+
+fiber-base : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
+           → fiber f y → X
+fiber-base (x , p) = x
+
+fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
+         → (w : fiber f y) → f (fiber-base w) ＝ y
+fiber-id (x , p) = p
+
+-- the fibre (preimage) of all y : Y under f is unique (size 1)
+-- the proof is also unique, via the characterisation of Σ identity
+is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
+is-equivalence {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , is-contr (fiber f y)
+
+id-is-equivalence : (X : Set ℓ) → is-equivalence id
+id-is-equivalence = singleton-types-are-singletons
+
+-- inverses - center is p , Σ x, f x ＝ y
+inverse : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → is-equivalence f → (Y → X)
+inverse f equivalence y = fiber-base (center (fiber f y) (equivalence y))
+
+{-
+  relationship with invertibles
+-}
+
+-- the easy direction
+inverses-are-sections : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) (e : is-equivalence f)
+                      → f ∘ inverse f e ~ id
+inverses-are-sections f e y = fiber-id (center (fiber f y) (e y))
+
+inverse-centrality : {X : Set ℓ} {Y : Set ℓ₁}
+                     (f : X → Y) (e : is-equivalence f) (y : Y) (t : fiber f y)
+                   → (inverse f e y , inverses-are-sections f e y) ＝ t
+inverse-centrality f e y = centrality (fiber f y) (e y)
+
+inverses-are-retractions : {X : Set ℓ} {Y : Set ℓ₁}
+                           (f : X → Y) (e : is-equivalence f)
+                         → inverse f e ∘ f ~ id
+inverses-are-retractions f e x = ap pr₁ r
+  where
+    q : ∀ fb → (center _ (e (f x))) ＝ fb
+    q = centrality _ (e (f x))
+    -- inverse is just the base of the single fiber
+    r : center (fiber f (f x)) (e (f x)) ＝ (x , refl (f x))
+    r = q (x , refl (f x))
+
+equivalences-are-invertible : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+                            → is-equivalence f → invertible f
+equivalences-are-invertible f e = inverse f e ,
+                            inverses-are-retractions f e ,
+                            inverses-are-sections f e
+
+-- the hard direction
+rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
+    → has-retraction f → (f x ＝ f y) → (x ＝ y)
+rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
+
+ap-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X}
+       → (f : X → Y) (r : has-retraction f)
+       → (p : x ＝ y) → rap f r (ap f p) ＝ p
+ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) (refl x)
+  = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl _
+
+invertibles-are-equivalences : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+                             → invertible f → is-equivalence f
+invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
+  where
+    -- to show (Σ x ∶ X , f x ＝ y₀) ◁ (Σ x ∶ X , g (f x) ＝ g y₀)
+    test : (x : X) → (f x ＝ y₀) ◁ (g (f x) ＝ g y₀)
+    test x = rap g (f , fg) , ap g , ap-rap g (f , fg)
+
+    hom-iso : ∀ x → (g (f x) ＝ g y₀) ◁ (x ＝ g y₀)
+    hom-iso x = transport (λ - → - ＝ g y₀) (sym＝ (gf x)) ,
+                transport (_＝ g y₀) (gf x) ,
+                transport-is-section (_＝ g y₀) (gf x)
+
+    -- want to show the fiber type is a retract of a singleton(-type)
+    fiber-is-singleton-Σ-retract : (fiber f y₀) ◁ (Σ x ∶ X , x ＝ g y₀)
+    fiber-is-singleton-Σ-retract
+      = (Σ x ∶ X , f x ＝ y₀)       ◁⟨ Σ-retract test ⟩
+        (Σ x ∶ X , g (f x) ＝ g y₀) ◁⟨ Σ-retract hom-iso ⟩
+        (Σ x ∶ X , x ＝ g y₀)       ◀ -- these are just ∙ (sym＝) gf which cancel
+
+    proof : Σ c ∶ (fiber f y₀) , is-center _ c
+    proof = retract-of-singleton fiber-is-singleton-Σ-retract
+              (singleton-types-are-singletons _ (g y₀))
+
+
+-- corollaries
+inverse-is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} (e : is-equivalence f)
+                       → is-equivalence (inverse f e)
+inverse-is-equivalence {ℓ}{ℓ₁}{X}{Y} {f} e
+  = invertibles-are-equivalences (inverse f e)
+      (f , inverses-are-sections f e , inverses-are-retractions f e)
+
+equivalence-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
+              → is-equivalence g → is-equivalence f → is-equivalence (g ∘ f)
+equivalence-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f} {g} i j
+  = invertibles-are-equivalences (g ∘ f)
+      (invertible-∘ (equivalences-are-invertible g i)
+                    (equivalences-are-invertible f j))
+
+-- inverse-of-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂}
+--                (f : X → Y) (g : Y → Z)
+--                (i : is-equivalence f) (j : is-equivalence g)
+--              → inverse f i ∘ inverse g j ~ inverse (g ∘ f) (equivalence-∘ j i)
+-- inverse-of-∘ f g i j z = {!!}

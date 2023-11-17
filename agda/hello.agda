@@ -1,7 +1,7 @@
 {-# OPTIONS --without-K --exact-split #-}
 
 {-
-  random proofs
+  random proofs: no arith and op since those are useful
 -}
 
 open import logic
@@ -9,6 +9,7 @@ open import path
 open import types
 open import hlevel
 open import retract
+open import equiv
 open import univalence
 
 {-
@@ -47,7 +48,7 @@ postulate
 
 isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
-isabelle-cong {ℓ} {P}{P'}{Q}{Q'} ua p＝ q＝
+isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
   = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
   where
     qmap : (P' → Q) → (P' → Q')
@@ -76,10 +77,10 @@ isabelle-cong {ℓ} {P}{P'}{Q}{Q'} ua p＝ q＝
     qmap-is-invertible = qmap⁻¹ , (left , (λ f → funext (λ p' → l f p')))
 
     pq-equiv : (P' → Q) ≃ (P' → Q')
-    pq-equiv = qmap , invertibles-are-equivs qmap qmap-is-invertible
+    pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
 
     p-cong : (P' → Q) ＝ (P' → Q')
-    p-cong = Eq→Id ua (P' → Q) (P' → Q') pq-equiv
+    p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
 
 {-
   new type: manual boolean
