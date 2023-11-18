@@ -51,12 +51,27 @@ fiber-id (x , p) = p
 is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
 is-equivalence {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , is-contr (fiber f y)
 
-id-is-equivalence : (X : Set ℓ) → is-equivalence id
-id-is-equivalence = singleton-types-are-singletons
-
 -- inverses - center is p , Σ x, f x ＝ y
 inverse : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → is-equivalence f → (Y → X)
 inverse f equivalence y = fiber-base (center (fiber f y) (equivalence y))
+
+equiv-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} → (e : is-equivalence f)
+         → (y : Y) → f (fiber-base (center _ (e y))) ＝ y
+equiv-id equivalence y = fiber-id (center _ (equivalence y))
+
+id-is-equivalence : (X : Set ℓ) → is-equivalence id
+id-is-equivalence = singleton-types-are-singletons
+
+-- comp-is-equivalence : {X : Set ℓ}{Y : Set ℓ₁}{Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
+--               → is-equivalence f → is-equivalence g → is-equivalence (g ∘ f)
+-- comp-is-equivalence {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f} {g} ef eg z
+--   = (fiber-base (center _ (ef (fiber-base (center _ (eg z))))) , test) , proof
+--   where
+--     test : g (f (inverse f ef (inverse g eg z))) ＝ z
+--     test = ap g (equiv-id ef (inverse g eg z)) ∙ equiv-id eg z
+--     -- not obvious!! we don't know anything about base or the space
+--     proof : is-center (fiber (g ∘ f) z) ((inverse f ef (inverse g eg z)), test)
+--     proof (base , gfbase＝z) = {!!}
 
 {-
   relationship with invertibles
@@ -124,7 +139,6 @@ invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
     proof = retract-of-singleton fiber-is-singleton-Σ-retract
               (singleton-types-are-singletons _ (g y₀))
 
-
 -- corollaries
 inverse-is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} (e : is-equivalence f)
                        → is-equivalence (inverse f e)
@@ -132,15 +146,58 @@ inverse-is-equivalence {ℓ}{ℓ₁}{X}{Y} {f} e
   = invertibles-are-equivalences (inverse f e)
       (f , inverses-are-sections f e , inverses-are-retractions f e)
 
-equivalence-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
-              → is-equivalence g → is-equivalence f → is-equivalence (g ∘ f)
-equivalence-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f} {g} i j
-  = invertibles-are-equivalences (g ∘ f)
-      (invertible-∘ (equivalences-are-invertible g i)
-                    (equivalences-are-invertible f j))
+abstract
+  equivalence-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
+                → is-equivalence g → is-equivalence f → is-equivalence (g ∘ f)
+  equivalence-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f} {g} i j
+    = invertibles-are-equivalences (g ∘ f)
+        (invertible-∘ (equivalences-are-invertible g i)
+                      (equivalences-are-invertible f j))
 
--- inverse-of-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂}
---                (f : X → Y) (g : Y → Z)
---                (i : is-equivalence f) (j : is-equivalence g)
---              → inverse f i ∘ inverse g j ~ inverse (g ∘ f) (equivalence-∘ j i)
--- inverse-of-∘ f g i j z = {!!}
+inverse-of-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} (f : X → Y) (g : Y → Z)
+             → (i : is-equivalence f) (j : is-equivalence g)
+             → inverse f i ∘ inverse g j ~ inverse (g ∘ f) (equivalence-∘ j i)
+inverse-of-∘ f g i j z = sym＝ (test2 (inverse f i (inverse g j z)))
+                       ∙ ap (inverse (g ∘ f) (equivalence-∘ j i)) test
+  where
+    test : g (f (inverse f i (inverse g j z))) ＝ z
+    test = ap g (equiv-id i (inverse g j z)) ∙ equiv-id j z
+
+    test2 : inverse (g ∘ f) (equivalence-∘ j i) ∘ (g ∘ f) ~ id
+    test2 = inverses-are-retractions (g ∘ f) (equivalence-∘ j i)
+
+{-
+  equivalent type-spaces
+-}
+
+_≃_ : Set ℓ₁ → Set ℓ₂ → Set (ℓ₁ ⊔ ℓ₂)
+X ≃ Y = Σ f ∶ (X → Y) , is-equivalence f
+infix 5 _≃_
+
+equiv-fn : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
+equiv-fn (f , i) = f
+
+equiv-proof : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
+equiv-proof (f , i) = f
+
+refl≃ : (X : Set ℓ) → X ≃ X
+refl≃ X = id , id-is-equivalence X
+
+_●_ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} → X ≃ Y → Y ≃ Z → X ≃ Z
+(f , d) ● (f' , e) = f' ∘ f , equivalence-∘ e d
+trans≃ = _●_
+
+sym≃ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → Y ≃ X
+sym≃ (f , e) = inverse f e , inverse-is-equivalence e
+
+_≃⟨_⟩_ : (X : Set ℓ) {Y : Set ℓ₁} {Z : Set ℓ₂} → X ≃ Y → Y ≃ Z → X ≃ Z
+_ ≃⟨ d ⟩ e = d ● e
+infixr 2 _≃⟨_⟩_
+
+_■ : (X : Set ℓ) → X ≃ X
+_■ = refl≃
+infix 3 _■
+
+invertible≃ : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+            → invertible f → X ≃ Y
+invertible≃ f i = f , invertibles-are-equivalences f i

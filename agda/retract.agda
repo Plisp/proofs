@@ -6,7 +6,6 @@
 
 open import Agda.Primitive
 open import logic
-open import types
 open import path
 open import hlevel
 
