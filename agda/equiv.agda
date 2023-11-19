@@ -9,6 +9,7 @@ open import logic
 open import path
 open import hlevel
 open import retract
+open import retract-ex
 
 {-
   invertibles
@@ -82,6 +83,10 @@ inverses-are-sections : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) (e : is-equ
                       → f ∘ inverse f e ~ id
 inverses-are-sections f e y = fiber-id (center (fiber f y) (e y))
 
+equiv-is-section : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+                 → is-equivalence f → has-section f
+equiv-is-section f e = inverse f e , inverses-are-sections f e
+
 inverse-centrality : {X : Set ℓ} {Y : Set ℓ₁}
                      (f : X → Y) (e : is-equivalence f) (y : Y) (t : fiber f y)
                    → (inverse f e y , inverses-are-sections f e y) ＝ t
@@ -98,23 +103,17 @@ inverses-are-retractions f e x = ap pr₁ r
     r : center (fiber f (f x)) (e (f x)) ＝ (x , refl (f x))
     r = q (x , refl (f x))
 
+equiv-is-retraction : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
+                    → is-equivalence f → has-retraction f
+equiv-is-retraction f e = inverse f e , inverses-are-retractions f e
+
 equivalences-are-invertible : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
                             → is-equivalence f → invertible f
 equivalences-are-invertible f e = inverse f e ,
-                            inverses-are-retractions f e ,
-                            inverses-are-sections f e
+                                  inverses-are-retractions f e ,
+                                  inverses-are-sections f e
 
 -- the hard direction
-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
-    → has-retraction f → (f x ＝ f y) → (x ＝ y)
-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
-
-ap-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X}
-       → (f : X → Y) (r : has-retraction f)
-       → (p : x ＝ y) → rap f r (ap f p) ＝ p
-ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) (refl x)
-  = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl _
-
 invertibles-are-equivalences : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
                              → invertible f → is-equivalence f
 invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
@@ -174,21 +173,21 @@ _≃_ : Set ℓ₁ → Set ℓ₂ → Set (ℓ₁ ⊔ ℓ₂)
 X ≃ Y = Σ f ∶ (X → Y) , is-equivalence f
 infix 5 _≃_
 
-equiv-fn : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
-equiv-fn (f , i) = f
+equivt-fn : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
+equivt-fn (f , i) = f
 
-equiv-proof : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
-equiv-proof (f , i) = f
+is-equivt : {X : Set ℓ} {Y : Set ℓ₁} → ((f , i) : X ≃ Y) → is-equivalence f
+is-equivt (f , i) = i
 
 refl≃ : (X : Set ℓ) → X ≃ X
 refl≃ X = id , id-is-equivalence X
 
+sym≃ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → Y ≃ X
+sym≃ (f , e) = inverse f e , inverse-is-equivalence e
+
 _●_ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} → X ≃ Y → Y ≃ Z → X ≃ Z
 (f , d) ● (f' , e) = f' ∘ f , equivalence-∘ e d
 trans≃ = _●_
-
-sym≃ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → Y ≃ X
-sym≃ (f , e) = inverse f e , inverse-is-equivalence e
 
 _≃⟨_⟩_ : (X : Set ℓ) {Y : Set ℓ₁} {Z : Set ℓ₂} → X ≃ Y → Y ≃ Z → X ≃ Z
 _ ≃⟨ d ⟩ e = d ● e
@@ -198,6 +197,24 @@ _■ : (X : Set ℓ) → X ≃ X
 _■ = refl≃
 infix 3 _■
 
-invertible≃ : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
-            → invertible f → X ≃ Y
+invertible≃ : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → invertible f → X ≃ Y
 invertible≃ f i = f , invertibles-are-equivalences f i
+
+◁≃ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X ◁ Y
+◁≃ (f , e) = inverse f e , f , inverses-are-retractions f e
+
+≃▷ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → Y ◁ X
+≃▷ (f , e) = f , inverse f e , inverses-are-sections f e
+
+equivt-singletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
+                  → is-contr Y → is-contr X
+equivt-singletons e = retract-of-singleton (◁≃ e)
+
+equivt-subsingletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
+                     → is-subsingleton Y → is-subsingleton X
+equivt-subsingletons (f , e) ssy
+  = retract-of-subsingleton (inverse f e , f , inverses-are-retractions f e) ssy
+
+-- equivt-sets : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
+--             → is-set Y → is-set X
+-- equivt-sets (f , e) fs x1 x2 p1 p2 = {!!}

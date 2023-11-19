@@ -26,7 +26,7 @@ ua : is-univalent ℓ → (X Y : Set ℓ) → X ≃ Y → X ＝ Y
 ua univalence X Y = inverse (idtoeq X Y) (univalence X Y)
 
 ua-transport : {X Y : Set ℓ} → X ＝ Y → X → Y
-ua-transport {ℓ} {X} {Y} p = equiv-fn (idtoeq X Y p)
+ua-transport {ℓ} {X} {Y} p = equivt-fn (idtoeq X Y p)
 
 {-
   TODO examples
