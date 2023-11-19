@@ -39,7 +39,7 @@ badalg-contra : ¬ badalg
 badalg-contra (co f) = badalg-rec (λ f → f true) (co f)
 
 {-
-  TODO prove these
+  isabelle is weird, review if this needs univalence
 -}
 
 postulate

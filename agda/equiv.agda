@@ -79,7 +79,10 @@ id-is-equivalence = singleton-types-are-singletons
 -}
 
 -- the easy direction
-inverses-are-sections : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) (e : is-equivalence f)
+
+
+inverses-are-sections : {X : Set ℓ} {Y : Set ℓ₁}
+                      → (f : X → Y) (e : is-equivalence f)
                       → f ∘ inverse f e ~ id
 inverses-are-sections f e y = fiber-id (center (fiber f y) (e y))
 
@@ -120,7 +123,7 @@ invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
   where
     -- to show (Σ x ∶ X , f x ＝ y₀) ◁ (Σ x ∶ X , g (f x) ＝ g y₀)
     test : (x : X) → (f x ＝ y₀) ◁ (g (f x) ＝ g y₀)
-    test x = rap g (f , fg) , ap g , ap-rap g (f , fg)
+    test x = rap g (f , fg) , ap g , ap-rap (f , fg)
 
     hom-iso : ∀ x → (g (f x) ＝ g y₀) ◁ (x ＝ g y₀)
     hom-iso x = transport (λ - → - ＝ g y₀) (sym＝ (gf x)) ,
@@ -214,7 +217,3 @@ equivt-subsingletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
                      → is-subsingleton Y → is-subsingleton X
 equivt-subsingletons (f , e) ssy
   = retract-of-subsingleton (inverse f e , f , inverses-are-retractions f e) ssy
-
--- equivt-sets : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
---             → is-set Y → is-set X
--- equivt-sets (f , e) fs x1 x2 p1 p2 = {!!}

@@ -69,11 +69,11 @@ rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
     → has-retraction f → (f x ＝ f y) → (x ＝ y)
 rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
 
-ap-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X}
-       → (f : X → Y) (r : has-retraction f)
-       → (p : x ＝ y) → rap f r (ap f p) ＝ p
-ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) (refl x)
-  = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl _
+ap-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} {f : X → Y}
+       → (r : has-retraction f) (p : x ＝ y)
+       → rap f r (ap f p) ＝ p
+ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
+  = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl (gf x)
 
 retract-of-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}
                         → X ◁ Y → is-subsingleton Y → is-subsingleton X

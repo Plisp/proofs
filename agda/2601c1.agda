@@ -16,7 +16,7 @@ record Group (S : Set ℓ) : Set (lsuc ℓ) where
     e : S
     assocp : assoc op
     idp : identity e op
-    ivp : inverse e op
+    ivp : has-inverse e op
 
 -- TODO how to best represent while reusing Group?
 -- AbelianGroup : (ℓ : Level) → Set (lsuc ℓ)
@@ -48,7 +48,7 @@ triv-assoc _ _ _ = refl ⋆
 triv-id : identity ⋆ triv-op  -- ∀ x → (x·e ＝ x) × (e·x ＝ x)
 triv-id ⋆ = (refl ⋆ , refl ⋆)
 
-triv-inverse : inverse ⋆ triv-op -- ∀ x → Σ y꞉X, (x·y ＝ e) × (y·x ＝ e)
+triv-inverse : has-inverse ⋆ triv-op -- ∀ x → Σ y꞉X, (x·y ＝ e) × (y·x ＝ e)
 triv-inverse ⋆ = (⋆ , (refl ⋆ , refl ⋆))
 
 triv-group : Group 𝟙

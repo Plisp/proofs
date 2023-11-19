@@ -57,8 +57,7 @@ is-prop = is-subsingleton
 singletons-are-subsingletons : (X : Set ℓ) → is-contr X → is-subsingleton X
 singletons-are-subsingletons X (c , p) x y = sym＝ (p x) ∙ p y
 
-pointed-subsingleton→singleton : (X : Set ℓ) → X
-                               → is-subsingleton X → is-contr X
+pointed-subsingleton→singleton : (X : Set ℓ) → X → is-subsingleton X → is-contr X
 pointed-subsingleton→singleton X x s = (x , s x)
 
 {-
@@ -93,7 +92,7 @@ subsingleton→set X ss = proof
     --  \    ↑
     ---  ↓  /
     --    x
-    -- p ∙ q ＝ r  ≃  q ＝ sym＝ p ∙ r, or just make holes and C-c C-a
+    -- p ∙ q ＝ r   ＝   q ＝ sym＝ p ∙ r, or just make holes and C-c C-a
     lemma : {x y : X} (p : x ＝ y) → p ＝ sym＝ (ss x x) ∙ (ss x y)
     lemma {x} {y} p = p＝refl∙p p ∙ ap (λ e → e ∙ p) (sym＝ (iv∙p＝refl (ss x x)))
                     ∙ assoc∙ _ _ p ∙ ap (λ e → sym＝ (ss x x) ∙ e) (lemma0 p)
@@ -102,8 +101,7 @@ subsingleton→set X ss = proof
     proof x y p q = lemma p ∙ sym＝ (lemma q)
 
 -- the levels are upper closed
-hlevel-suc : (X : Set ℓ) (n : ℕ)
-           → X is-of-hlevel n → X is-of-hlevel (suc n)
+hlevel-suc : (X : Set ℓ) (n : ℕ) → (X is-of-hlevel n) → X is-of-hlevel (suc n)
 hlevel-suc X zero    = λ h → λ x y →
                          let k = singletons-are-subsingletons X h in
                              (k x y , subsingleton→set X k x y (k x y))

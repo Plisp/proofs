@@ -66,9 +66,9 @@ apd f (refl x) = refl (f x)
   proof boilerplate
 -}
 
-ap2 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
+ap₂ : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
     → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
-ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
+ap₂{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
   = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q)
 -- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q = ȷ (λ w x _ → f w y ＝ f x z)
 --                                                (λ x → ȷ (λ y z _ → f x y ＝ f x z)
