@@ -6,6 +6,7 @@
 
 open import logic
 open import path
+open import homotopy
 open import types
 open import hlevel
 open import retract

@@ -97,8 +97,8 @@ record Σ {X : Set ℓ} (Y : X → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
   constructor
    _,_
   field
-   pr1 : X
-   pr2 : Y pr1
+   p1 : X
+   p2 : Y p1
 
 indΣ : {A : Set ℓ} {B : A → Set ℓ₁}
       → (C : Σ B → Set ℓ₂)

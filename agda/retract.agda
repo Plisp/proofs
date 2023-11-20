@@ -7,6 +7,7 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import homotopy
 open import hlevel
 
 {-
@@ -77,4 +78,17 @@ ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
 
 retract-of-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}
                         → X ◁ Y → is-subsingleton Y → is-subsingleton X
-retract-of-subsingleton r@(f , g , p) ss x y = rap g (f , p) (ss (g x) (g y))
+retract-of-subsingleton (f , g , p) ss x1 x2 = rap g (f , p) (ss (g x1) (g x2))
+
+-- TODO generalise to arbitrary hlevels ?
+retract-of-set : {X : Set ℓ} {Y : Set ℓ₁}
+               → X ◁ Y → is-set Y → is-set X
+-- f being a section proves g is a retraction
+retract-of-set (g , f , p) ss x1 x2 p1 p2
+  = sym＝ (ap-rap (g , p) p1) ∙ test2 ∙ ap-rap (g , p) p2
+  where
+    test : ap f p1 ＝ ap f p2
+    test = ss (f x1) (f x2) (ap f p1) (ap f p2)
+
+    test2 : rap f (g , p) (ap f p1) ＝ rap f (g , p) (ap f p2)
+    test2 = ap (rap f (g , p)) test

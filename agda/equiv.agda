@@ -7,6 +7,7 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import homotopy
 open import hlevel
 open import retract
 open import retract-ex
@@ -211,9 +212,12 @@ invertible≃ f i = f , invertibles-are-equivalences f i
 
 equivt-singletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
                   → is-contr Y → is-contr X
-equivt-singletons e = retract-of-singleton (◁≃ e)
+equivt-singletons et = retract-of-singleton (◁≃ et)
 
 equivt-subsingletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
                      → is-subsingleton Y → is-subsingleton X
-equivt-subsingletons (f , e) ssy
-  = retract-of-subsingleton (inverse f e , f , inverses-are-retractions f e) ssy
+equivt-subsingletons et ssy = retract-of-subsingleton (◁≃ et) ssy
+
+equivt-sets : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
+            → is-set Y → is-set X
+equivt-sets et y-is-set = retract-of-set (◁≃ et) y-is-set

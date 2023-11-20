@@ -68,20 +68,15 @@ apd f (refl x) = refl (f x)
 
 ap₂ : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ} {w x : A} {y z : B}
     → (f : A → B → C) → (w ＝ x) → (y ＝ z) → (f w y ＝ f x z)
-ap₂{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q
-  = (ap (λ x → f x y) p) ∙ (ap (λ y → f x y) q)
--- ap2{ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q = ȷ (λ w x _ → f w y ＝ f x z)
---                                                (λ x → ȷ (λ y z _ → f x y ＝ f x z)
---                                                         (λ y → (refl (f x y)))
---                                                         y z q)
---                                                 w x p
+ap₂ {ℓ₁}{ℓ₂}{ℓ} {A}{B}{C} {w}{x}{y}{z} f p q = ap (λ x → f x y) p ∙ ap (f x) q
 
+-- TODO generalise
 -- ap4 : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃} {D : Set ℓ₄} {E : Set ℓ}
 --     → {a e : A} {b f : B} {c g : C} {d h : D}
 --     → (fn : A → B → C → D → E)
 --     → (a ＝ e) → (b ＝ f) → (c ＝ g) → (d ＝ h)
 --     → (fn a b c d ＝ fn e f g h)
--- ap4{ℓ₁}{ℓ₂}{ℓ₃}{ℓ₄}{ℓ} {A}{B}{C}{D}{E} {a}{e}{b}{f}{c}{g}{d}{h} fn p q r s
+-- ap4 {ℓ₁}{ℓ₂}{ℓ₃}{ℓ₄}{ℓ} {A}{B}{C}{D}{E} {a}{e}{b}{f}{c}{g}{d}{h} fn p q r s
 --   = (ap (λ x → fn x b c d) p) ∙ (ap (λ x → fn e x c d) q) ∙
 --     (ap (λ x → fn e f x d) r) ∙ (ap (λ x → fn e f g x) s)
 
@@ -268,58 +263,3 @@ from-Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
         → σ ＝ τ
         → Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ
 from-Σ＝ (refl (x , a)) = (refl x , refl a)
-
-{-
-  homotopy
--}
-
-_~_ : {X : Set ℓ} {A : X → Set ℓ₁} → Π A → Π A → Set (ℓ ⊔ ℓ₁)
-f ~ g = ∀ x → (f x ＝ g x)
-infix 5 _~_
-
-id~ : {A : Set ℓ} {P : A → Set ℓ₁} → {f g : Π x ∶ A , P x}
-    → (f ＝ g) → (f ~ g)
-id~ (refl f) = λ x → refl (f x)
-
--- equivalence relation
-refl~ : {A : Set ℓ} {P : A → Set ℓ₁} → (f : Π x ∶ A , P x) → (f ~ f)
-refl~ f = λ x → refl (f x)
-
-sym~ : {A : Set ℓ} {P : A → Set ℓ₁} → {f g : Π x ∶ A , P x}
-     → (f ~ g) → (g ~ f)
-sym~ hom = λ x → sym＝ (hom x)
-
-trans~ : {A : Set ℓ} {P : A → Set ℓ₁} → {f g h : Π x ∶ A , P x}
-       → (f ~ g) → (g ~ h) → (f ~ h)
-trans~ homf homg = λ x → trans＝ (homf x) (homg x)
-
--- naturality
-nat~ : {A : Set ℓ} {B : Set ℓ₁}
-     → (f g : A → B) (H : f ~ g) → {x y : A} (p : x ＝ y)
-     → H x ∙ ap g p ＝ ap f p ∙ H y
-nat~ f g H {x}{y} = ȷ (λ x y p → H x ∙ ap g p ＝ ap f p ∙ H y)
-                      (λ x → p∙refl＝p (H x) ∙ p＝refl∙p (H x))
-                      x y
-
-commut~ : {A : Set ℓ} → (f : A → A) (H : f ~ id)
-        → (x : A) → H (f x) ＝ ap f (H x)
-commut~ f H x = simplify (nat~ f id H {f x} {x} (H x))
-  where
-    lemma1 : H (f x) ∙ (H x) ＝ H (f x) ∙ ap id (H x)
-    lemma1 = ap (λ e → H (f x) ∙ e) (sym＝ (ap-id-p＝p (H x)))
-
-    whisker : H (f x) ∙ (H x) ＝ ap f (H x) ∙ (H x)
-            → H (f x) ∙ (H x) ∙ (sym＝ (H x)) ＝ ap f (H x) ∙ (H x) ∙ (sym＝ (H x))
-    whisker p = sym＝ (assoc∙ (H (f x)) (H x) (sym＝ (H x)))
-              ∙ ap (λ e → e ∙ sym＝ (H x)) p
-              ∙ assoc∙ (ap f (H x)) (H x) (sym＝ (H x))
-
-    lemma3 : H (f x) ＝ H (f x) ∙ (H x) ∙ (sym＝ (H x))
-    lemma3 = sym＝ (p∙refl＝p (H (f x)))
-           ∙ ap (λ e → H (f x) ∙ e) (sym＝ (p∙iv＝refl (H x)))
-
-    lemma4 : ap f (H x) ∙ (H x) ∙ (sym＝ (H x)) ＝ ap f (H x)
-    lemma4 = ap (λ e → ap f (H x) ∙ e) (p∙iv＝refl (H x)) ∙ (p∙refl＝p (ap f (H x)))
-
-    simplify : H (f x) ∙ ap id (H x) ＝ ap f (H x) ∙ (H x) → _
-    simplify p = lemma3 ∙ whisker (lemma1 ∙ p) ∙ lemma4

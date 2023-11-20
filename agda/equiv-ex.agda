@@ -7,8 +7,10 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import homotopy
 open import hlevel
 open import retract
+open import retract-ex
 open import equiv
 
 quasi-equiv : (A : Set ℓ) (B : Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
