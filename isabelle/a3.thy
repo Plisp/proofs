@@ -113,7 +113,6 @@ lemma unique_prefixD:
   apply(clarsimp)
   apply(rule ccontr)
   apply(drule Map.domI, drule Map.domI)
-  thm domIff Prefix_Order.prefixI
   by (metis Prefix_Order.prefixI append_self_conv domIff nless_le)
 
 lemma decoder_step:
@@ -351,6 +350,7 @@ lemma stack_pop_upd:
   by auto
 
 (* Q2 h) *)
+(* original page long proof preserved for comedic purposes this took an hour x*)
 lemma pop_correct_partial:
   "\<lbrace> \<lambda>s. is_stack (x#xs) s \<rbrace>
    pop'
@@ -396,8 +396,7 @@ lemma pop_correct_total:
   apply(cases xs)
   by (auto simp add: unat_0)
 
-declare [[show_types=false]]
-  (* Q2 j) *)
+(* Q2 j) *)
 lemma push_correct_total:
   "\<lbrace> \<lambda>s. is_stack xs s \<and> top_'' s + 1 < 1000 \<rbrace> push' x
    \<lbrace> \<lambda>_ s. is_stack (x#xs) s \<rbrace>!"
@@ -412,10 +411,6 @@ lemma push_correct_total:
    apply(auto)
   done
 
-lemma drop_one:
-  "drop n xs = a # list \<Longrightarrow> drop (Suc n) xs = list"
-  by (metis Cons_nth_drop_Suc drop_all le_def list.distinct(1) list.inject)
-
 (* Q2 k) *)
 lemma sum_correct_partial:
   "\<lbrace> \<lambda>s. is_stack xs s \<rbrace> sum'
@@ -426,8 +421,7 @@ lemma sum_correct_partial:
                  r = sum_list (take n xs) \<and> is_stack (drop n xs) s"])
   apply(wp)
     prefer 3
-    apply(rule_tac x=0 in exI)
-    apply(simp)
+    apply(fastforce)
    prefer 2
    apply(clarsimp simp add: is_stack_def)
   prefer 1
@@ -436,14 +430,9 @@ lemma sum_correct_partial:
   apply(auto)
   apply(rule_tac x="n+1" in exI)
   apply(subgoal_tac "n \<noteq> length xs")
-  thm take_Suc_conv_app_nth
    apply(auto simp add: take_Suc_conv_app_nth drop_Suc_nth)
-  apply(case_tac "(drop n xs)")
-   apply(simp)
-  apply(frule drop_one)
   apply(simp add: stack_pop_upd)
   done
-
 end
 
 end
