@@ -23,6 +23,20 @@ transport-is-equiv A p = invertibles-are-equivalences (transport A p)
                            transport-is-section A p , transport-is-retraction A p)
 
 {-
+  products
+-}
+
+×-＝-≃ : {X : Set ℓ} {Y : Set ℓ₁} (z t : X × Y)
+      → (z ＝ t) ≃ ((fst z ＝ fst t) × (snd z ＝ snd t))
+×-＝-≃ {ℓ} {ℓ₁} {X} {Y} z@(z1 , z2) t@(t1 , t2) = invertible≃ from-×＝ (to-×＝ , η , ε)
+ where
+  η : (p : z ＝ t) → to-×＝ (from-×＝ p) ＝ p
+  η (refl (a , b)) = refl (refl (a , b))
+
+  ε : (q : (fst z ＝ fst t) × (snd z ＝ snd t)) → from-×＝ (to-×＝ q) ＝ q
+  ε (refl x , refl y) = refl (refl x , refl y)
+
+{-
   sigma types
 -}
 
@@ -68,3 +82,5 @@ transport-is-equiv A p = invertibles-are-equivalences (transport A p)
 
     ϵ＝ : NatΣ f ∘ NatΣ g ~ id
     ϵ＝ (x , bx) = to-Σ＝ (refl _ , ϵ x bx)
+
+-- TODO joyal stuff

@@ -251,6 +251,18 @@ transport-startpoint {ℓ} {A} {a}{x}{y} p q
       x y p q
 
 {-
+  equality in ×
+-}
+
+to-×＝ : {X : Set ℓ} {Y : Set ℓ₁} {z t : X × Y}
+      → (fst z ＝ fst t) × (snd z ＝ snd t) → z ＝ t
+to-×＝ {ℓ}{ℓ₁} {X}{Y} {z1 , z2} {t1 , t2} (refl z1 , refl z2) = refl (z1 , z2)
+
+from-×＝ : {X : Set ℓ} {Y : Set ℓ₁} {z t : X × Y}
+        → z ＝ t → (fst z ＝ fst t) × (snd z ＝ snd t)
+from-×＝ {ℓ}{ℓ₁} {X}{Y} {z}{t} (refl (x , y)) = (refl x , refl y)
+
+{-
   equality in Σ
 -}
 
