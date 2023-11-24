@@ -19,9 +19,6 @@ is-center X c = (x : X) → c ＝ x
 is-contr : Set ℓ → Set ℓ
 is-contr X = Σ c ∶ X , is-center X c
 
-𝟙-is-singleton : is-contr 𝟙
-𝟙-is-singleton = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
-
 center : (X : Set ℓ) → is-contr X → X
 center X (c , p) = c
 
@@ -48,9 +45,6 @@ singleton-types-are-singletons X x
 -- (subtype) singletons but maybe not inhabited
 is-subsingleton : Set ℓ → Set ℓ
 is-subsingleton X = (x y : X) → x ＝ y
-
-𝟘-is-subsingleton : is-subsingleton 𝟘
-𝟘-is-subsingleton x y = ind⊥ (λ x → (x ＝ y)) x
 
 is-prop = is-subsingleton
 
@@ -113,9 +107,6 @@ hlevel-eq : {X : Set ℓ} {n : ℕ}
           → X is-of-hlevel (suc n)
           → (x y : X) → (x ＝ y) is-of-hlevel n
 hlevel-eq {ℓ}{X} {n} p x y = p x y
-
-𝟘-is-set : is-set 𝟘
-𝟘-is-set = subsingleton→set 𝟘 𝟘-is-subsingleton
 
 {-
   decidable

@@ -70,22 +70,22 @@ rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
     → has-retraction f → (f x ＝ f y) → (x ＝ y)
 rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
 
-ap-rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} {f : X → Y}
+rap-ap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} {f : X → Y}
        → (r : has-retraction f) (p : x ＝ y)
        → rap f r (ap f p) ＝ p
-ap-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
+rap-ap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
   = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl (gf x)
 
 retract-of-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}
                         → X ◁ Y → is-subsingleton Y → is-subsingleton X
-retract-of-subsingleton (f , g , p) ss x1 x2 = rap g (f , p) (ss (g x1) (g x2))
+retract-of-subsingleton (g , f , p) ss x1 x2 = rap f (g , p) (ss (f x1) (f x2))
 
 -- TODO generalise to arbitrary hlevels ?
 retract-of-set : {X : Set ℓ} {Y : Set ℓ₁}
                → X ◁ Y → is-set Y → is-set X
 -- f being a section proves g is a retraction
 retract-of-set (g , f , p) ss x1 x2 p1 p2
-  = sym＝ (ap-rap (g , p) p1) ∙ test2 ∙ ap-rap (g , p) p2
+  = sym＝ (rap-ap (g , p) p1) ∙ test2 ∙ rap-ap (g , p) p2
   where
     test : ap f p1 ＝ ap f p2
     test = ss (f x1) (f x2) (ap f p1) (ap f p2)

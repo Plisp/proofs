@@ -124,7 +124,7 @@ invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
   where
     -- to show (Σ x ∶ X , f x ＝ y₀) ◁ (Σ x ∶ X , g (f x) ＝ g y₀)
     test : (x : X) → (f x ＝ y₀) ◁ (g (f x) ＝ g y₀)
-    test x = rap g (f , fg) , ap g , ap-rap (f , fg)
+    test x = rap g (f , fg) , ap g , rap-ap (f , fg)
 
     hom-iso : ∀ x → (g (f x) ＝ g y₀) ◁ (x ＝ g y₀)
     hom-iso x = transport (λ - → - ＝ g y₀) (sym＝ (gf x)) ,

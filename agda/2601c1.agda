@@ -18,7 +18,6 @@ record Group (S : Set ℓ) : Set (lsuc ℓ) where
     idp : identity e op
     ivp : has-inverse e op
 
--- TODO how to best represent while reusing Group?
 -- AbelianGroup : (ℓ : Level) → Set (lsuc ℓ)
 -- AbelianGroup ℓ = Σ X ∶ (Set ℓ) ,
 --                  Σ _·_ ∶ (X → X → X) ,
@@ -183,7 +182,7 @@ data Bij (S : Set ℓ) : Set ℓ where
 -- bij-group : {S : Set ℓ} → Group (Bij S)
 -- bij-group = ⟨ bij-op , bij-id , bij-assoc , bij-idp , bij-ivp ⟩
 
-{- TODO
+{-
   modulo group ℤₙ = Fin n is homomorphic to cyclic field ℂₙ
 -}
 
