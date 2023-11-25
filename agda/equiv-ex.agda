@@ -74,6 +74,11 @@ transport-is-equiv A p = invertibles-are-equivalences (transport A p)
 Σ-sym = invertible≃ (λ (x , y , p) → (y , x , p))
           ((λ (y , x , p) → (x , y , p)) , refl , refl)
 
+Σ-assoc : {X : Set ℓ} {Y : X → Set ℓ₁} {Z : Σ Y → Set ℓ₂}
+        → Σ Z ≃ (Σ x ∶ X , Σ y ∶ Y x , Z (x , y))
+Σ-assoc = invertible≃ (λ { ((x , y) , z) → x , y , z })
+                      ((λ { (x , y , z) → (x , y) , z }) , refl , refl)
+
 Σ＝-≃ : {X : Set ℓ} {A : X → Set ℓ₁} (σ τ : Σ A)
       → (σ ＝ τ) ≃ (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
 Σ＝-≃ {ℓ} {ℓ₁} {X} {A} σ τ = invertible≃ from-Σ＝ (to-Σ＝ , η , ϵ)

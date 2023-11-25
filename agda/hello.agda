@@ -7,18 +7,19 @@
 open import logic
 open import path
 open import types
-open import list
+-- open import list
 open import bool
-open import functor
+-- open import functor
 open import arith
-open import op
+-- open import op
 open import homotopy
 open import hlevel
 open import hlevel-ex
-open import retract
-open import retract-ex
+-- open import retract
+-- open import retract-ex
 open import equiv
-open import equiv-ex
+open import equiv-ex -- unused
+open import joyal
 open import univalence
 
 {-
@@ -42,13 +43,13 @@ ackermann = recℕ mzero msucc
 -}
 
 data badalg : Set where
-  co : (Bool → badalg) → badalg
+  co : (⊤ → badalg) → badalg
 
-badalg-rec : {A : Set} → ((Bool → A) → A) → (t : badalg) → A
+badalg-rec : {A : Set} → ((⊤ → A) → A) → (t : badalg) → A
 badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
 
 badalg-contra : ¬ badalg
-badalg-contra (co f) = badalg-rec (λ f → f true) (co f)
+badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
 
 {-
   isabelle is weird, review if this needs univalence

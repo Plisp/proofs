@@ -10,7 +10,7 @@ open import types using (ℕ;zero;suc)
 open import path
 
 {-
-  -1-type (contractible)
+  -2-type (contractible)
 -}
 
 is-center : (X : Set ℓ) → X → Set ℓ
@@ -42,7 +42,10 @@ singleton-types-are-singletons : (X : Set ℓ) (x : X)
 singleton-types-are-singletons X x
   = singleton-type-center x , singleton-type-centered x
 
--- (subtype) singletons but maybe not inhabited
+{-
+  -1-type (singletons but maybe not inhabited)
+-}
+
 is-subsingleton : Set ℓ → Set ℓ
 is-subsingleton X = (x y : X) → x ＝ y
 
@@ -55,22 +58,13 @@ pointed-subsingleton→singleton : (X : Set ℓ) → X → is-subsingleton X →
 pointed-subsingleton→singleton X x s = (x , s x)
 
 {-
-  n-types/groupoids ↔ hlevel n+2
+  0-type (sets/discrete)
 -}
 
 0-type : Set ℓ → Set ℓ
 0-type X = (x y : X) → is-subsingleton (x ＝ y)
-
 is-set = 0-type
 
-1-type : Set ℓ → Set ℓ
-1-type X = {x y : X} (p q : x ＝ y) → is-subsingleton (p ＝ q)
-
-_is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
-X is-of-hlevel zero    = is-contr X
-X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
-
--- if all points connected, then all 2-paths are trivial
 subsingleton→set : (X : Set ℓ) → is-subsingleton X → is-set X
 subsingleton→set X ss = proof
   where
@@ -93,6 +87,21 @@ subsingleton→set X ss = proof
 
     proof : (x y : X) (p q : x ＝ y) → p ＝ q
     proof x y p q = lemma p ∙ sym＝ (lemma q)
+
+{-
+  hlevel n+2 ↔ n-types
+-}
+
+_is-of-hlevel_ : Set ℓ → ℕ → Set ℓ
+X is-of-hlevel zero    = is-contr X
+X is-of-hlevel (suc n) = (x x' : X) → ((x ＝ x') is-of-hlevel n)
+
+hlevel1-subsingleton : {X : Set ℓ} → X is-of-hlevel 1 → is-subsingleton X
+hlevel1-subsingleton p x y = center _ (p x y)
+
+-- if all points connected, then all 2-paths are trivial
+subsingleton-hlevel1 : {X : Set ℓ} → is-subsingleton X → X is-of-hlevel 1
+subsingleton-hlevel1 ss x y = ss x y , λ p → subsingleton→set _ ss x y _ _
 
 -- the levels are upper closed
 hlevel-suc : (X : Set ℓ) (n : ℕ) → (X is-of-hlevel n) → X is-of-hlevel (suc n)

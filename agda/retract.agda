@@ -6,6 +6,7 @@
 
 open import Agda.Primitive
 open import logic
+open import types using (ℕ;zero;suc)
 open import path
 open import homotopy
 open import hlevel
@@ -59,13 +60,13 @@ infix 3 _◀
 --  X   f x ← f(g x) ← x
 retract-of-singleton : {X : Set ℓ} {Y : Set ℓ₁}
                      → X ◁ Y → is-contr Y → is-contr X
-retract-of-singleton (f , g , p) contr = f (center _ contr) , centered
+retract-of-singleton (f , g , η) contr = f (center _ contr) , centered
   where
     centered : ∀ x → f (center _ contr) ＝ x
-    centered x = ap f (centrality _ contr (g x)) ∙ (p x)
+    centered x = ap f (centrality _ contr (g x)) ∙ (η x)
 
 -- retraction enables equality cancellation
--- I originally came up with this for the invertible to equiv proof
+-- originally devised for the invertible to equiv proof
 rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
     → has-retraction f → (f x ＝ f y) → (x ＝ y)
 rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
@@ -78,17 +79,22 @@ rap-ap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
 
 retract-of-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}
                         → X ◁ Y → is-subsingleton Y → is-subsingleton X
-retract-of-subsingleton (g , f , p) ss x1 x2 = rap f (g , p) (ss (f x1) (f x2))
+retract-of-subsingleton (g , f , η) ss x1 x2 = rap f (g , η) (ss (f x1) (f x2))
 
--- TODO generalise to arbitrary hlevels ?
-retract-of-set : {X : Set ℓ} {Y : Set ℓ₁}
-               → X ◁ Y → is-set Y → is-set X
--- f being a section proves g is a retraction
-retract-of-set (g , f , p) ss x1 x2 p1 p2
-  = sym＝ (rap-ap (g , p) p1) ∙ test2 ∙ rap-ap (g , p) p2
-  where
-    test : ap f p1 ＝ ap f p2
-    test = ss (f x1) (f x2) (ap f p1) (ap f p2)
+retract-of-hlevel : {X : Set ℓ} {Y : Set ℓ₁} (n : ℕ)
+                  → X ◁ Y → Y is-of-hlevel n → X is-of-hlevel n
+retract-of-hlevel 0 r hf = retract-of-singleton r hf
+retract-of-hlevel (suc n) (g , f , η) hf x x'
+  = retract-of-hlevel n (rap f (g , η) , ap f , rap-ap (g , η)) (hf (f x) (f x'))
 
-    test2 : rap f (g , p) (ap f p1) ＝ rap f (g , p) (ap f p2)
-    test2 = ap (rap f (g , p)) test
+-- retract-of-hlevel : {X : Set ℓ} {Y : Set ℓ₁} (n : ℕ)
+--                   → X ◁ Y → Y is-of-hlevel n → X is-of-hlevel n
+-- retract-of-hlevel 0 r hf = retract-of-singleton r hf
+-- retract-of-hlevel 1 r hf -- coercion between equivalent formulations
+--   = subsingleton-hlevel1 (retract-of-subsingleton r (hlevel1-subsingleton hf))
+-- retract-of-hlevel (suc (suc n)) (g , f , η) hf x x' p q
+--   = retract-of-hlevel n (rap (ap f) test , ap (ap f) , rap-ap test)
+--                       (hf (f x) (f x') (ap f p) (ap f q))
+--   where
+--     test : has-retraction (ap f)
+--     test = (rap f (g , η) , rap-ap (g , η))

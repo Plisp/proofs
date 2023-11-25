@@ -192,10 +192,6 @@ equivt-subsingletons : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
                      → is-subsingleton Y → is-subsingleton X
 equivt-subsingletons et ssy = retract-of-subsingleton (◁≃ et) ssy
 
-equivt-sets : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
-            → is-set Y → is-set X
-equivt-sets et y-is-set = retract-of-set (◁≃ et) y-is-set
-
 {-
   quasi-equivalence
 -}
