@@ -5,10 +5,32 @@
 -}
 
 open import logic
-open import types
+open import types using (ℕ;zero;suc)
 open import path
 open import op
 open import hlevel
+
+-- peano +
+_+_ : ℕ → ℕ → ℕ
+zero    + b = b
+(suc a) + b = suc (a + b)
+infix 7 _+_
+
+_*_ : ℕ → ℕ → ℕ
+zero    * b = 0
+(suc a) * b = (a * b) + b
+infix 8 _*_
+
+_≤_ _≥_ : ℕ → ℕ → Set
+0 ≤ y     = 𝟙
+suc x ≤ 0     = 𝟘
+suc x ≤ suc y = x ≤ y
+
+x ≥ y = y ≤ x
+infix 4 _≤_ _≥_
+
+suc-x≠0 : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
+suc-x≠0 _ p = 𝟙≠𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
 
 -- lambda style predecessor
 pred' : ℕ → ℕ
@@ -24,7 +46,7 @@ pred (suc n) = n
 suc-cancel : {x y : ℕ} → suc x ＝ suc y → x ＝ y
 suc-cancel = ap pred
 
-ℕ-decidable-equality : has-decidable-equality ℕ
+ℕ-decidable-equality : ℕ has-decidable-equality
 ℕ-decidable-equality 0       0       = (inl (refl 0))
 ℕ-decidable-equality 0       (suc b) = inr (≠-sym (suc-x≠0 b))
 ℕ-decidable-equality (suc a) 0       = inr (suc-x≠0 a)
@@ -126,7 +148,7 @@ n+1＝suc : (n : ℕ) → n + 1 ＝ suc n
 n+1＝suc n = commutes-+ n 1
 
 {-
-  subtraction TODO prove inverse theorems
+  subtraction TODO
 -}
 
 -- signed type needed

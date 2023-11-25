@@ -6,7 +6,7 @@
 
 open import Agda.Primitive
 open import logic
-open import types
+open import types using (ℕ;zero;suc)
 open import path
 
 {-
@@ -115,8 +115,8 @@ hlevel-eq {ℓ}{X} {n} p x y = p x y
 decidable : Set ℓ → Set ℓ
 decidable A = A ＋ ¬ A
 
-has-decidable-equality : Set ℓ → Set ℓ
-has-decidable-equality A = (x y : A) → decidable (x ＝ y)
+_has-decidable-equality : Set ℓ → Set ℓ
+A has-decidable-equality = (x y : A) → decidable (x ＝ y)
 
 is-empty : Set ℓ → Set ℓ
 is-empty X = ¬ X

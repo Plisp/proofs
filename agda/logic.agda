@@ -136,3 +136,23 @@ _∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}
     → ((b : B) → C b) → (f : A → B) → ((x : A) → C (f x))
 g ∘ h = λ x → g (h x)
 infixr 6 _∘_
+
+{-
+  propositional equality
+-}
+data _＝_ {A : Set ℓ} : A → A → Set ℓ where
+  refl : (x : A) → x ＝ x
+infix 4 _＝_
+{-# BUILTIN EQUALITY _＝_ #-}
+
+-- induction
+ȷ : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
+  → ((x : A) → C x x (refl x))
+  → (x y : A) (p : x ＝ y) → C x y p
+ȷ C f x x (refl x) = f x
+
+-- based path induction
+ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (a ＝ x) → Set ℓ₁)
+  → C a (refl a)
+  → (x : A) (p : a ＝ x) → C x p
+ⅉ a C ca x (refl x) = ca

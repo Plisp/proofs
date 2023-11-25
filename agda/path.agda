@@ -7,23 +7,6 @@
 open import Agda.Primitive
 open import logic
 
-data _＝_ {A : Set ℓ} : A → A → Set ℓ where
-  refl : (x : A) → x ＝ x
-infix 4 _＝_
-{-# BUILTIN EQUALITY _＝_ #-}
-
--- induction
-ȷ : {A : Set ℓ} (C : (x y : A) → (x ＝ y) → Set ℓ₁)
-  → ((x : A) → C x x (refl x))
-  → (x y : A) (p : x ＝ y) → C x y p
-ȷ C f x x (refl x) = f x
-
--- based path induction
-ⅉ : {A : Set ℓ} (a : A) → (C : (x : A) → (a ＝ x) → Set ℓ₁)
-  → C a (refl a)
-  → (x : A) (p : a ＝ x) → C x p
-ⅉ a C ca x (refl x) = ca
-
 -- matching gives clearer computation rule, proved by Cockx to be same in without-K
 sym＝ : {A : Set ℓ} {x y : A} → (x ＝ y) → (y ＝ x)
 sym＝ (refl x) = refl x

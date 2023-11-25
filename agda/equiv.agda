@@ -10,27 +10,7 @@ open import path
 open import homotopy
 open import hlevel
 open import retract
-open import retract-ex
-
-{-
-  invertibles
--}
-
-invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
-invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
-
-id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
-id-invertible {ℓ}{X} = id , refl , refl
-
-inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
-                   → ((g , _) : invertible f) → invertible g
-inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
-
-invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
-             → invertible f' → invertible f → invertible (f' ∘ f)
--- middle terms cancel
-invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
-  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
+open import retract-ex using (transport-is-section;Σ-retract)
 
 {-
   Voevodsky's equivalence
@@ -177,12 +157,6 @@ _≃_ : Set ℓ₁ → Set ℓ₂ → Set (ℓ₁ ⊔ ℓ₂)
 X ≃ Y = Σ f ∶ (X → Y) , is-equivalence f
 infix 5 _≃_
 
-equivt-fn : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → X → Y
-equivt-fn (f , i) = f
-
-is-equivt : {X : Set ℓ} {Y : Set ℓ₁} → ((f , i) : X ≃ Y) → is-equivalence f
-is-equivt (f , i) = i
-
 refl≃ : (X : Set ℓ) → X ≃ X
 refl≃ X = id , id-is-equivalence X
 
@@ -221,3 +195,16 @@ equivt-subsingletons et ssy = retract-of-subsingleton (◁≃ et) ssy
 equivt-sets : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y
             → is-set Y → is-set X
 equivt-sets et y-is-set = retract-of-set (◁≃ et) y-is-set
+
+{-
+  quasi-equivalence
+-}
+
+quasi-equivt : (A : Set ℓ) (B : Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
+quasi-equivt A B = Σ f ∶ (A → B) , invertible f
+
+quasi≃ : {A : Set ℓ} {B : Set ℓ₁} → (quasi-equivt A B) → A ≃ B
+quasi≃ (f , if) = invertible≃ f if
+
+equivt-quasi : {A : Set ℓ} {B : Set ℓ₁} → A ≃ B → (quasi-equivt A B)
+equivt-quasi (f , ef) = f , equivalences-are-invertible f ef

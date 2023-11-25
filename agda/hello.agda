@@ -1,21 +1,32 @@
 {-# OPTIONS --without-K --exact-split #-}
 
 {-
-  random proofs: no arith and op since those are useful
+  random proofs
 -}
 
 open import logic
 open import path
-open import homotopy
 open import types
+open import list
+open import bool
+open import functor
+open import arith
+open import op
+open import homotopy
 open import hlevel
+open import hlevel-ex
 open import retract
+open import retract-ex
 open import equiv
+open import equiv-ex
 open import univalence
 
 {-
   I love recursion principles
 -}
+
+plus : ℕ → ℕ → ℕ  -- 0-plus and vv a-plus → a+1 plus
+plus = recℕ (λ b → b) (λ a plus-a → λ b → suc (plus-a b))
 
 ackermann : ℕ → ℕ → ℕ
 ackermann = recℕ mzero msucc
@@ -82,16 +93,6 @@ isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
 
     p-cong : (P' → Q) ＝ (P' → Q')
     p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
-
-{-
-  new type: manual boolean
--}
-
-𝟚 = 𝟙 ＋ 𝟙
-𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
-𝟚-ind A a₀ a₁ = ind＋ A
-                (ind⊤ (λ (x : 𝟙) → (A (inl x))) a₀)
-                (ind⊤ (λ (x : 𝟙) → (A (inr x))) a₁)
 
 {-
   uniqueness: intro on elim thing = thing
@@ -181,29 +182,10 @@ negation : (0 ＝ 1) → ⊥
 negation eq = destroy (transport Bad eq (badt ⋆))
 
 {-
-  bounded vectors
--}
-
-data Vec (A : Set) : ℕ → Set where
-  []   : Vec A zero
-  _∷_ : {n : ℕ} → A → Vec A n → Vec A (suc n)
-
-length : {A : Set} {n : ℕ} → Vec A n → ℕ
-length {_} {n} _ = n
-
-_!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
-(a ∷ as) !! fz   = a
-(a ∷ as) !! fs b = as !! b
-
-_++_ : {A : Set} {x y : ℕ} → Vec A x → Vec A y → Vec A (x + y)
-[]       ++ bs = bs
-(a ∷ as) ++ bs = a ∷ (as ++ bs)
-
-{-
   compile-time tests !
 -}
 
-test-len : (length (1 ∷ 2 ∷ [])) ＝ 2
+test-len : 1 + 1 ＝ 2
 test-len = refl 2
 
 equal : ℕ → ℕ → Bool
@@ -212,42 +194,6 @@ equal (suc x) 0       = false
 equal 0       (suc y) = false
 equal (suc x) (suc y) = equal x y
 
--- bad definition
+-- bad definition, cannot compute on open term n
 -- p : ∀ n → (equal n n) ＝ true
 -- p n = refl true
-
-{-
-  functor laws for A -> Vec A n
--}
-
-map : {A B : Set} {n : ℕ} → (f : A → B) → Vec A n → Vec B n
-map f []        = []
-map f (a ∷ as) = (f a) ∷ (map f as)
-
-map-id : {A : Set} {n : ℕ} (xs : Vec A n) → (map id xs) ＝ xs
-map-id [] = refl _
-map-id (x ∷ xs) =
-  begin
-                               map id (x ∷ xs)
-    =⟨⟩                        (id x) ∷ (map id xs)
-    =⟨⟩                        x ∷ (map id xs)
-    =⟨ ap (x ∷_) (map-id xs) ⟩ x ∷ xs
-  ∎
-
-map-compose : {A B C : Set} {n : ℕ} (f : B → C) (g : A → B) (xs : Vec A n)
-            → map (f ∘ g) xs ＝ map f (map g xs)
-map-compose f g [] =
-  begin map (f ∘ g) []
-    =⟨⟩ []
-    =⟨⟩ map f []
-    =⟨⟩ map f (map g [])
-  ∎
-map-compose f g (x ∷ xs) =
-  begin
-                                              map (f ∘ g) (x ∷ xs)
-    =⟨⟩                                       (f ∘ g) x ∷ map (f ∘ g) xs
-    =⟨⟩                                       f (g x) ∷ map (f ∘ g) xs
-    =⟨ ap (f (g x) ∷_) (map-compose f g xs) ⟩ f (g x) ∷ map f (map g xs)
-    =⟨⟩                                       map f ((g x) ∷ map g xs)
-    =⟨⟩                                       map f (map g (x ∷ xs))
-  ∎

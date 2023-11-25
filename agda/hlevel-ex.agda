@@ -6,7 +6,6 @@
 
 open import Agda.Primitive
 open import logic
-open import types
 open import path
 open import hlevel
 
@@ -44,3 +43,7 @@ to-subtype-＝ {ℓ}{ℓ₁} {X}{A} {x}{y}{a}{b} f p = to-Σ＝ (p , f y (transp
                   → is-subsingleton Y
                   → is-subsingleton (X × Y)
 ×-is-subsingleton fx fy (x1 , x2) (y1 , y2) = to-×＝ (fx x1 y1 , fy x2 y2)
+
+{-
+  TODO hedberg
+-}

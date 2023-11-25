@@ -7,8 +7,8 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import functor using (NatΣ)
 open import homotopy
-open import hlevel
 open import retract
 
 -- transport is an isomorphism
@@ -19,13 +19,6 @@ transport-is-retraction A p = id~ (transport-p-sym p)
 transport-is-section : {X : Set ℓ} (A : X → Set ℓ₁) {x y : X} (p : x ＝ y)
                      → transport A (sym＝ p) ∘ transport A p ~ id
 transport-is-section A p = id~ (transport-sym-p p)
-
--- a natural transformation between two fibrations
-Nat : {X : Set ℓ} → (X → Set ℓ₁) → (X → Set ℓ₂) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
-Nat A B = ∀ x → A x → B x
--- gives a map between their total spaces
-NatΣ : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂} → Nat A B → Σ A → Σ B
-NatΣ τ (x , a) = (x , τ x a)
 
 Σ-retract : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂}
           → ((x : X) → A x ◁ B x) → Σ A ◁ Σ B
