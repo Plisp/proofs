@@ -52,17 +52,17 @@ text \<open>
 \<close>
 
 lemma m_count_corres0:
-  "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0)"
+  "m_count ls x = None \<longleftrightarrow> count_list ls x = 0"
   apply(induct ls)
   by (auto split: option.splits)
 
 lemma m_count_corres2: "(m_count ls x = None \<longleftrightarrow> count_list ls x = 0) \<and>
-                       (m_count ls x = Some n \<longleftrightarrow> count_list ls x = n+1)"
-
+                        (m_count ls x = Some n \<longleftrightarrow> count_list ls x = n+1)"
   apply(induct ls arbitrary: n)
   by (auto simp add: m_count_corres0 split: option.splits)
 
-lemma m_count_corres: "count_list ls x = n \<longleftrightarrow> m_count ls x = (if n=0 then None else Some (n-1))"
+lemma m_count_corres: "count_list ls x = n \<longleftrightarrow> m_count ls x 
+                    = (if n=0 then None else Some (n-1))"
   by (simp add: m_count_corres2)
 
 
@@ -127,7 +127,7 @@ lemma m_count_switch:
   by (auto split: option.splits)
 
 lemma m_count_perm:
-  "ls = xs @ x # ys  \<Longrightarrow> m_count ls = m_count (x # xs @ ys)"
+  "ls = xs @ x # ys \<Longrightarrow> m_count ls = m_count (x # xs @ ys)"
 proof(induct xs arbitrary: ys ls)
   case Nil
   then show ?case by simp
@@ -176,6 +176,21 @@ text \<open>
 added multisets, i.e., two lists appended by Isabelle @{term append}.
 \<close>
 
+(* proof 2 *)
+lemma m_cons_swap:
+  "m_add (m_count (a#ls1)) (m_count ls2) =
+   m_add (m_count ls1) (m_count (a#ls2))"
+  by (fastforce simp add: m_add_def split: option.splits)
+
+lemma "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2)"
+  apply (induct ls1 arbitrary: ls2)
+   apply (simp)
+  apply (simp (no_asm_use) only: m_cons_swap)
+  apply (simp only:)
+  apply (simp only: append_Cons)
+  apply (simp only: m_count_perm)
+  done
+
 lemma m_count_x_not_a:
   "a \<noteq> x \<Longrightarrow> m_count (a # ls) x = m_count ls x"
   by (simp split: option.splits)
@@ -185,12 +200,13 @@ lemma m_count_x_eq_a:
    m_count ls x = Some k \<Longrightarrow> m_count (x # ls) x = Some (k+1)"
   by simp
 
-(* original 2 page proof preserved for amusement *)
 lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2)"
   apply(induct ls1)
    apply(simp)
   apply(simp only: List.append.append_Cons)
   apply(rule ext)
+  find_theorems "Map.map_of"
+thm m_count.simps fun_upd_other
   apply(case_tac "a\<noteq>x")
    apply(subgoal_tac "m_add (m_count ls1) (m_count ls2) x
                     = m_count (ls1 @ ls2) x")
@@ -234,7 +250,6 @@ lemma m_add_append: "m_add (m_count ls1) (m_count ls2) = m_count (append ls1 ls2
    apply(simp)
   apply(simp)
   done
-
 
 subsection "1.4 Sorting of multisets"
 
