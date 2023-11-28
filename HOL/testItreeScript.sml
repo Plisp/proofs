@@ -422,6 +422,7 @@ QED
 (*/ recursive specifications
    testing
  *)
+
 open arithmeticTheory;
 
 Definition even_spec_def:
