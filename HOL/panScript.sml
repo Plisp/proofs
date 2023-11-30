@@ -28,7 +28,7 @@ fun parse_pancake q =
 end
 
 (*
-Globals.max_print_depth := 18;
+Globals.max_print_depth := 20;
 *)
 
 Theorem pan_eval_simps[simp]:
@@ -92,6 +92,19 @@ Proof
   rw[byteTheory.get_byte_set_byte]
 QED
 
+Theorem load_write_bytearray_thm2:
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (∃(k : word32). oldmem (byte_align addr) = Word k) ⇒
+  mem_load_byte (write_bytearray addr [v] oldmem s.memaddrs s.be)
+                s.memaddrs s.be addr
+  = SOME v
+Proof
+  rw[mem_load_byte_def] >>
+  rw[write_bytearray_def] >>
+  rw[mem_store_byte_def] >>
+  rw[byteTheory.get_byte_set_byte]
+QED
+
 Theorem write_bytearray_preserve_words:
   (∀w. ∃(k : word32). s.memory w = Word k) ⇒
   ∀w. ∃(k : word32). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k
@@ -150,12 +163,9 @@ Proof
 QED
 
 (* looks_like_echo P t = t ≈ Vis e1 Vis e2 ∧ P k *)
-
 (*                                             Seq (input output) ... *)
 (*                                             --> bind (t) ... *)
-
 (* looks_like_echo_pred t = (t ≈ Vis e1 Vis e2 Ret) *)
-
 (* Vis "input" *)
 (*   Vis "output" *)
 (*     (λ a -> k1) *)
@@ -412,14 +422,14 @@ fun fn() {
   var drv_dequeue_a = @base + 1;
   #drv_dequeue_used(drv_dequeue_c, 1, drv_dequeue_a, 1);
   (* var drv_dequeue_ret = ldb drv_dequeue_c; *)
-  var got_char = ldb drv_dequeue_a;
+ var got_char = ldb drv_dequeue_a;
   (* if drv_dequeue_ret != 0 { return 1; } *)
 
   // Get the current status of the escape character from the ffi file
 
   var escape_character_a = @base + 3;
-  #get_escape_character(0,0,escape_character_a, 1);
-  var escape_character = ldb escape_character_a;
+ #get_escape_character(0,0,escape_character_a, 1);
+ var escape_character = ldb escape_character_a;
 
   if escape_character == 1 {
       // give the char to the client, previous character was an escape character
@@ -449,7 +459,7 @@ fun fn() {
 
       var set_escape_character_c = @base + 9;
       strb set_escape_character_c, 0;
-      #set_escape_character(set_escape_character_c, 1, 0, 0);
+     #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
   }
@@ -467,13 +477,13 @@ fun fn() {
           if new_client <= num_clients {
               var set_client_c = @base + 5;
               strb set_client_c, new_client;
-              #set_client(set_client_c, 1, 0, 0);
+             #set_client(set_client_c, 1, 0, 0);
           }
       }
 
       var set_escape_character_c = @base + 9;
-      strb set_escape_character_c, 0;
-      #set_escape_character(set_escape_character_c, 1, 0, 0);
+      strb set_escape_character_c, 0; // escape off
+     #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
   }
@@ -486,20 +496,20 @@ fun fn() {
       if got_char == 92 {
           #escape_case(0,0,0,0);
           var set_escape_character_c = @base + 9;
-          strb set_escape_character_c, 1;
-          #set_escape_character(set_escape_character_c, 1, 0, 0);
+          strb set_escape_character_c, 1; // escape
+         #set_escape_character(set_escape_character_c, 1, 0, 0);
 
-          return 0;
+         return 0;
       }
 
       // Ascii for '@'
       if got_char == 64 {
           #at_case(0,0,0,0);
           var set_escape_character_c = @base + 9;
-          strb set_escape_character_c, 2;
-          #set_escape_character(set_escape_character_c, 1, 0, 0);
+          strb set_escape_character_c, 2; // escape @
+         #set_escape_character(set_escape_character_c, 1, 0, 0);
 
-          return 0;
+         return 0;
       }
 
       // Otherwise we just want to give the client the character
@@ -528,7 +538,7 @@ fun fn() {
 
       var set_escape_character_c = @base + 9;
       strb set_escape_character_c, 0;
-      #set_escape_character(set_escape_character_c, 1, 0, 0);
+     #set_escape_character(set_escape_character_c, 1, 0, 0);
 
       return 0;
   }
@@ -540,54 +550,53 @@ Definition muxrx_sem_def:
   itree_evaluate (SND $ SND $ HD ^muxrx_ast) s
 End
 
-(*
-  steps:
-  - prove no Error return possible
-  - trim
-*)
+Definition mux_backslash_pred_def:
+  mux_backslash_pred t =
+  ((∃k. t = Vis (FFI_call "set_escape_character" [0w : word8] []) k)
+   ∨ (t = Ret (SOME (Return (ValWord 0w))))
+   ∨ ∃outcome. t = Ret (SOME (FinalFFI outcome)))
+End
+
+Theorem mux_backslash_pred_notau:
+  ¬mux_backslash_pred (Tau (t : α sem32tree))
+Proof
+  rw[mux_backslash_pred_def]
+QED
 
 Definition muxrx_pred_def:
   muxrx_pred t =
-  ((∃k uninit.
-     (t = Vis (FFI_call "get_escape_character" [] [uninit]) k)
-     ) ∨
-   (∃outcome. t = Ret (SOME (FinalFFI outcome)))) (* β result option *)
+  ∀c.
+  (∃k1 k2 uninit1 uninit2 uninit.
+    (t = Vis (FFI_call "drv_dequeue_used" [uninit1] [uninit2]) k1) ∧
+    (k1 (FFI_return ARB [c]) ≈
+        Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
+    (* backslash escape case, transitions to zero *)
+    (∃tl. (k2 (FFI_return ARB [1w])) ≈ tl ∧ future_safe mux_backslash_pred tl)
+  ) ∨
+  (∃outcome. t = Ret (SOME (FinalFFI outcome)))
 End
 
 Theorem muxrx_pred_notau:
   ¬muxrx_pred (Tau (t : α sem32tree))
 Proof
-  rw[muxrx_pred_def]
+  rw[muxrx_pred_def, mux_backslash_pred_def]
 QED
 
-  #drv_dequeue_used(drv_dequeue_c, 1, drv_dequeue_a, 1);
-  var got_char = ldb drv_dequeue_a;
-
-  var escape_character_a = @base + 3;
-  #get_escape_character(0,0,escape_character_a, 1);
-  var escape_character = ldb escape_character_a;
-
-Theorem loadbyte_contains_byte:
+Theorem test:
   (∀(w : word32). w ∈ s.memaddrs) ∧
-  (byte_align s.base_addr = s.base_addr) ∧
   (byte_align (s.base_addr + 1w) = s.base_addr) ∧
-  (∃uninitb. s.memory s.base_addr = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 1w) = Word uninitb)
-  ⇒
+  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
   eval (s with
           <|locals :=
             s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
              («drv_dequeue_a»,ValWord (s.base_addr + 1w));
             memory :=
-            write_bytearray (s.base_addr + 1w) [h : word8] s.memory
-                            s.memaddrs s.be; ffi := new_ffi|>)
-       (LoadByte (Var «drv_dequeue_a»))
-  = SOME (ValWord (w2w h))
+            write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs
+                            s.be; ffi := ARB|>)
+  (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))
 Proof
   rw[eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-  (* qspecl_then [‘h’,‘s’,‘s.memory’,‘s.base_addr + 1w’] strip_assume_tac *)
-  (*             (GEN_ALL load_write_bytearray_thm) >> *)
-  cheat
+  rw[load_write_bytearray_thm2]
 QED
 
 Theorem muxrx_correct:
@@ -596,7 +605,13 @@ Theorem muxrx_correct:
   (byte_align (s.base_addr + 1w) = s.base_addr) ∧
   (∃uninitb. s.memory s.base_addr = Word uninitb) ∧
   (∃uninitb. s.memory (s.base_addr + 1w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 3w) = Word uninitb)
+  (∃uninitb. s.memory (s.base_addr + 3w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 4w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 5w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 6w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 7w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 8w) = Word uninitb) ∧
+  (∃uninitb. s.memory (s.base_addr + 9w) = Word uninitb)
   ⇒
   future_safe muxrx_pred (muxrx_sem s)
 Proof
@@ -617,21 +632,21 @@ Proof
   (* TODO whyyy randomly gets stuck *)
   PURE_REWRITE_TAC[ONE] >>
   rw[mem_load_byte_def, miscTheory.read_bytearray_def] >>
-  rw[Once future_safe_cases] >> disj2_tac >>
-  qunabbrev_tac ‘rest’ >> rw[] >-
-   (rw[Once future_safe_cases, muxrx_pred_def]) >>
-  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
-  qabbrev_tac ‘sate = (s with
-                         <|locals :=
-                           s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
-                            («drv_dequeue_a»,ValWord (s.base_addr + 1w));
-                           memory :=
-                           write_bytearray (s.base_addr + 1w) [h] s.memory
-                                           s.memaddrs s.be; ffi := new_ffi|>)’ >>
-  ‘eval sate (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w h))’
-    by cheat >>
+  rw[Once future_safe_cases] >> disj1_tac >>
+  rw[muxrx_pred_def] >>
+  qunabbrev_tac ‘rest’ >> rw[] >>
+  ‘eval (s with
+                <|locals :=
+                    s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
+                    («drv_dequeue_a»,ValWord (s.base_addr + 1w));
+                  memory :=
+                    write_bytearray (s.base_addr + 1w) [c] s.memory
+                                    s.memaddrs s.be; ffi := (ARB : α ffi_state)|>)
+   (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))’
+    by gvs[eval_def, finite_mapTheory.FLOOKUP_UPDATE, load_write_bytearray_thm2] >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
-  ‘eval (sate with locals := sate.locals |+ («got_char»,ValWord (w2w h)))
+  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate)’ >>
+  ‘eval (sate with locals := sate.locals |+ («got_char»,ValWord (w2w c)))
    (Op Add [BaseAddr; Const 3w]) = SOME (ValWord (s.base_addr + 3w))’
     by cheat >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
@@ -643,10 +658,84 @@ Proof
   ‘read_bytearray (s.base_addr + 3w) 1
    (mem_load_byte sate.memory sate.memaddrs sate.be) = SOME [w2w uninitb'']’
     by cheat >>
-  rw[miscTheory.read_bytearray_def, mem_load_byte_def] >>
-
-
+  rw[miscTheory.read_bytearray_def, mem_load_byte_def] >> pop_assum kall_tac >>
+  qmatch_goalsub_abbrev_tac ‘Vis _ k2’ >>
+  qexistsl_tac [‘k2’, ‘w2w uninitb''’] >>
+  rw[itree_wbisim_refl] >>
+  qunabbrev_tac ‘k2’ >> rw[] >>
+  qunabbrev_tac ‘rest’ >> rw[] >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate2)’ >>
+  ‘eval sate2 (LoadByte (Var «escape_character_a»)) = SOME (ValWord 1w)’ by cheat >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
+  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+  qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
+  (* TODO theorem: if the first bind returns ret we're done *)
+  rw[GSYM itree_mrec_alt, seq_thm] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[miscTheory.read_bytearray_def] >>
+  qmatch_goalsub_abbrev_tac ‘tl' ≈ _ ∧ _’ >>
+  qexists_tac ‘tl'’ >> rw[itree_wbisim_refl] >>
+  qunabbrev_tac ‘tl'’ >>
   (* part 2 *)
-  rw[Once future_safe_cases] >> disj1_tac >>
-  rw[muxrx_pred_def]
+  rw[Once future_safe_cases] >> disj2_tac >>
+  assume_tac (GEN_ALL mux_backslash_pred_notau) >>
+  rw[] >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    qunabbrev_tac ‘rest’ >> rw[mux_backslash_pred_def]) >>
+  (* TODO theorem about baseaddr addressing *)
+  (* TODO extra bind prevents match? *)
+  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate3)’ >>
+  ‘eval sate3 (Op Add [BaseAddr; Const 4w]) = SOME (ValWord (s.base_addr + 4w))’
+    by cheat >>
+  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  ‘read_bytearray (s.base_addr + 4w) 1
+   (mem_load_byte sate3.memory sate3.memaddrs sate3.be) = SOME [w2w uninitb'³']’
+    by cheat >>
+  rw[miscTheory.read_bytearray_def, mem_load_byte_def] >> pop_assum kall_tac >>
+  rw[Once future_safe_cases] >> disj2_tac >>
+  rw[] >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    qunabbrev_tac ‘rest’ >> rw[revert_binding_def] >>
+    rw[mux_backslash_pred_def]) >>
+  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate4)’ >>
+  ‘eval sate4 (LoadByte (Var «client_a»)) = SOME (ValWord (w2w h))’ by cheat >>
+  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  ‘eval (sate4 with locals := sate4.locals |+ («client»,ValWord (w2w h)))
+   (Op Add [BaseAddr; Const 5w]) = SOME (ValWord (s.base_addr + 5w))’
+    by cheat >>
+  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  ‘read_bytearray (s.base_addr + 5w) 1
+   (mem_load_byte sate4.memory sate4.memaddrs sate4.be) = SOME [w2w uninitb'⁴']’
+    by cheat >>
+  rw[miscTheory.read_bytearray_def, mem_load_byte_def] >> pop_assum kall_tac >>
+  rw[Once future_safe_cases] >> disj2_tac >>
+  rw[] >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    qunabbrev_tac ‘rest’ >> rw[revert_binding_def] >>
+    rw[mux_backslash_pred_def]) >>
+  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate5)’ >>
+  ‘eval sate5 (LoadByte (Var «check_num_to_get_chars_a»))
+   = SOME (ValWord (w2w h))’ by cheat >>
+  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
+  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >-
+   (* if return *)
+   (rw[h_prog_def, h_prog_rule_return_def, shape_of_def,
+                   panLangTheory.size_of_shape_def] >>
+    qunabbrev_tac ‘rest’ >> simp[revert_binding_def] >>
+    simp[Once future_safe_cases] >> simp[mux_backslash_pred_def]) >>
+  rw[h_prog_def] >>
 QED
