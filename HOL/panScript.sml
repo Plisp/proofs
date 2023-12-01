@@ -28,7 +28,7 @@ fun parse_pancake q =
 end
 
 (*
-Globals.max_print_depth := 20;
+Globals.max_print_depth := 20
 *)
 
 Theorem pan_eval_simps[simp]:
@@ -105,9 +105,30 @@ Proof
   rw[byteTheory.get_byte_set_byte]
 QED
 
+Theorem load_write_bytearray_other:
+  (∀(w : word32). w ∈ s.memaddrs) ∧
+  (∃(k : word32). s.memory (byte_align addr) = Word k) ∧
+  (∃(k : word32). s.memory (byte_align other) = Word k) ⇒
+  other ≠ addr ⇒
+  mem_load_byte (write_bytearray other [c] s.memory s.memaddrs s.be)
+                s.memaddrs s.be addr
+  = mem_load_byte s.memory s.memaddrs s.be addr
+Proof
+  rw[mem_load_byte_def] >>
+  rw[write_bytearray_def] >>
+  rw[mem_store_byte_def] >>
+  Cases_on ‘byte_align addr = byte_align other’ >>
+  rw[] >-
+   (‘k = k'’ by fs[] >>
+    gvs[] >>
+    irule miscTheory.get_byte_set_byte_diff >>
+    rw[] >> EVAL_TAC) >>
+  rw[combinTheory.UPDATE_APPLY]
+QED
+
 Theorem write_bytearray_preserve_words:
   (∀w. ∃(k : word32). s.memory w = Word k) ⇒
-  ∀w. ∃(k : word32). (write_bytearray loc l s.memory s.memaddrs s.be) w = Word k
+  ∀w. ∃(k : word32). write_bytearray loc l s.memory s.memaddrs s.be w = Word k
 Proof
   strip_tac >>
   qid_spec_tac ‘loc’ >>
@@ -118,6 +139,13 @@ Proof
   rw[] >>
   rw[combinTheory.APPLY_UPDATE_THM]
 QED
+
+Theorem base_addr_offset:
+  eval s (Op Add [BaseAddr; Const nw]) = SOME (ValWord (s.base_addr + nw))
+Proof
+  rw[eval_def, wordLangTheory.word_op_def]
+QED
+
 
 (*/ spec combinators
    - temporal logic?
@@ -582,36 +610,33 @@ Proof
   rw[muxrx_pred_def, mux_backslash_pred_def]
 QED
 
+
+(* the proof *)
 Theorem test:
-  (∀(w : word32). w ∈ s.memaddrs) ∧
-  (byte_align (s.base_addr + 1w) = s.base_addr) ∧
-  (∃uninitb. s.memory s.base_addr = Word uninitb) ⇒
-  eval (s with
-          <|locals :=
-            s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
-             («drv_dequeue_a»,ValWord (s.base_addr + 1w));
-            memory :=
-            write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs
-                            s.be; ffi := ARB|>)
-  (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))
+  mux_backslash_pred t ⇒
+  bind t (λres. if res = NONE then Tau ARB else Ret res)
+  = t
 Proof
-  rw[eval_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-  rw[load_write_bytearray_thm2]
+  simp[Once itree_strong_bisimulation] >>
+  qexists_tac ‘λ a b. ∃t. a = (bind t (λres. if res = NONE then Tau ARB
+                                             else Ret res)) ∧
+                          b = t’ >>
+  rw[] >-
+   (‘bind t (λ(res,s'). if res = NONE then Tau ARB else Ret (res,s')) = Ret x’
+      by rw[] >>
+    pop_last_assum kall_tac >>
+    rw[Once itree_bind_ret_inv]
+   )
 QED
 
 Theorem muxrx_correct:
   (∀(w : word32). w ∈ s.memaddrs) ∧
   (byte_align s.base_addr = s.base_addr) ∧
   (byte_align (s.base_addr + 1w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 3w) = s.base_addr) ∧
   (∃uninitb. s.memory s.base_addr = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 1w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 3w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 4w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 5w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 6w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 7w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 8w) = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 9w) = Word uninitb)
+  (∃uninitb. mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 3w)
+             = SOME uninitb)
   ⇒
   future_safe muxrx_pred (muxrx_sem s)
 Proof
@@ -635,43 +660,64 @@ Proof
   rw[Once future_safe_cases] >> disj1_tac >>
   rw[muxrx_pred_def] >>
   qunabbrev_tac ‘rest’ >> rw[] >>
-  ‘eval (s with
-                <|locals :=
-                    s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
-                    («drv_dequeue_a»,ValWord (s.base_addr + 1w));
+  ‘eval (s with <|locals :=
+                  s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
+                   («drv_dequeue_a»,ValWord (s.base_addr + 1w));
                   memory :=
-                    write_bytearray (s.base_addr + 1w) [c] s.memory
-                                    s.memaddrs s.be; ffi := (ARB : α ffi_state)|>)
+                  write_bytearray (s.base_addr + 1w) [c] s.memory
+                                  s.memaddrs s.be; ffi := (ARB : α ffi_state)|>)
    (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))’
-    by gvs[eval_def, finite_mapTheory.FLOOKUP_UPDATE, load_write_bytearray_thm2] >>
+    by rw[eval_def, finite_mapTheory.FLOOKUP_UPDATE, load_write_bytearray_thm2] >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
-  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate)’ >>
-  ‘eval (sate with locals := sate.locals |+ («got_char»,ValWord (w2w c)))
+  ‘eval (s with <|locals :=
+                  s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
+                   («drv_dequeue_a»,ValWord (s.base_addr + 1w)) |+
+                   («got_char»,ValWord (w2w c));
+                  memory :=
+                  write_bytearray (s.base_addr + 1w) [c] s.memory
+                                  s.memaddrs s.be; ffi := (ARB : α ffi_state)|>)
    (Op Add [BaseAddr; Const 3w]) = SOME (ValWord (s.base_addr + 3w))’
-    by cheat >>
+    by rw[base_addr_offset] >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  (* get_escape_character *)
   rw[seq_thm] >>
   qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
      finite_mapTheory.FLOOKUP_UPDATE] >>
   rw[miscTheory.read_bytearray_def] >>
-  ‘read_bytearray (s.base_addr + 3w) 1
-   (mem_load_byte sate.memory sate.memaddrs sate.be) = SOME [w2w uninitb'']’
-    by cheat >>
-  rw[miscTheory.read_bytearray_def, mem_load_byte_def] >> pop_assum kall_tac >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  ‘(s.base_addr + 1w) ≠ (s.base_addr + 3w)’ by rw[] >>
+  rw[load_write_bytearray_other] >> pop_assum kall_tac >>
   qmatch_goalsub_abbrev_tac ‘Vis _ k2’ >>
-  qexistsl_tac [‘k2’, ‘w2w uninitb''’] >>
+  qexistsl_tac [‘k2’, ‘uninitb'’] >>
   rw[itree_wbisim_refl] >>
-  qunabbrev_tac ‘k2’ >> rw[] >>
-  qunabbrev_tac ‘rest’ >> rw[] >>
-  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate2)’ >>
-  ‘eval sate2 (LoadByte (Var «escape_character_a»)) = SOME (ValWord 1w)’ by cheat >>
+  qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >> rw[] >>
+  subgoal ‘eval (s with
+                   <|locals :=
+                     s.locals |+ («drv_dequeue_c»,ValWord s.base_addr) |+
+                      («drv_dequeue_a»,ValWord (s.base_addr + 1w)) |+
+                      («got_char»,ValWord (w2w c)) |+
+                      («escape_character_a»,ValWord (s.base_addr + 3w));
+                     memory :=
+                     write_bytearray
+                     (s.base_addr + 3w) [1w]
+                     (write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs
+                                      s.be) s.memaddrs s.be;
+                     ffi := (ARB :α ffi_state)|>)
+           (LoadByte (Var «escape_character_a»)) = SOME (ValWord 1w)’ >-
+   (rw[eval_def] >> rw[finite_mapTheory.FLOOKUP_UPDATE] >>
+    (* need to generalize rw[write_bytearray_preserve_words] *)
+    ‘∃k. (write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs s.be)
+         s.base_addr = Word k’ by cheat >>
+    rw[load_write_bytearray_thm2]) >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
   rw[seq_thm] >>
+  (* theorem: TODO if the first bind returns ret we're done *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
   rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
   qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
-  (* TODO theorem: if the first bind returns ret we're done *)
+
   rw[GSYM itree_mrec_alt, seq_thm] >>
   rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
@@ -684,7 +730,6 @@ Proof
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     qunabbrev_tac ‘rest’ >> rw[mux_backslash_pred_def]) >>
-  (* TODO theorem about baseaddr addressing *)
   (* TODO extra bind prevents match? *)
   qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate3)’ >>
   ‘eval sate3 (Op Add [BaseAddr; Const 4w]) = SOME (ValWord (s.base_addr + 4w))’
