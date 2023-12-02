@@ -99,6 +99,20 @@ Proof
   Cases_on ‘t’ >> fs[itree_bind_thm]
 QED
 
+Theorem itree_bind_tau_inv:
+  bind t k = Tau s ∧ (¬∃r. t = Ret r) ⇒ ∃s'. t = Tau s' ∧ bind s' k = s
+Proof
+  Cases_on ‘t’ >> fs[itree_bind_thm]
+QED
+
+Theorem itree_bind_vis_inv:
+  bind t cont = Vis e k ∧ (¬∃r. t = Ret r)
+  ⇒ ∃k'. t = Vis e k' ∧ ∀x. bind (k' x) cont = k x
+Proof
+  Cases_on ‘t’ >> fs[itree_bind_thm] >>
+  rw[FUN_EQ_THM]
+QED
+
 Theorem itree_wbisim_vis:
   ∀e k1 k2. (∀r. k1 r ≈ k2 r) ⇒ Vis e k1 ≈ Vis e k2
 Proof
