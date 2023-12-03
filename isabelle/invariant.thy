@@ -2,6 +2,8 @@ theory invariant
 imports "~~/src/HOL/Hoare/HeapSyntax"
 begin
 
+declare [[syntax_ambiguity_warning=false]]
+
 lemma
   "VARS (A::int) B
    { True }

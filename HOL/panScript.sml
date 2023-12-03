@@ -578,9 +578,12 @@ Definition muxrx_sem_def:
   itree_evaluate (SND $ SND $ HD ^muxrx_ast) s
 End
 
+(* assumption: zero parameter means we get no bytes written, so [] *)
 Definition mux_backslash_pred_def:
   mux_backslash_pred t =
-  ((∃k. t = Vis (FFI_call "set_escape_character" [0w : word8] []) k)
+  ((∃k. t = Vis (FFI_call "set_escape_character" [0w : word8] []) k ∧
+        future_safe (λt. t = Ret (SOME (Return (ValWord 0w))))
+                    (k (FFI_return ARB [])))
    ∨ (t = Ret (SOME (Return (ValWord 0w))))
    ∨ ∃outcome. t = Ret (SOME (FinalFFI outcome)))
 End
@@ -610,32 +613,21 @@ Proof
   rw[muxrx_pred_def, mux_backslash_pred_def]
 QED
 
-
 (* the proof *)
-Theorem test:
-  future (λ t. ∃r. t = Ret (SOME r)) t ⇒
-  bind t (λres. if res = NONE then f res else Ret res) = t
+
+Theorem mux_pred_implies_SOME_leaf:
+  future_safe mux_backslash_pred tl ⇒
+  future_safe (λt. ∃r. t = Ret (SOME r)) tl
 Proof
-  strip_tac >>
-  rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λ a b. ∃t. (bind t (λres. if res = NONE then f res else Ret res)) = a
-                          ∧ future (λ t. ∃r. t = Ret (SOME r)) t
-                          ∧ t = b’ >>
-  rw[] >> pop_last_assum kall_tac >-
-   (drule itree_bind_ret_inv >> rw[] >>
-    gvs[Once future_cases]) >-
-   (Cases_on ‘∃r. t' = Ret r’ >-
-     (rw[itree_bind_tau_inv] >>
-      gvs[Once future_cases]) >>
-    drule_all itree_bind_tau_inv >> rw[] >>
-    disj1_tac >>
-    fs[Once future_cases]) >-
-   (Cases_on ‘∃r. t' = Ret r’ >-
-     (rw[itree_bind_vis_inv] >>
-      gvs[Once future_cases]) >>
-    (* ?∃ *)
-    drule_all itree_bind_vis_inv >> rw[] >>
-    gvs[Once future_cases, FUN_EQ_THM])
+  qid_spec_tac ‘tl’ >>
+  ho_match_mp_tac future_safe_ind >>
+  rw[Once future_safe_cases] >-
+   (gvs[mux_backslash_pred_def] >>
+    rw[Once future_safe_cases]) >-
+   (rw[Once future_safe_cases]) >-
+   (rw[Once future_safe_cases] >>
+    pop_last_assum $ qspec_then ‘outcome’ strip_assume_tac >>
+    rw[Once future_safe_cases])
 QED
 
 Theorem muxrx_correct:
@@ -643,8 +635,17 @@ Theorem muxrx_correct:
   (byte_align s.base_addr = s.base_addr) ∧
   (byte_align (s.base_addr + 1w) = s.base_addr) ∧
   (byte_align (s.base_addr + 3w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 4w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 6w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 7w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 8w) = s.base_addr) ∧
+  (byte_align (s.base_addr + 9w) = s.base_addr) ∧
   (∃uninitb. s.memory s.base_addr = Word uninitb) ∧
   (∃uninitb. mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 3w)
+             = SOME uninitb) ∧
+  (∃uninitb. mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 4w)
+             = SOME uninitb) ∧
+  (∃uninitb. mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 9w)
              = SOME uninitb)
   ⇒
   future_safe muxrx_pred (muxrx_sem s)
@@ -720,12 +721,15 @@ Proof
     rw[load_write_bytearray_thm2]) >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
   rw[seq_thm] >>
-  (* theorem: TODO if the first bind (if-branch) returns we're done *)
+  (* if the first bind (if-branch) returns we're done *)
+  qmatch_goalsub_abbrev_tac ‘to_ffi (bind if1 rest)’ >>
+  ‘∃tl. to_ffi if1 ≈ tl ∧ future_safe mux_backslash_pred tl’ suffices_by cheat >>
+  qunabbrev_tac ‘if1’ >> pop_assum kall_tac >>
+  (* questionable stuff done *)
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
   rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-  qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
-
   rw[GSYM itree_mrec_alt, seq_thm] >>
+  (* escape_1 *)
   rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
   rw[miscTheory.read_bytearray_def] >>
   qmatch_goalsub_abbrev_tac ‘tl' ≈ _ ∧ _’ >>
@@ -734,12 +738,142 @@ Proof
   (* part 2 *)
   rw[Once future_safe_cases] >> disj2_tac >>
   assume_tac (GEN_ALL mux_backslash_pred_notau) >>
-  rw[] >-
-   (rw[Once future_safe_cases] >> disj1_tac >>
-    qunabbrev_tac ‘rest’ >> rw[mux_backslash_pred_def]) >>
-  (* TODO extra bind prevents match? *)
-  qmatch_goalsub_abbrev_tac ‘itree_mrec h_prog (_ , sate3)’ >>
-  ‘eval sate3 (Op Add [BaseAddr; Const 4w]) = SOME (ValWord (s.base_addr + 4w))’
+  rw[Once write_bytearray_def] >-
+   (rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+  (* client_a *)
+  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,sat)’ >>
+  ‘eval sat (Op Add [BaseAddr; Const 4w]) = SOME (ValWord (sat.base_addr + 4w))’
     by rw[base_addr_offset] >>
-  drule dec_thm >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  (* get_client *)
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE, miscTheory.read_bytearray_def] >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  (* load_write_bytearray_other? twice *)
+  ‘mem_load_byte sat.memory sat.memaddrs sat.be (sat.base_addr + 4w)
+   = SOME x’ by cheat >>
+  rw[Once future_safe_cases] >> disj2_tac >>
+  rw[] >-
+   (rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
+  (* new <client> : h *)
+  ‘eval (sat with
+             <|locals :=
+               sat.locals |+ («client_a»,ValWord (sat.base_addr + 4w));
+               memory :=
+               write_bytearray (sat.base_addr + 4w) [h] sat.memory
+                               sat.memaddrs sat.be; ffi := new_ffi'|>)
+   (LoadByte (Var «client_a»)) = SOME (ValWord (w2w h))’ by cheat >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  (* check_num_to_chars *)
+  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,sat2)’ >>
+  ‘eval sat2 (Op Add [BaseAddr; Const 5w]) = SOME (ValWord (sat2.base_addr + 5w))’
+    by rw[base_addr_offset] >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE, miscTheory.read_bytearray_def] >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  (* load_write_bytearray_other? twice *)
+  ‘mem_load_byte sat2.memory sat2.memaddrs sat2.be (sat2.base_addr + 5w)
+   = SOME y’ by cheat >>
+  (* ffi check_num_to_get_chars, h' return *)
+  rw[Once future_safe_cases] >> disj2_tac >>
+  rw[] >-
+   (rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
+  ‘eval (sat2
+         with
+         <|locals :=
+           sat2.locals |+
+               («check_num_to_get_chars_a», ValWord (sat2.base_addr + 5w));
+           memory :=
+           write_bytearray (sat2.base_addr + 5w) [h']
+                           sat2.memory sat2.memaddrs sat2.be; ffi := new_ffi''|>)
+   (LoadByte (Var «check_num_to_get_chars_a»)) = SOME (ValWord (w2w h'))’
+    by cheat >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
+  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >-
+   (rw[h_prog_def, h_prog_rule_return_def,
+       panLangTheory.size_of_shape_def, shape_of_def] >>
+    rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+  rw[h_prog_def] >> pop_assum kall_tac >>
+  (* after if 0 *)
+  rw[GSYM itree_mrec_alt, GSYM h_prog_def] >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,sat3)’ >>
+  ‘eval sat3 (Op Add [BaseAddr; Const 6w]) = SOME (ValWord (sat3.base_addr + 6w))’
+    by rw[base_addr_offset] >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[GSYM itree_mrec_alt] >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,sat4)’ >>
+  ‘eval sat4 (Op Add [BaseAddr; Const 8w]) = SOME (ValWord (sat4.base_addr + 8w))’
+    by rw[base_addr_offset] >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  (* store byte from client in arg *)
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_store_byte_def,
+     finite_mapTheory.FLOOKUP_UPDATE] >>
+  qunabbrev_tac ‘sat4’ >>
+  fs[finite_mapTheory.FLOOKUP_UPDATE] >>
+  qunabbrev_tac ‘sat3’ >>
+  fs[finite_mapTheory.FLOOKUP_UPDATE] >>
+  qunabbrev_tac ‘sat2’ >>
+  fs[finite_mapTheory.FLOOKUP_UPDATE] >>
+  ‘(byte_align (sat.base_addr + 6w) = sat.base_addr)’ by cheat >>
+  qunabbrev_tac ‘sat’ >>
+  rw[mem_store_byte_def] >>
+  (* this sucks, case constant *)
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ (_ test _ _) _ _)’ >>
+  ‘test = Word xx’ by cheat >>
+  rw[] >>
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ test _ _)’ >>
+  ‘test = SOME (ValWord (s.base_addr + 7w))’ by cheat >>
+  rw[finite_mapTheory.FLOOKUP_UPDATE] >>
+  pop_assum kall_tac >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE, miscTheory.read_bytearray_def] >>
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ test _ _)’ >>
+  ‘test = SOME [w2w h : word8 ; w2w c]’ by cheat >>
+  rw[] >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  (* 8 is uninitialised *)
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ (_ test _ _) _ _)’ >>
+  ‘test = SOME uninit8’ by cheat >>
+  rw[Once future_safe_cases] >> disj2_tac >>
+  rw[] >-
+   (rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+  Cases_on ‘new_bytes’ >> fs[] >> pop_assum kall_tac >>
+  rw[GSYM itree_mrec_alt, GSYM h_prog_def] >>
+  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,sat5)’ >>
+  ‘eval sat5 (Op Add [BaseAddr; Const 9w]) = SOME (ValWord (sat5.base_addr + 9w))’
+    by rw[base_addr_offset] >>
+  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[itree_mrec_alt, h_prog_def, h_prog_rule_store_byte_def,
+     finite_mapTheory.FLOOKUP_UPDATE] >>
+  qunabbrev_tac ‘sat5’ >>
+  rw[mem_store_byte_def] >>
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ (_ test _ _) _ _)’ >>
+  ‘test = Word xxx’ by cheat >>
+  rw[] >>
+  rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def,
+     finite_mapTheory.FLOOKUP_UPDATE, miscTheory.read_bytearray_def] >>
+  PURE_REWRITE_TAC[ONE] >>
+  rw[miscTheory.read_bytearray_def] >>
+  qmatch_goalsub_abbrev_tac  ‘iter _ (_ (_ test _ _) _ _)’ >>
+  ‘test = SOME (0w)’ by cheat >>
+  rw[] >>
+  (* almost there *)
+  rw[Once future_safe_cases] >> disj1_tac >>
+  rw[mux_backslash_pred_def] >>
+  (* show return 0 *)
+  rw[h_prog_def, h_prog_rule_return_def,
+     panLangTheory.size_of_shape_def, shape_of_def] >>
+  rw[Once future_safe_cases]
 QED
