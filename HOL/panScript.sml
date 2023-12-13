@@ -44,6 +44,7 @@ Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
 Theorem do_flookup_simp[simp] = finite_mapTheory.FLOOKUP_UPDATE;
 Theorem read_bytearray_0[simp] = cj 1 miscTheory.read_bytearray_def;
 Theorem write_bytearray_0[simp] = cj 1 write_bytearray_def;
+Theorem itree_wbisim_refl[simp] = itree_wbisim_refl;
 Theorem read_bytearray_1:
   read_bytearray addr 1 getter =
   (case getter addr of NONE => NONE | SOME b => SOME [b])
@@ -363,9 +364,10 @@ End
 (* assumption: zero parameter means we get no bytes written, so [] *)
 Definition mux_backslash_pred_def:
   mux_backslash_pred t =
-  ((∃k. t = Vis (FFI_call "set_escape_character" [0w : word8] []) k ∧
-        future_safe (λt. t = Ret (SOME (Return (ValWord 0w))))
-                    (k (FFI_return ARB [])))
+  ((∃k.
+     t = Vis (FFI_call "set_escape_character" [0w : word8] []) k ∧
+     (* immediate return *)
+     k (FFI_return ARB []) ≈ Ret (SOME (Return (ValWord 0w))))
    ∨ (t = Ret (SOME (Return (ValWord 0w))))
    ∨ ∃outcome. t = Ret (SOME (FinalFFI outcome)))
 End
@@ -376,18 +378,40 @@ Proof
   rw[mux_backslash_pred_def]
 QED
 
-Definition mux_at_pred_def:
-  mux_at_pred t =
+Definition mux_at_set_escape_pred_def:
+  mux_at_set_escape_pred t =
   ((∃k. t = Vis (FFI_call "set_escape_character" [0w : word8] []) k ∧
-        future_safe (λt. t = Ret (SOME (Return (ValWord 0w))))
-                    (k (FFI_return ARB [])))
+        k (FFI_return ARB []) ≈ Ret (SOME (Return (ValWord 0w))))
    ∨ ∃outcome. t = Ret (SOME (FinalFFI outcome)))
 End
 
-Theorem mux_at_pred_notau:
-  ¬mux_at_pred (Tau (t : α sem32tree))
+Theorem mux_at_set_escape_pred_notau:
+  ¬mux_at_set_escape_pred (Tau (t : α sem32tree))
 Proof
-  rw[mux_at_pred_def]
+  rw[mux_at_set_escape_pred_def]
+QED
+
+Definition mux_at_pred_def:
+  mux_at_pred (gchar : word32) t =
+  (((gchar - 48w = 0w) ⇒ mux_at_set_escape_pred t) ∧
+   (1w ≤ gchar - 48w ⇒
+    ∃k uninit.
+     t = Vis (FFI_call "get_num_clients" [] [uninit]) k ∧
+     ∀n.
+     future_safe
+     (λcont. ∃k2. (gchar - 48w) ≤ w2w n ⇒
+                  cont = Vis (FFI_call "set_client" [w2w (gchar - 48w)] []) k2 ∧
+                  future_safe mux_at_set_escape_pred (k2 (FFI_return ARB [])))
+     (k (FFI_return ARB [n]))))
+End
+
+Theorem mux_at_pred_notau:
+  ¬(mux_at_pred gchar) (Tau (t : α sem32tree))
+Proof
+  Cases_on ‘gchar - 48w = 0w’ >> fs[mux_at_pred_def, mux_at_set_escape_pred_def] >>
+  Cases_on ‘gchar + 0xFFFFFFD0w’ >> gvs[] >>
+  (* word isn't zero *)
+  cheat
 QED
 
 Definition muxrx_pred_def:
@@ -399,7 +423,7 @@ Definition muxrx_pred_def:
         Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
     (* backslash escape case, transitions to zero *)
     future_safe mux_backslash_pred (k2 (FFI_return ARB [1w])) ∧
-    future_safe mux_at_pred (k2 (FFI_return ARB [2w]))
+    future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w]))
   ) ∨
   (∃outcome. t = Ret (SOME (FinalFFI outcome)))
 End
@@ -407,32 +431,53 @@ End
 Theorem muxrx_pred_notau:
   ¬muxrx_pred (Tau (t : α sem32tree))
 Proof
-  rw[muxrx_pred_def, mux_backslash_pred_def]
+  rw[muxrx_pred_def]
 QED
 
 (* the proof *)
 
-Theorem mux_return_branch:
-  future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
-  ⇒ future_safe mux_backslash_pred
-                (to_ffi
-                 (bind branch (λ(res,s'). if res = NONE
-                                          then (f res s')
-                                          else Ret (res,s'))))
+Theorem mux_return_branch_gen:
+  ∀a0.
+  future_safe mux_backslash_pred a0
+  ⇒
+  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
+             ⇒ future_safe mux_backslash_pred
+                           (to_ffi
+                            (bind branch (λ(res,s'). if res = NONE
+                                                     then (f res s')
+                                                     else Ret (res,s'))))
 Proof
-  assume_tac (GEN_ALL mux_backslash_pred_notau) >>
-  rw[] >>
-  Cases_on ‘branch’ >-
-   (rw[] >>
-    Cases_on ‘x’ >> Cases_on ‘q’ >> rw[] >-
-     (cheat) >>
-    metis_tac[to_ffi_alt]) >-
-   (rw[Once future_safe_cases] >>
-    pop_assum mp_tac >> fs[Once future_safe_cases] >>
-    rw[] >> (* need induction on finite trees? *)
-    cheat
-   ) >-
-   cheat
+  ho_match_mp_tac future_safe_ind >>
+  rw[] >-
+   (fs[mux_backslash_pred_def] >-
+     (rw[Once future_safe_cases] >> disj1_tac >>
+      rw[mux_backslash_pred_def] >> disj1_tac >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq]) >-
+     (rw[Once future_safe_cases] >> disj1_tac >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[mux_backslash_pred_def]) >-
+     (rw[Once future_safe_cases] >> disj1_tac >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[mux_backslash_pred_def])) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases]) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases] >>
+    metis_tac[])
+QED
+
+Triviality mux_return_branch:
+ future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
+ ⇒ future_safe mux_backslash_pred
+               (to_ffi
+                (bind branch (λ(res,s'). if res = NONE
+                                         then (f res s')
+                                         else Ret (res,s'))))
+Proof
+  metis_tac[mux_return_branch_gen]
 QED
 
 Theorem muxrx_correct:
@@ -473,7 +518,6 @@ Proof
   qunabbrev_tac ‘rest’ >> rw[] >>
   qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,st)’ >>
   subgoal ‘eval st (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))’ >-
-   (* TODO how do I get this FLOOKUP to compute *)
    (qunabbrev_tac ‘st’ >> rw[eval_def] >> rw[load_write_bytearray_thm2]) >>
   drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
   (* get_escape_character *)
@@ -488,6 +532,8 @@ Proof
   qexistsl_tac [‘k2’, ‘uninitb''’] >>
   rw[itree_wbisim_refl] >-
    (* backslash *)
+   (* TODO how does pancake ensure C isn't written over *)
+   (* TODO track solved goals by definition dependency ? can be cheated *)
    (qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >>
     assume_tac (GEN_ALL mux_backslash_pred_notau) >>
     rw[] >>
@@ -759,6 +805,7 @@ Proof
      (qunabbrev_tac ‘test’ >> qunabbrev_tac ‘st4’ >> qunabbrev_tac ‘st3’ >>
       qunabbrev_tac ‘st2’ >> qunabbrev_tac ‘st’ >>
       fs[mem_store_byte_def, write_bytearray_def, combinTheory.UPDATE_APPLY]) >>
+    rw[] >>
     rw[h_prog_def, h_prog_rule_ext_call_def] >>
     PURE_REWRITE_TAC[ONE] >>
     rw[read_bytearray_1, mem_load_byte_def] >>
@@ -768,8 +815,31 @@ Proof
      (rw[byteTheory.get_byte_set_byte]) >>
     (* show return 0 *)
     rw[h_prog_def, h_prog_rule_return_def, size_of_shape_def, shape_of_def] >>
-    rw[Once future_safe_cases]) >-
-   (cheat
+    rw[itree_wbisim_refl]) >-
+
+
+
+   (* part 2 *)
+   (qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >>
+    assume_tac (GEN_ALL mux_at_pred_notau) >>
+    rw[] >>
+    ‘∃k. (write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs s.be)
+         (byte_align (s.base_addr + 3w)) = Word k’
+      by rw[write_bytearray_preserve_words] >>
+    qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,st)’ >>
+    subgoal ‘eval st (LoadByte (Var «escape_character_a»)) = SOME (ValWord 2w)’ >-
+     (qunabbrev_tac ‘st’ >> rw[eval_def] >>
+      rw[load_write_bytearray_thm2]) >>
+    drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+    rw[Once seq_thm] >>
+    rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
+    (* not one *)
+    rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+    rw[h_prog_def, h_prog_rule_seq_def] >>
+    rw[h_prog_rule_cond_def] >>
+    rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+    (* making escape_2 call... *)
+    cheat
    )
 QED
 
@@ -876,6 +946,7 @@ Proof
   rw[wordsTheory.WORD_LESS_OR_EQ, miscTheory.word_lt_0w]
 QED
 
+(* TODO fix *)
 Theorem while_sem_lem:
   (∀(w : word32). w ∈ s.memaddrs) ∧
   (byte_align s.base_addr = s.base_addr) ∧

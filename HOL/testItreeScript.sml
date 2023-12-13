@@ -333,12 +333,33 @@ Definition to_ffi_def:
 End
 
 Theorem to_ffi_alt[simp]:
-  to_ffi (Tau t) = Tau (to_ffi t) ∧
-  to_ffi (Ret (p,s)) = Ret p ∧
-  to_ffi (Vis (svis_ev,scb) g) = Vis svis_ev (λffi_res. to_ffi (g (scb (ffi_res))))
+  to_ffi ((Tau t) : (α, β # (γ -> α), δ # ε) itree) = Tau (to_ffi t) ∧
+  to_ffi ((Ret (p,s)) : (α, β # (γ -> α), δ # ε) itree) = Ret p ∧
+  to_ffi ((Vis (svis_ev,scb) g) : (α, β # (γ -> α), δ # ε) itree)
+  = Vis svis_ev (λffi_res. to_ffi (g (scb (ffi_res))))
 Proof
   rw[to_ffi_def] >> rw[Once itree_unfold] >>
   rw[combinTheory.o_DEF]
+QED
+
+Theorem strip_tau_to_ffi:
+  strip_tau t' t ⇒ strip_tau (to_ffi t') (to_ffi t)
+Proof
+  Induct_on ‘strip_tau’ >> rw[] >-
+   (Cases_on ‘e’ >> fs[Once strip_tau_cases]) >>
+  Cases_on ‘v’ >> rw[Once strip_tau_cases]
+QED
+
+Theorem to_ffi_seq:
+  to_ffi t ≈ Ret (SOME v)
+  ⇒ to_ffi
+    (bind t (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))) ≈
+    Ret (SOME v)
+Proof
+  rw[Once itree_wbisim_cases] >>
+  pop_assum mp_tac >> qid_spec_tac ‘t’ >>
+  Induct_on ‘strip_tau’ >> rw[] >>
+  gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()]
 QED
 
 Theorem pull_ffi_case[simp]:
