@@ -532,8 +532,6 @@ Proof
   qexistsl_tac [‘k2’, ‘uninitb''’] >>
   rw[itree_wbisim_refl] >-
    (* backslash *)
-   (* TODO how does pancake ensure C isn't written over *)
-   (* TODO track solved goals by definition dependency ? can be cheated *)
    (qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >>
     assume_tac (GEN_ALL mux_backslash_pred_notau) >>
     rw[] >>
@@ -542,8 +540,7 @@ Proof
       by rw[write_bytearray_preserve_words] >>
     qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,st)’ >>
     subgoal ‘eval st (LoadByte (Var «escape_character_a»)) = SOME (ValWord 1w)’ >-
-     (qunabbrev_tac ‘st’ >> rw[eval_def] >>
-      rw[load_write_bytearray_thm2]) >>
+     (rw[eval_def, Abbr ‘st’] >> rw[load_write_bytearray_thm2]) >>
     drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
     rw[Once seq_thm] >>
     (* if the first bind (if-branch) returns we're done *)
@@ -561,6 +558,8 @@ Proof
     (* get_client *)
     rw[Once itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
     rw[read_bytearray_1] >>
+    (* is_word (mem addr) ⇒ is_word ((write_bytearray mem) addr)
+       fun2set in set_sepScript*)
     ‘∃k. (write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs s.be)
          (byte_align (s.base_addr + 4w)) = Word k’
       by rw[write_bytearray_preserve_words] >>
@@ -816,8 +815,6 @@ Proof
     (* show return 0 *)
     rw[h_prog_def, h_prog_rule_return_def, size_of_shape_def, shape_of_def] >>
     rw[itree_wbisim_refl]) >-
-
-
 
    (* part 2 *)
    (qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >>
