@@ -16,22 +16,36 @@
 ;; (ap (ld (add (tvar "v") Z)) Z)
 ;; case: (rec t (λ (n) suc-term)...)
 
+;; untyped for now lol
+
 (defstruct tvar
   (name "" :type string)
   (i 0 :type integer))
+(defun tvar (name &optional (i 0)) (make-tvar :name name :i i))
 
-(defun tvar (name &optional (i 0))
-  (make-tvar :name name :i i))
+(defun tbound (tvar)
+  (string= "" (tvar-name tvar)))
 
 (defmethod print-object ((v tvar) s)
-  (if (string/= "" (tvar-name v))
-      (format s "~a" (tvar-name v))
+  (if (not (tbound v))
+      (format s "~a" (cat "!" (tvar-name v)))
       (format s "~d" (tvar-i v))))
 
-;; untyped for now lol
-(defun ld (s lam) `(ld ,(tvar s) ,lam))
+(defstruct lam
+  (bind (error "") :type tvar)
+  (body (error "")))
+(defun ld (s lam) (make-lam :bind (tvar s) :body lam))
 
-(defun ap (lam1 lam2) `(ap ,lam1 ,lam2))
+(defmethod print-object ((lam lam) s)
+  (format s "~a" (list 'ld (tvar-name (lam-bind lam)) (lam-body lam))))
+
+(defstruct app
+  (lam1 (error ""))
+  (lam2 (error "")))
+(defun ap (lam1 lam2) (make-app :lam1 lam1 :lam2 lam2))
+
+(defmethod print-object ((ap app) s)
+  (format s "~a" (list (app-lam1 ap) (app-lam2 ap))))
 
 (defun named->dbruijn (lam)
   (labels ((rec (env lam)
@@ -39,34 +53,48 @@
                     (if-let (cs (assoc (tvar-name lam) env :test 'string=)) ; bound
                       (tvar "" (cdr cs))
                       lam))
-                   ((eq 'ld (car lam))
-                    (ld (tvar-name (second lam))
-                        (rec (acons (tvar-name (second lam))
+                   ((lam-p lam)
+                    (ld (tvar-name (lam-bind lam))
+                        (rec (acons (tvar-name (lam-bind lam))
                                     0
                                     (mapcar (lambda (sn) (cons (car sn) (1+ (cdr sn))))
                                             env))
-                             (third lam))))
-                   ((eq 'ap (car lam))
-                    (ap (rec env (second lam)) (rec env (third lam))))
+                             (lam-body lam))))
+                   ((app-p lam)
+                    (ap (rec env (app-lam1 lam)) (rec env (app-lam2 lam))))
                    (t (error "bad named term ~a" lam)))))
     (rec () lam)))
 
 (defun dbruijn->named (lam)
   (labels ((rec (env lam)
              (cond ((tvar-p lam)
-                    (if (string= "" (tvar-name lam))
+                    (if (tbound lam)
                         (cdr (assoc (tvar-i lam) env))
                         lam))
-                   ((eq 'ld (car lam))
-                    (ld (tvar-name (second lam))
+                   ((lam-p lam)
+                    (ld (tvar-name (lam-bind lam))
                         (rec (acons 0
-                                    (tvar-name (second lam))
+                                    (tvar-name (lam-bind lam))
                                     (mapcar (lambda (sn) (cons (1+ (car sn)) (cdr sn)))
                                             env))
-                             (third lam))))
-                   ((eq 'ap (car lam))
-                    (ap (rec env (second lam)) (rec env (third lam)))))))
+                             (lam-body lam))))
+                   ((app-p lam)
+                    (ap (rec env (app-lam1 lam)) (rec env (app-lam2 lam)))))))
     (rec () lam)))
+
+(defun sub (f x)
+  (labels ((rec (n lam x)
+             (cond ((tvar-p lam)
+                    (cond ((not (tbound lam)) lam)
+                          ((= n (tvar-i lam)) x)
+                          (t lam)))
+                   ((lam-p lam)
+                    (ld (tvar-name (lam-bind lam))
+                        (rec (1+ n) (lam-body lam) x)))
+                   ((app-p lam)
+                    (ap (rec n (app-lam1 lam) x) (rec n (app-lam2 lam) x))))))
+    (assert (lam-p f))
+    (rec 0 (lam-body f) x)))
 
 ;;; external syntax
 
