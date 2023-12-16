@@ -18,31 +18,25 @@
 
 ;; untyped for now lol
 
-(defstruct tvar
-  (name "" :type string)
-  (i 0 :type integer))
-(defun tvar (name &optional (i 0)) (make-tvar :name name :i i))
+(deftype tvar () '(or string fixnum))
+(defun tvar-p (e) (typep e 'tvar))
 
+;; in this setup bound variables are represented as indices
+;; note: free variables may appear captured, they will not be printed as indices
 (defun tbound (tvar)
-  (string= "" (tvar-name tvar)))
-
-(defmethod print-object ((v tvar) s)
-  (if (not (tbound v))
-      (format s "~a" (cat "!" (tvar-name v)))
-      (format s "~d" (tvar-i v))))
+  (integerp tvar))
 
 (defstruct lam
   (bind (error "") :type tvar)
   (body (error "")))
-(defun ld (s lam) (make-lam :bind (tvar s) :body lam))
+(defun ld (s lam) (make-lam :bind s :body lam))
 
 (defmethod print-object ((lam lam) s)
-  (format s "~a" (list 'ld (tvar-name (lam-bind lam)) (lam-body lam))))
+  (format s "λ~a.~a" (lam-bind lam) (lam-body lam)))
 
-(defstruct app
+(defstruct (app (:constructor ap (lam1 lam2)))
   (lam1 (error ""))
   (lam2 (error "")))
-(defun ap (lam1 lam2) (make-app :lam1 lam1 :lam2 lam2))
 
 (defmethod print-object ((ap app) s)
   (format s "~a" (list (app-lam1 ap) (app-lam2 ap))))
@@ -50,12 +44,12 @@
 (defun named->dbruijn (lam)
   (labels ((rec (env lam)
              (cond ((tvar-p lam)
-                    (if-let (cs (assoc (tvar-name lam) env :test 'string=)) ; bound
-                      (tvar "" (cdr cs))
+                    (if-let (cs (assoc lam env :test 'string=)) ; bound
+                      (cdr cs)
                       lam))
                    ((lam-p lam)
-                    (ld (tvar-name (lam-bind lam))
-                        (rec (acons (tvar-name (lam-bind lam))
+                    (ld (lam-bind lam)
+                        (rec (acons (lam-bind lam)
                                     0
                                     (mapcar (lambda (sn) (cons (car sn) (1+ (cdr sn))))
                                             env))
@@ -69,12 +63,12 @@
   (labels ((rec (env lam)
              (cond ((tvar-p lam)
                     (if (tbound lam)
-                        (cdr (assoc (tvar-i lam) env))
+                        (cdr (assoc lam env))
                         lam))
                    ((lam-p lam)
-                    (ld (tvar-name (lam-bind lam))
+                    (ld (lam-bind lam)
                         (rec (acons 0
-                                    (tvar-name (lam-bind lam))
+                                    (lam-bind lam)
                                     (mapcar (lambda (sn) (cons (1+ (car sn)) (cdr sn)))
                                             env))
                              (lam-body lam))))
@@ -82,14 +76,15 @@
                     (ap (rec env (app-lam1 lam)) (rec env (app-lam2 lam)))))))
     (rec () lam)))
 
+;; (sub (named->dbruijn (ld "f" (ld "x" (ap (tvar "f") (tvar "x"))))) (tvar "x"))
 (defun sub (f x)
   (labels ((rec (n lam x)
              (cond ((tvar-p lam)
                     (cond ((not (tbound lam)) lam)
-                          ((= n (tvar-i lam)) x)
+                          ((= n lam) x)
                           (t lam)))
                    ((lam-p lam)
-                    (ld (tvar-name (lam-bind lam))
+                    (ld (lam-bind lam)
                         (rec (1+ n) (lam-body lam) x)))
                    ((app-p lam)
                     (ap (rec n (app-lam1 lam) x) (rec n (app-lam2 lam) x))))))
@@ -98,52 +93,51 @@
 
 ;;; external syntax
 
-(defun schemify (s)
-  (gensym (cat "?" s)))
+(defstruct (eqn (:constructor eqn (lh rh)))
+  lh
+  rh)
 
-(defun schema-p (sym)
-  (let ((ssym (string sym)))
-    (and (plusp (length ssym))
-         (char= #\? (char ssym 0)))))
-
-(assert (schema-p (schemify "n")))
-(assert (not (schema-p (symbolicate "")))) ; 0-length
-
-;; equality is external
-;; implication?
-;; S(:a) = S(:b) ==> :a = :b
-
-;; (defstruct eqn
-;;   (lh () :type list)
-;;   (rh () :type list))
+(defmethod print-object ((e eqn) s)
+  (format s "~a = ~a" (eqn-lh e) (eqn-rh e)))
+(defmethod make-load-form ((e eqn) &optional env)
+  (make-load-form-saving-slots e :environment env))
 
 ;; e.g.
 ;; (add Z ?m) = ?m
 ;; (add (S ?n) ?m) = (S (add ?n ?m))
 
-(defparameter *defbase* (make-hash-table))
+(defstruct (thm (:constructor thm (req inf)))
+  ;; conjunctions of eqns and atomic facts
+  ;; TODO does disjunction need a separate repr
+  (req (error "") :type simple-vector)
+  (inf (error "") :type simple-vector))
 
-(defmacro defthm ((&optional name) a = b)
-  (declare (ignorable name))
+(defmethod print-object ((e thm) s)
+  (format s "[THM: ~{~a~^,~} => ~{~a~^,~}]"
+          (coerce (thm-req e) 'list)
+          (coerce (thm-inf e) 'list)))
+
+(defmethod make-load-form ((e thm) &optional env)
+  (make-load-form-saving-slots e :environment env))
+
+;; TODO constant definition, same repr as constructors
+(defparameter *defbase* (make-hash-table :test 'equal))
+
+(defmacro defthm ((name) a = b)
+  (declare (type string name))
   (assert (eq = '=))
-  (let* ((schemas (remove-if-not 'keywordp (alexandria:flatten (append a b))))
-         (gsyms (mapcar 'schemify schemas)))
-    (flet ((substkeys (tm)
-             (loop for s in schemas
-                   for g in gsyms
-                   do (setf tm (subst g s tm))
-                   finally (return tm))))
-      `(push ',(substkeys b) (gethash ',(substkeys a) *defbase*)))))
+  `(push ,(thm #() (vector (eqn a b))) (gethash ,name *defbase*)))
 
-(defthm () (add Z :m)      = :m)
-(defthm () (add (S :n) :m) = (S (add :n :m)))
+(defun schema-p (s) (keywordp s))
+
+(defthm ("addZ") (add Z :m)      = :m)
+(defthm ("addS") (add (S :n) :m) = (S (add :n :m)))
 
 
 
 ;;; unification
 
 (defun unify (la lb)
-  "unification does not compute"
   ;; TODO scoped occurs check in schema cases
   (cond ((schema-p la) (values (list `(,la = ,lb)) t))
         ((schema-p lb) (values (list `(,lb = ,la)) t))
@@ -179,7 +173,7 @@
         do (setf term (subst (third s) (first s) term))
         finally (return term)))
 
-(defun show (lh rh &optional (eqs *defbase*))
+(defun solve (lh rh &optional (eqs *defbase*))
   ;; TODO compute
   (if (equal lh rh)
       (list 'id)
@@ -192,10 +186,8 @@
                    (let* ((eqn-rhs (first (gethash eqn eqs)))
                           (newlhs (dosubsts eqn-rhs substs)))
                      (:printv "rewritten to" newlhs)
-                     (when-let (a (show newlhs rh))
+                     (when-let (a (solve newlhs rh))
                        (return (append `(,eqn = ,eqn-rhs) a)))))))))
-
-;; neural net/nondeterministic search
 
 ;; why are types necessary?
 ;; - case-splitting
@@ -227,3 +219,5 @@
 ;; map m(a->val) = \x -> case (\x -> if x = a then Some val else None) x of
 ;;                         None -> m x
 ;;                         Some v -> v
+
+;; neural net/nondeterministic search
