@@ -98,7 +98,7 @@
   rh)
 
 (defmethod print-object ((e eqn) s)
-  (format s "~a = ~a" (eqn-lh e) (eqn-rh e)))
+  (format s "~s = ~s" (eqn-lh e) (eqn-rh e)))
 (defmethod make-load-form ((e eqn) &optional env)
   (make-load-form-saving-slots e :environment env))
 
@@ -113,25 +113,29 @@
   (inf (error "") :type simple-vector))
 
 (defmethod print-object ((e thm) s)
-  (format s "[THM: ~{~a~^,~} => ~{~a~^,~}]"
+  (format s "<THM: [~{~s~^,~}] => [~{~s~^,~}]>"
           (coerce (thm-req e) 'list)
           (coerce (thm-inf e) 'list)))
 
 (defmethod make-load-form ((e thm) &optional env)
   (make-load-form-saving-slots e :environment env))
 
-;; TODO constant definition, same repr as constructors
+;;; theorem collection
 (defparameter *defbase* (make-hash-table :test 'equal))
 
 (defmacro defthm ((name) a = b)
   (declare (type string name))
   (assert (eq = '=))
-  `(push ,(thm #() (vector (eqn a b))) (gethash ,name *defbase*)))
+  `(setf (gethash ,name *defbase*) ,(thm #() (vector (eqn a b)))))
 
 (defun schema-p (s) (keywordp s))
 
+;; constant definition, same repr as constructors
 (defthm ("addZ") (add Z :m)      = :m)
 (defthm ("addS") (add (S :n) :m) = (S (add :n :m)))
+
+(defun print-theorems ()
+  (maphash (lambda (k v) (format t "~a ~s~%" k v)) *defbase*))
 
 
 
