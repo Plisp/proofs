@@ -9,13 +9,11 @@
 (defun cat (&rest strings)
   (apply 'concatenate 'string (mapcar 'string strings)))
 
+
+;;
 ;;; internal syntax
-
-;; variable: locally-nameless (named binders) de-bruijn
-;; application: (Op a a)
-;; (ap (ld (add (tvar "v") Z)) Z)
-;; case: (rec t (λ (n) suc-term)...)
-
+;;
+;; variables: locally-nameless (named binders) de-bruijn
 ;; untyped for now lol
 
 (deftype tvar () '(or string fixnum))
@@ -76,7 +74,7 @@
                     (ap (rec env (app-lam1 lam)) (rec env (app-lam2 lam)))))))
     (rec () lam)))
 
-;; (sub (named->dbruijn (ld "f" (ld "x" (ap (tvar "f") (tvar "x"))))) (tvar "x"))
+;; (sub (named->dbruijn (ld "f" (ld "x" (ap "f" "x")))) "x")
 (defun sub (f x)
   (labels ((rec (n lam x)
              (cond ((tvar-p lam)
@@ -91,7 +89,9 @@
     (assert (lam-p f))
     (rec 0 (lam-body f) x)))
 
-;;; external syntax
+;;
+;;; non-theory
+;;
 
 (defstruct (eqn (:constructor eqn (lh rh)))
   lh
@@ -139,43 +139,76 @@
 
 
 
+;;
 ;;; unification
+;;
+;; terms are either symbols (constants/schemas) or lists
+
+(defun occurs (s term)
+  ;; schematic variables cannot be bound
+  (if (symbolp term)
+      (eq s term)
+      (some (lambda (e) (occurs s e)) term)))
+
+;; does not respect binding: only schematic vars substituted
+(defun usubst (s term)
+  (nsubst (eqn-rh s) (eqn-lh s) term))
+
+(defun usubsts (substs term)
+  (loop for s in substs
+        do (setf term (usubst s term))
+        finally (return term)))
+
+(defun do-usubsts (substs l)
+  (mapcar (lambda (e) (usubsts substs e)) l))
 
 (defun unify (la lb)
-  ;; TODO scoped occurs check in schema cases
-  (cond ((schema-p la) (values (list `(,la = ,lb)) t))
-        ((schema-p lb) (values (list `(,lb = ,la)) t))
-        ;; constants
-        ((and (symbolp la) (symbolp lb))
-         (if (eq la lb)
-             (values () t)
+  (cond ((and (symbolp la) (symbolp lb)
+              (eq la lb))
+         ;; handles both eq constants and eq schemas, occurs can ignore these
+         (values () t))
+
+        ((schema-p la)
+         (if (not (occurs la lb))
+             (values (list (eqn la lb)) t)
              (values () nil)))
+        ((schema-p lb)
+         (if (not (occurs lb la))
+             (values (list (eqn lb la)) t)
+             (values () nil)))
+
         ((and (listp la) (listp lb))
          (if (eq (car la) (car lb))
+             ;; assume lengths equal
              (loop with res = ()
-                   for a in la
-                   for b in lb
-                   do (multiple-value-bind (subst stat)
-                          (unify a b)
-                        ;; TODO need to apply subst
+                   for a = (cdr la) then (cdr a)
+                   for b = (cdr lb) then (cdr b)
+                   until (null a)
+                   do (multiple-value-bind (substs stat)
+                          (unify (car a) (car b))
                         (if stat
-                            (and subst (appendf res subst))
+                            (progn
+                              (appendf res substs)
+                              (setf (cdr a) (do-usubsts substs (cdr a))
+                                    (cdr b) (do-usubsts substs (cdr b))))
                             (return (values () nil))))
                    finally (return (values res t)))
+             ;; no higher order unification
              (values () nil)))
         (t
-         (:printv "failed to unify" la lb)
+         (:printv "strangely failed to unify" la lb)
          (values () nil))))
+
+(assert (equalp (list (eqn :X '(G :Y)) (eqn :Y :A))
+                (unify '(f (g :y) (g :y)) '(f :x (g :a)))))
+
+;; consider DAGs to avoid this exponential duplication
+;; (unify '(h (f :x0 :x0) (f :x1 :x1) :y1         :y2         :x2)
+;;        '(h :x1         :x2         (f :y0 :y0) (f :y1 :y1) :y2))
 
 
 
 ;;; search
-
-;; TODO respect binding
-(defun dosubsts (term substs)
-  (loop for s in substs
-        do (setf term (subst (third s) (first s) term))
-        finally (return term)))
 
 (defun solve (lh rh &optional (eqs *defbase*))
   ;; TODO compute
