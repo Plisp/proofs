@@ -1,5 +1,5 @@
 ;;
-;;;; equational reasoner
+;;;; equational logic reasoner
 ;;
 
 (require 'printv)
@@ -15,6 +15,7 @@
 ;;
 ;; variables: locally-nameless (named binders) de-bruijn
 ;; untyped for now lol
+;; TODO inductive types and case form
 
 (deftype tvar () '(or string fixnum))
 (defun tvar-p (e) (typep e 'tvar))
@@ -143,6 +144,8 @@
 ;;; unification
 ;;
 ;; terms are either symbols (constants/schemas) or lists
+;; schematic unification handles both theorem instantiation and free vars
+;;
 
 (defun occurs (s term)
   ;; schematic variables cannot be bound
@@ -155,9 +158,9 @@
   (nsubst (eqn-rh s) (eqn-lh s) term))
 
 (defun usubsts (substs term)
-  (loop for s in substs
-        do (setf term (usubst s term))
-        finally (return term)))
+  (loop :for s in substs
+        :do (setf term (usubst s term))
+        :finally (return term)))
 
 (defun do-usubsts (substs l)
   (mapcar (lambda (e) (usubsts substs e)) l))
@@ -180,19 +183,19 @@
         ((and (listp la) (listp lb))
          (if (eq (car la) (car lb))
              ;; assume lengths equal
-             (loop with res = ()
-                   for a = (cdr la) then (cdr a)
-                   for b = (cdr lb) then (cdr b)
-                   until (null a)
-                   do (multiple-value-bind (substs stat)
-                          (unify (car a) (car b))
-                        (if stat
-                            (progn
-                              (appendf res substs)
-                              (setf (cdr a) (do-usubsts substs (cdr a))
-                                    (cdr b) (do-usubsts substs (cdr b))))
-                            (return (values () nil))))
-                   finally (return (values res t)))
+             (loop :with res = ()
+                   :for a = (cdr la) then (cdr a)
+                   :for b = (cdr lb) then (cdr b)
+                   :while a
+                   :do (multiple-value-bind (substs stat)
+                           (unify (car a) (car b))
+                         (if stat
+                             (progn
+                               (appendf res substs)
+                               (setf (cdr a) (do-usubsts substs (cdr a))
+                                     (cdr b) (do-usubsts substs (cdr b))))
+                             (return (values () nil))))
+                   :finally (return (values res t)))
              ;; no higher order unification
              (values () nil)))
         (t
@@ -208,23 +211,72 @@
 
 
 
+;;
 ;;; search
+;;
+;; trans and congruency are automatic
+;; TODO symmetry
 
-(defun solve (lh rh &optional (eqs *defbase*))
-  ;; TODO compute
-  (if (equal lh rh)
-      (list 'id)
-      (loop for eqn in (hash-table-keys eqs)
-            do (:printv "trying" lh eqn)
-               ;; TODO try unifying eqn at deeper levels
-               (multiple-value-bind (substs stat)
-                   (unify lh eqn)
-                 (when stat
-                   (let* ((eqn-rhs (first (gethash eqn eqs)))
-                          (newlhs (dosubsts eqn-rhs substs)))
-                     (:printv "rewritten to" newlhs)
-                     (when-let (a (solve newlhs rh))
-                       (return (append `(,eqn = ,eqn-rhs) a)))))))))
+(defun map-subterms (f term)
+  "f should return the new subterm"
+  (labels ((rec (parent term)
+             (sleep 0.2)
+             (:printv "trying subterm" parent term)
+             ;; unify whole term
+             (multiple-value-bind (replace status)
+                 (funcall f term)
+               (when status
+                 (setf (car parent) replace)
+                 (return-from map-subterms t)))
+             ;; then try children
+             (unless (symbolp term)
+               (loop :for ptr = term then (cdr ptr)
+                     :for subt = (car ptr)
+                     :while ptr
+                     :do (multiple-value-bind (replace status)
+                             (funcall f term)
+                           (:printv ptr)
+                           (when status
+                             (setf (car ptr) replace)
+                             (return-from map-subterms t))
+                           (rec ptr subt))))
+             ))
+    (rec term (car term))))
+
+(defun fsearch (lh rh thms)
+  (loop
+    :initially (setf lh (list lh) rh (list rh))
+    :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0))
+                         (hash-table-values thms))
+    :with proof = ()
+    ;; TODO eqn got mutated, this is ugly
+    :do (dolist (eqn eqns)
+          (when (map-subterms
+                 (lambda (llh)
+                   (:printv "trying" llh eqn)
+                   (multiple-value-bind (substs stat)
+                       (unify llh (eqn-lh eqn))
+                     (when stat
+                       (let ((newlhs (usubsts substs (eqn-rh eqn))))
+                         (:printv "rewritten to" newlhs)
+                         (setf llh (list newlhs))
+                         (values newlhs t)))))
+                 lh)
+            (appendf proof `(= ,(copy-tree lh)))
+            (terpri)
+            (if (equal lh rh)
+                (return-from fsearch proof)
+                (return))))
+        (sleep 0.5)))
+
+;; (fsearch '(ADD Z Z) 'Z *defbase*)
+;; (fsearch '(ADD (S Z) (S Z)) '(S (S Z)) *defbase*)
+
+
+
+;;; random
+
+;; group left=>right inverse and square: maybe handle assoc/commut/unit/inverse?
 
 ;; why are types necessary?
 ;; - case-splitting
