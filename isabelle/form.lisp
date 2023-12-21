@@ -1,5 +1,5 @@
 ;;
-;;;; equational logic reasoner
+;;;; intuitionistic equational logic reasoner
 ;;
 
 (require 'printv)
@@ -199,13 +199,13 @@
              ;; no higher order unification
              (values () nil)))
         (t
-         (:printv "strangely failed to unify" la lb)
          (values () nil))))
 
 (assert (equalp (list (eqn :X '(G :Y)) (eqn :Y :A))
                 (unify '(f (g :y) (g :y)) '(f :x (g :a)))))
 
-;; consider DAGs to avoid this exponential duplication
+;; consider DAGs to avoid this exponential duplication,
+;; tho in practice it doesn't seem to matter
 ;; (unify '(h (f :x0 :x0) (f :x1 :x1) :y1         :y2         :x2)
 ;;        '(h :x1         :x2         (f :y0 :y0) (f :y1 :y1) :y2))
 
@@ -217,57 +217,40 @@
 ;; trans and congruency are automatic
 ;; TODO symmetry
 
-(defun map-subterms (f term)
-  "f should return the new subterm"
-  (labels ((rec (parent term)
-             (sleep 0.2)
-             (:printv "trying subterm" parent term)
-             ;; unify whole term
-             (multiple-value-bind (replace status)
-                 (funcall f term)
-               (when status
-                 (setf (car parent) replace)
-                 (return-from map-subterms t)))
-             ;; then try children
-             (unless (symbolp term)
-               (loop :for ptr = term then (cdr ptr)
-                     :for subt = (car ptr)
-                     :while ptr
-                     :do (multiple-value-bind (replace status)
-                             (funcall f term)
-                           (:printv ptr)
-                           (when status
-                             (setf (car ptr) replace)
-                             (return-from map-subterms t))
-                           (rec ptr subt))))
-             ))
-    (rec term (car term))))
+(defun map-subterms (f parent)
+  "f should return the replacement subterm"
+  (flet ((try-match (parent)
+           (when-let (replace (funcall f (car parent)))
+             (setf (car parent) replace)
+             (return-from map-subterms t))))
+
+    (try-match parent)
+    ;; then try children
+    (let ((term (car parent)))
+      (unless (symbolp term)
+        (mapl (lambda (ptr) (and (map-subterms f ptr) (return-from map-subterms t)))
+              (cdr term))
+        nil))))
 
 (defun fsearch (lh rh thms)
-  (loop
-    :initially (setf lh (list lh) rh (list rh))
-    :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0))
-                         (hash-table-values thms))
-    :with proof = ()
-    ;; TODO eqn got mutated, this is ugly
-    :do (dolist (eqn eqns)
-          (when (map-subterms
-                 (lambda (llh)
-                   (:printv "trying" llh eqn)
-                   (multiple-value-bind (substs stat)
-                       (unify llh (eqn-lh eqn))
-                     (when stat
-                       (let ((newlhs (usubsts substs (eqn-rh eqn))))
-                         (:printv "rewritten to" newlhs)
-                         (setf llh (list newlhs))
-                         (values newlhs t)))))
-                 lh)
-            (appendf proof `(= ,(copy-tree lh)))
-            (terpri)
-            (if (equal lh rh)
-                (return-from fsearch proof)
-                (return))))
-        (sleep 0.5)))
+  (loop ;; TODO handle assumptions svref
+        :initially (setf lh (list lh) rh (list rh))
+        :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0))
+                             (hash-table-values thms))
+        :with proof = (copy-tree lh)
+        :do (dolist (eqn eqns)
+              (when (map-subterms
+                     (lambda (llh)
+                       (:printv "matching" llh (eqn-lh eqn))
+                       (multiple-value-bind (substs stat)
+                           (unify llh (copy-tree (eqn-lh eqn)))
+                         (when stat
+                           (usubsts substs (copy-tree (eqn-rh eqn))))))
+                     lh)
+                ;; found rewrite
+                (appendf proof `(= ,@(car (copy-tree lh))))
+                (when (equal lh rh)
+                  (return-from fsearch proof))))))
 
 ;; (fsearch '(ADD Z Z) 'Z *defbase*)
 ;; (fsearch '(ADD (S Z) (S Z)) '(S (S Z)) *defbase*)
@@ -303,10 +286,10 @@
 ;;
 ;; inductive: S a + 0 = S a -rewrite-> (S S a) + 0 = S S(a)
 ;; solution:
-;; (S S a) + 0 = -forwards by (1)-> S (S a + 0) = S S a
+;; (S S a) + 0 = -forwards by (1)-> S (S a + 0) = S S a -rev cong-> Sa + 0 = Sa
 
 ;; map m(a->val) = \x -> case (\x -> if x = a then Some val else None) x of
 ;;                         None -> m x
 ;;                         Some v -> v
 
-;; neural net/nondeterministic search
+;; neural net evaluation
