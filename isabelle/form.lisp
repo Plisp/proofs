@@ -9,6 +9,17 @@
 (defun cat (&rest strings)
   (apply 'concatenate 'string (mapcar 'string strings)))
 
+(defun veltsubst (vec test)
+  "substitute the result of test for subterms if true. NIL is not a valid term."
+  (labels ((rec (subtree)
+             (if-let (new (funcall test subtree))
+               new
+               (progn
+                 (when (simple-vector-p subtree)
+                   (loop :for i below (length subtree)
+                         :do (setf (svref subtree i) (rec (svref subtree i)))))
+                 subtree))))
+    (rec vec)))
 
 ;;
 ;;; internal syntax
@@ -90,6 +101,80 @@
     (assert (lam-p f))
     (rec 0 (lam-body f) x)))
 
+(defun schema-p (s) (keywordp s))
+
+(defun copy-term (tree)
+  (typecase tree
+    (simple-vector (map 'simple-vector 'copy-term tree))
+    (t tree)))
+
+;;
+;;; unification
+;;
+;; terms are either symbols (constants/schemas) or lists
+;; schematic unification handles both theorem instantiation and free vars
+;;
+
+(defun occurs (s term)
+  ;; schematic variables cannot be bound
+  (if (atom term)
+      (eq s term)
+      (some (lambda (e) (occurs s e)) term)))
+
+(assert (equalp #(1 2) (veltsubst #(1 2) (lambda (e) (if (equal e nil) 42)))))
+(assert (equalp #(b b) (veltsubst #(a a) (lambda (e) (if (eq e 'a) 'b)))))
+
+;; does not respect binding: only schematic vars substituted
+(defun usubsts (substs term)
+  (veltsubst term
+             (lambda (subtree)
+               (when-let (eqn (find subtree substs :test 'equal :key 'eqn-lh))
+                 (eqn-rh eqn)))))
+
+(defun map-usubsts (substs v start)
+  (loop :for i from start below (length v)
+        :do (setf (svref v i) (usubsts substs (svref v i)))))
+
+(defun unify (ta tb)
+  (cond ((and (symbolp ta) (symbolp tb)
+              (eq ta tb))
+         ;; handles both eq constants and eq schemas, occurs can ignore these
+         (values () t))
+        ((schema-p ta)
+         (if (not (occurs ta tb))
+             (values (list (eqn ta tb)) t)
+             (values () nil)))
+        ((schema-p tb)
+         (if (not (occurs tb ta))
+             (values (list (eqn tb ta)) t)
+             (values () nil)))
+        ;; inductive
+        ((and (simple-vector-p ta) (simple-vector-p tb)
+              (= (length ta) (length tb)))
+         (loop :with res = ()
+               :for i below (length ta)
+               :do (multiple-value-bind (substs stat)
+                       (unify (svref ta i) (svref tb i))
+                     (if stat
+                         (progn
+                           (nconcf res substs)
+                           (map-usubsts substs ta (1+ i))
+                           (map-usubsts substs tb (1+ i)))
+                         (return (values () nil))))
+               :finally (return (values res t))))
+        (t
+         (values () nil))))
+
+(assert (equalp (list (eqn :X #(G :Y)) (eqn :Y :A))
+                (unify '#(f #(g :y) #(g :y)) '#(f :x #(g :a)))))
+
+;; consider DAGs to avoid this exponential duplication,
+;; (h (f :x0 :x0) (f :x1 :x1) :y1         :y2         :x2)
+;; (h :x1         :x2         (f :y0 :y0) (f :y1 :y1) :y2)
+;; tho in practice it doesn't seem to matter
+
+
+
 ;;
 ;;; non-theory
 ;;
@@ -121,6 +206,8 @@
 (defmethod make-load-form ((e thm) &optional env)
   (make-load-form-saving-slots e :environment env))
 
+
+
 ;;; theorem collection
 (defparameter *defbase* (make-hash-table :test 'equal))
 
@@ -129,85 +216,12 @@
   (assert (eq = '=))
   `(setf (gethash ,name *defbase*) ,(thm #() (vector (eqn a b)))))
 
-(defun schema-p (s) (keywordp s))
-
 ;; constant definition, same repr as constructors
-(defthm ("addZ") (add Z :m)      = :m)
-(defthm ("addS") (add (S :n) :m) = (S (add :n :m)))
+(defthm ("addZ") #(add Z :m)      = :m)
+(defthm ("addS") #(add #(S :n) :m) = #(S #(add :n :m)))
 
 (defun print-theorems ()
   (maphash (lambda (k v) (format t "~a ~s~%" k v)) *defbase*))
-
-
-
-;;
-;;; unification
-;;
-;; terms are either symbols (constants/schemas) or lists
-;; schematic unification handles both theorem instantiation and free vars
-;;
-
-(defun occurs (s term)
-  ;; schematic variables cannot be bound
-  (if (symbolp term)
-      (eq s term)
-      (some (lambda (e) (occurs s e)) term)))
-
-;; does not respect binding: only schematic vars substituted
-(defun usubst (s term)
-  (nsubst (eqn-rh s) (eqn-lh s) term))
-
-(defun usubsts (substs term)
-  (loop :for s in substs
-        :do (setf term (usubst s term))
-        :finally (return term)))
-
-(defun do-usubsts (substs l)
-  (mapcar (lambda (e) (usubsts substs e)) l))
-
-(defun unify (la lb)
-  (cond ((and (symbolp la) (symbolp lb)
-              (eq la lb))
-         ;; handles both eq constants and eq schemas, occurs can ignore these
-         (values () t))
-
-        ((schema-p la)
-         (if (not (occurs la lb))
-             (values (list (eqn la lb)) t)
-             (values () nil)))
-        ((schema-p lb)
-         (if (not (occurs lb la))
-             (values (list (eqn lb la)) t)
-             (values () nil)))
-
-        ((and (listp la) (listp lb))
-         (if (eq (car la) (car lb))
-             ;; assume lengths equal
-             (loop :with res = ()
-                   :for a = (cdr la) then (cdr a)
-                   :for b = (cdr lb) then (cdr b)
-                   :while a
-                   :do (multiple-value-bind (substs stat)
-                           (unify (car a) (car b))
-                         (if stat
-                             (progn
-                               (appendf res substs)
-                               (setf (cdr a) (do-usubsts substs (cdr a))
-                                     (cdr b) (do-usubsts substs (cdr b))))
-                             (return (values () nil))))
-                   :finally (return (values res t)))
-             ;; no higher order unification
-             (values () nil)))
-        (t
-         (values () nil))))
-
-(assert (equalp (list (eqn :X '(G :Y)) (eqn :Y :A))
-                (unify '(f (g :y) (g :y)) '(f :x (g :a)))))
-
-;; consider DAGs to avoid this exponential duplication,
-;; tho in practice it doesn't seem to matter
-;; (unify '(h (f :x0 :x0) (f :x1 :x1) :y1         :y2         :x2)
-;;        '(h :x1         :x2         (f :y0 :y0) (f :y1 :y1) :y2))
 
 
 
@@ -217,43 +231,30 @@
 ;; trans and congruency are automatic
 ;; TODO symmetry
 
-(defun map-subterms (f parent)
-  "f should return the replacement subterm"
-  (flet ((try-match (parent)
-           (when-let (replace (funcall f (car parent)))
-             (setf (car parent) replace)
-             (return-from map-subterms t))))
-
-    (try-match parent)
-    ;; then try children
-    (let ((term (car parent)))
-      (unless (symbolp term)
-        (mapl (lambda (ptr) (and (map-subterms f ptr) (return-from map-subterms t)))
-              (cdr term))
-        nil))))
-
 (defun fsearch (lh rh thms)
-  (loop ;; TODO handle assumptions svref
-        :initially (setf lh (list lh) rh (list rh))
-        :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0))
-                             (hash-table-values thms))
-        :with proof = (copy-tree lh)
-        :do (dolist (eqn eqns)
-              (when (map-subterms
-                     (lambda (llh)
-                       (:printv "matching" llh (eqn-lh eqn))
-                       (multiple-value-bind (substs stat)
-                           (unify llh (copy-tree (eqn-lh eqn)))
-                         (when stat
-                           (usubsts substs (copy-tree (eqn-rh eqn))))))
-                     lh)
-                ;; found rewrite
-                (appendf proof `(= ,@(car (copy-tree lh))))
-                (when (equal lh rh)
-                  (return-from fsearch proof))))))
+  (loop
+    :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0)) ;; TODO
+                         (hash-table-values thms))
+    :with proof = ()
+    :do (dolist (eqn eqns)
+          (when-let (newlh
+                     (veltsubst
+                      lh
+                      (lambda (subtree)
+                        ;; (sleep 0.5)
+                        ;; (:printv "matching" subtree (eqn-lh eqn))
+                        (multiple-value-bind (substs stat)
+                            (unify subtree (copy-term (eqn-lh eqn)))
+                          (when stat
+                            (usubsts substs (copy-term (eqn-rh eqn))))))))
+            (setf lh newlh)
+            (nconcf proof `(= ,(copy-term newlh)))
+            (when (second (multiple-value-list (unify newlh rh)))
+              (return-from fsearch proof))))))
 
-;; (fsearch '(ADD Z Z) 'Z *defbase*)
-;; (fsearch '(ADD (S Z) (S Z)) '(S (S Z)) *defbase*)
+;; (fsearch #(ADD Z Z) 'Z *defbase*)
+;; (fsearch #(ADD #(S Z) :g) #(S :g) *defbase*)
+;; (fsearch #(ADD #(S Z) #(S Z)) #(S #(S Z)) *defbase*)
 
 
 
