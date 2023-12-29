@@ -9,24 +9,51 @@
 (defun cat (&rest strings)
   (apply 'concatenate 'string (mapcar 'string strings)))
 
-(defun veltsubst (vec test)
+(defun vflatten (vec)
+  (if (simple-vector-p vec)
+      (loop :for term across vec
+            :appending (vflatten term))
+      (list vec)))
+
+(defun vlist (vec)
+  (if (simple-vector-p vec)
+      (loop :for term across vec
+            :collect (vlist term))
+      vec))
+
+(defun vsubst (vec test)
   "substitute the result of test for subterms if true. NIL is not a valid term."
-  (labels ((rec (subtree)
-             (if-let (new (funcall test subtree))
-               new
-               (progn
-                 (when (simple-vector-p subtree)
-                   (loop :for i below (length subtree)
-                         :do (setf (svref subtree i) (rec (svref subtree i)))))
-                 subtree))))
-    (rec vec)))
+  (let (did-sub)
+    (labels ((rec (subtree)
+               (if-let (new (funcall test subtree)) ; assume new return not nil
+                 (setf did-sub new)
+                 (if (simple-vector-p subtree)
+                     (loop :with copy = (copy-array subtree)
+                           :for i below (length subtree)
+                           :do (setf (svref copy i) (rec (svref subtree i)))
+                           :finally (return copy))
+                     subtree))))
+      (values (rec vec) did-sub))))
+
+(defun nvsubst (vec test)
+  "substitute the result of test for subterms if true. NIL is not a valid term."
+  (let (did-sub)
+    (labels ((rec (subtree)
+               (if-let (new (funcall test subtree)) ; assume new return not nil
+                 (setf did-sub new)
+                 (progn
+                   (when (simple-vector-p subtree)
+                     (loop :for i below (length subtree)
+                           :do (setf (svref subtree i) (rec (svref subtree i)))))
+                   subtree))))
+      (values (rec vec) did-sub))))
 
 ;;
 ;;; internal syntax
 ;;
 ;; variables: locally-nameless (named binders) de-bruijn
 ;; untyped for now lol
-;; TODO inductive types and case form
+;; TODO inductive types and case form (scott encoding)
 
 (deftype tvar () '(or string fixnum))
 (defun tvar-p (e) (typep e 'tvar))
@@ -36,11 +63,11 @@
 (defun tbound (tvar)
   (integerp tvar))
 
-(defstruct lam
+(defstruct (lam (:constructor ld (bind body)))
   (bind (error "") :type tvar)
   (body (error "")))
-(defun ld (s lam) (make-lam :bind s :body lam))
 
+;; this is bad practice but we're not reading anyways
 (defmethod print-object ((lam lam) s)
   (format s "λ~a.~a" (lam-bind lam) (lam-body lam)))
 
@@ -101,8 +128,6 @@
     (assert (lam-p f))
     (rec 0 (lam-body f) x)))
 
-(defun schema-p (s) (keywordp s))
-
 (defun copy-term (tree)
   (typecase tree
     (simple-vector (map 'simple-vector 'copy-term tree))
@@ -111,62 +136,83 @@
 ;;
 ;;; unification
 ;;
-;; terms are either symbols (constants/schemas) or lists
-;; schematic unification handles both theorem instantiation and free vars
+;; terms are either symbols (constants/schemas) or vectors
 ;;
 
+(defun schemify (s)
+  (gensym (cat "?" s)))
+
+(defun schema-p (sym)
+  (and (symbolp sym)
+       (let ((ssym (string sym)))
+         (and (plusp (length ssym))
+              (char= #\? (char ssym 0))))))
+
+(assert (schema-p (schemify "n")))
+(assert (not (schema-p (symbolicate "")))) ; 0-length
+
+(defstruct (eqn (:constructor eqn (lh rh)))
+  lh
+  rh)
+
+(defun deschemify (term)
+  (vsubst term (lambda (s) (when (schema-p s)
+                        (subseq (string s) 0 2)))))
+
+(defmethod print-object ((e eqn) s)
+  (format s "~a = ~a"
+          (vlist (deschemify (eqn-lh e)))
+          (vlist (deschemify (eqn-rh e)))))
+
 (defun occurs (s term)
-  ;; schematic variables cannot be bound
+  "assumes no binding of s, and returns true on s = term"
   (if (atom term)
       (eq s term)
       (some (lambda (e) (occurs s e)) term)))
 
-(assert (equalp #(1 2) (veltsubst #(1 2) (lambda (e) (if (equal e nil) 42)))))
-(assert (equalp #(b b) (veltsubst #(a a) (lambda (e) (if (eq e 'a) 'b)))))
+(assert (equalp #(1 2) (nvsubst #(1 2) (lambda (e) (if (equal e nil) 42)))))
+(assert (equalp #(b b) (nvsubst #(a a) (lambda (e) (if (eq e 'a) 'b)))))
+
+(defun get-subst (subst v)
+  (when-let (eqn (find v subst :test 'equal :key 'eqn-lh))
+    (eqn-rh eqn)))
 
 ;; does not respect binding: only schematic vars substituted
-(defun usubsts (substs term)
-  (veltsubst term
-             (lambda (subtree)
-               (when-let (eqn (find subtree substs :test 'equal :key 'eqn-lh))
-                 (eqn-rh eqn)))))
-
-(defun map-usubsts (substs v start)
-  (loop :for i from start below (length v)
-        :do (setf (svref v i) (usubsts substs (svref v i)))))
+(defun usubst (subst term)
+  (nvsubst term (lambda (subtree) (get-subst subst subtree))))
 
 (defun unify (ta tb)
-  (cond ((and (symbolp ta) (symbolp tb)
-              (eq ta tb))
-         ;; handles both eq constants and eq schemas, occurs can ignore these
-         (values () t))
-        ((schema-p ta)
-         (if (not (occurs ta tb))
-             (values (list (eqn ta tb)) t)
-             (values () nil)))
-        ((schema-p tb)
-         (if (not (occurs tb ta))
-             (values (list (eqn tb ta)) t)
-             (values () nil)))
-        ;; inductive
-        ((and (simple-vector-p ta) (simple-vector-p tb)
-              (= (length ta) (length tb)))
-         (loop :with res = ()
-               :for i below (length ta)
-               :do (multiple-value-bind (substs stat)
-                       (unify (svref ta i) (svref tb i))
-                     (if stat
-                         (progn
-                           (nconcf res substs)
-                           (map-usubsts substs ta (1+ i))
-                           (map-usubsts substs tb (1+ i)))
-                         (return (values () nil))))
-               :finally (return (values res t))))
-        (t
-         (values () nil))))
+  (let ((subst (list)))
+    (labels ((rec (ta tb)
+               (when (schema-p ta)
+                 (when-let (res (get-subst subst ta))
+                   (setf ta res)))
+               (when (schema-p tb)
+                 (when-let (res (get-subst subst tb))
+                   (setf tb res)))
+               ;; handles double schema/constant case
+               (cond ((and (symbolp ta) (symbolp tb) (eq ta tb)) t)
+                     ;; functions symbols necessarily equal by above case
+                     ((and (simple-vector-p ta) (simple-vector-p tb)
+                           (= (length ta) (length tb)))
+                      (loop :for i below (length ta)
+                            :do (rec (svref ta i) (svref tb i))))
+                     ((schema-p ta)
+                      (if (not (occurs ta tb))
+                          (push (eqn ta tb) subst)
+                          (return-from unify nil)))
+                     ((schema-p tb)
+                      (if (not (occurs tb ta))
+                          (push (eqn tb ta) subst)
+                          (return-from unify nil)))
+                     (t
+                      (return-from unify nil)))))
+      (rec ta tb)
+      (values subst t))))
 
-(assert (equalp (list (eqn :X #(G :Y)) (eqn :Y :A))
-                (unify '#(f #(g :y) #(g :y)) '#(f :x #(g :a)))))
+(assert (equalp (list (eqn '?F 'f)) (unify #(f x) #(?F x))))
+(assert (equalp (list (eqn '?Y '?A) (eqn '?X #(G ?Y)))
+                (unify #(f #(g ?y) #(g ?y)) #(f ?x #(g ?a)))))
 
 ;; consider DAGs to avoid this exponential duplication,
 ;; (h (f :x0 :x0) (f :x1 :x1) :y1         :y2         :x2)
@@ -176,49 +222,97 @@
 
 
 ;;
-;;; non-theory
+;;; metatheory
 ;;
 
-(defstruct (eqn (:constructor eqn (lh rh)))
-  lh
-  rh)
+(deftype atomic-prop () '(or symbol simple-vector))
+(defun atomprop (e) (typep e 'atomic-prop))
 
-(defmethod print-object ((e eqn) s)
-  (format s "~s = ~s" (eqn-lh e) (eqn-rh e)))
-(defmethod make-load-form ((e eqn) &optional env)
-  (make-load-form-saving-slots e :environment env))
+;; conjunctions, disjunctions represented as prop sets
+(defstruct conj
+  (cjs #() :type (simple-array prop)))
+(defun conj (&rest cjs)
+  (make-conj :cjs (coerce cjs 'simple-vector)))
+
+(defstruct disj
+  (djs #() :type (simple-array prop)))
+(defun disj (&rest djs)
+  (make-disj :djs (coerce djs 'simple-vector)))
+
+(defmethod print-object ((e conj) s)
+  (format s "(~{~a ~^∧ ~})"
+          (mapcar (lambda (e) (if (atomprop e) (vlist (deschemify e)) e))
+                  (coerce (conj-cjs e) 'list))))
+
+(defmethod print-object ((e disj) s)
+  (format s "(~{~a ~^∨ ~})"
+          (mapcar (lambda (e) (if (atomprop e) (vlist (deschemify e)) e))
+                  (coerce (disj-djs e) 'list))))
+
+;; pre => con
+(defstruct (imp (:constructor imp (pre con)))
+  (pre #() :type prop)
+  (con (error "") :type prop))
+
+(defmethod print-object ((e imp) s)
+  (let ((pre (imp-pre e))
+        (con (imp-con e)))
+    (if (atomprop pre)
+        (format s "~a => ~a"
+                (vlist (deschemify pre))
+                (if (atomprop con) (vlist (deschemify con)) con))
+        (format s "[~a] => ~a"
+                pre
+                (if (atomprop con) (vlist (deschemify con)) con)))))
+
+;; bottom needed for negative statements
+(defconstant +bot+ '⊥)
+(defun pnot (prop) (imp prop +bot+))
+
+;; pred: (symbol args...), only occurs in propositional contexts
+;; convert existentials Ex.P(x) to (P(:x) => Q) => Q
+(deftype prop () '(or symbol simple-vector #|<- atomic props|# conj disj imp eqn))
 
 ;; e.g.
 ;; (add Z ?m) = ?m
 ;; (add (S ?n) ?m) = (S (add ?n ?m))
 
-(defstruct (thm (:constructor thm (req inf)))
-  ;; conjunctions of eqns and atomic facts
-  ;; TODO does disjunction need a separate repr
-  (req (error "") :type simple-vector)
-  (inf (error "") :type simple-vector))
+(defstruct (thm (:constructor thm (inf)))
+  (inf (error "") :type prop))
 
 (defmethod print-object ((e thm) s)
-  (format s "<THM: [~{~s~^,~}] => [~{~s~^,~}]>"
-          (coerce (thm-req e) 'list)
-          (coerce (thm-inf e) 'list)))
-
-(defmethod make-load-form ((e thm) &optional env)
-  (make-load-form-saving-slots e :environment env))
+  (format s "<THM ~a>" (thm-inf e)))
 
 
 
+;;
 ;;; theorem collection
+;;
+;; assume we have all the theorems needed to prove the goal
+;; note: all schematic variables should be unique, otherwise unification gets messy
+
 (defparameter *defbase* (make-hash-table :test 'equal))
 
-(defmacro defthm ((name) a = b)
-  (declare (type string name))
+(defmacro defeq ((name) a = b)
+  (declare (type simple-string name))
   (assert (eq = '=))
-  `(setf (gethash ,name *defbase*) ,(thm #() (vector (eqn a b)))))
+  (let* ((schemas (remove-if-not 'keywordp (append (vflatten a) (vflatten b))))
+         (gsyms (mapcar 'schemify schemas)))
+    (flet ((substkeys (term)
+             (loop for s in schemas
+                   for g in gsyms
+                   do (setf term (nvsubst term (lambda (e) (when (eq e s) g))))
+                   finally (return term))))
+      (let ((a* (substkeys a))
+            (b* (substkeys b)))
+        `(setf (gethash ,name *defbase*)
+               ,(thm (eqn a* b*)))))))
 
-;; constant definition, same repr as constructors
-(defthm ("addZ") #(add Z :m)      = :m)
-(defthm ("addS") #(add #(S :n) :m) = #(S #(add :n :m)))
+;; constant definition XXX do not redefine at repl, breaks gensyms
+(defeq ("addZ") #(add Z :m)      = :m)
+(defeq ("addS") #(add #(S :n) :m) = #(S #(add :n :m)))
+(defeq ("gUnit") #(g :a one) = :a)
+(defeq ("gAssoc") #(g :a #(g :b :c)) = #(g #(g :a :b) c))
 
 (defun print-theorems ()
   (maphash (lambda (k v) (format t "~a ~s~%" k v)) *defbase*))
@@ -228,29 +322,31 @@
 ;;
 ;;; search
 ;;
-;; trans and congruency are automatic
-;; TODO symmetry
+;; transitive eqs and congruences are equivalent to transport
 
-(defun fsearch (lh rh thms)
-  (loop
-    :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0)) ;; TODO
-                         (hash-table-values thms))
-    :with proof = ()
-    :do (dolist (eqn eqns)
-          (when-let (newlh
-                     (veltsubst
-                      lh
-                      (lambda (subtree)
-                        ;; (sleep 0.5)
-                        ;; (:printv "matching" subtree (eqn-lh eqn))
-                        (multiple-value-bind (substs stat)
-                            (unify subtree (copy-term (eqn-lh eqn)))
-                          (when stat
-                            (usubsts substs (copy-term (eqn-rh eqn))))))))
-            (setf lh newlh)
-            (nconcf proof `(= ,(copy-term newlh)))
-            (when (second (multiple-value-list (unify newlh rh)))
-              (return-from fsearch proof))))))
+;; (defun fsearch (lh rh thms)
+;;   (loop
+;;     :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0)) ; TODO
+;;                          (hash-table-values thms))
+;;     :with proof = ()
+;;     :do (when (second (multiple-value-list (unify lh rh)))
+;;           (loop-finish))
+
+;;         (dolist (eqn eqns)
+;;           (multiple-value-bind
+;;                 (newlh did-sub)
+;;               (nvsubst lh
+;;                       (lambda (subtree)
+;;                         (sleep 0.1)
+;;                         (:printv "matching" subtree (eqn-lh eqn))
+;;                         (multiple-value-bind (subst stat)
+;;                             (unify subtree (eqn-lh eqn))
+;;                           (when stat
+;;                             (usubst subst (copy-term (eqn-rh eqn)))))))
+;;             (when did-sub
+;;               (setf lh newlh)
+;;               (push (copy-term newlh) proof))))
+;;     :finally (return (nreverse proof))))
 
 ;; (fsearch #(ADD Z Z) 'Z *defbase*)
 ;; (fsearch #(ADD #(S Z) :g) #(S :g) *defbase*)
@@ -260,14 +356,28 @@
 
 ;;; random
 
+;; e.g. defining Even(x) = ?k.x = 2*k, then
+;; ?x. Even x becomes
+;; (?k.:x = 2*k => Q) => Q
+;; (((:x = 2*:k => R) => R) => Q) => Q
+;; (((:x = 2*:k => (r = true)) => (r = true)) => (q = true)) => (q = true)
+;; solved by e.g.
+;; ((:x = 2*:k => R) => R) subgoal by unification q with ass lhs q
+;; :x = 2*:k subgoal by ""
+;; 0 = 2 * 0 by unifying with 0 = :n * 0
+
+;; (S :n) = (S :m)  =>  :n = :m
+;; (S :n) = Z  =>  T=F
+;; prove SSZ = SZ  =>  T=F
+
+;; orderings?
+
 ;; group left=>right inverse and square: maybe handle assoc/commut/unit/inverse?
+;; adding
 
 ;; why are types necessary?
 ;; - case-splitting
 ;; - sound instantiation
-
-;; what measure? bigger is bad unless unfolding allows a reduction step
-;; specific measure per rewrite?
 
 ;; to prove: (plus :n Z) = :n
 ;; induct on n using provided schemas
