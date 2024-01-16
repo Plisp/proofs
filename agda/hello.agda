@@ -122,7 +122,7 @@ uniq⋆ = centrality ⊤ 𝟙-is-singleton
    → (C : (x : A) → (x ＝ a) → Set ℓ₁)
    → C a (refl a)
    → (x : A) (p : x ＝ a) → C x p
-ⅉ' {ℓ}{ℓ₁} {A} a C ca x p -- quantify over ∀!! such predicates and their 'base'
+ⅉ' {ℓ}{ℓ₁} {A} a C ca x p
   = (ȷ (λ x y (q : x ＝ y) → Π D ∶ ((x : A) → (x ＝ y) → Set ℓ₁) ,
                              (D y (refl y) → D x q))
        (λ x → λ D p → p)
@@ -176,11 +176,33 @@ data Bad : ℕ → Set where
   badt : ⊤ → Bad 0
   badf : ⊥ → Bad 1
 
-destroy : Bad 1 → ⊥
-destroy (badf void) = void
+badind : ∀ {n} → (A : ℕ → Set) → Bad n → (⊤ → A 0) → (⊥ → A 1) → (A n)
+badind {zero} _ (badt x) = λ z _ → z ⋆
+badind {suc zero} _ (badf x) = λ _ z → z x
+badind {suc (suc st)} _ ()
 
-negation : (0 ＝ 1) → ⊥
-negation eq = destroy (transport Bad eq (badt ⋆))
+badbot : Bad 1 → ⊥
+badbot p = badind (λ n → recℕ ⊤ (λ n _ → ⊥) n) p (λ _ → ⋆) (λ z → z)
+
+0≠1 : (0 ＝ 1) → ⊥
+0≠1 eq = badbot (transport Bad eq (badt ⋆))
+
+{- for types, use maps -}
+data Test : Set → Set₁ where
+  conA : ⊤ → Test ⊥
+  conB : ⊥ → Test ⊤
+
+tind : ∀ {t} → (A : Set → Set) → Test t → A ⊥ → (A t)
+tind _ (conA _) at = at
+
+tdest : Test ⊤ → ⊥
+tdest p = bad ⋆
+  where
+    bad : ⊤ → ⊥
+    bad = tind (λ t → (t → ⊥)) p (λ z → z)
+
+⊤≠⊥ : (⊥ ＝ ⊤) → ⊥
+⊤≠⊥ p = tdest (transport Test p (conA ⋆))
 
 {-
   compile-time tests !

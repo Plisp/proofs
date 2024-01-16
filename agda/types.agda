@@ -23,7 +23,7 @@ indℕ A a₀ s = h
     h 0       = a₀
     h (suc n) = s n (h n)
 
-recℕ : {C : Set} → C → (ℕ → C → C) → (ℕ → C)
+recℕ : {C : Set ℓ} → C → (ℕ → C → C) → (ℕ → C)
 recℕ z f zero    = z
 recℕ z f (suc n) = f n (recℕ z f n)
 
