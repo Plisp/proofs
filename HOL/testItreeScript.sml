@@ -3,20 +3,25 @@
  *
  * Directly express an infinite tree program-semantics structure via continuations.
  * By developing an algebra, reasoning can be mostly done above the Tau level,
- * which are convenient for expressing silent program steps which may differ,
- * depending on context.
- *
- * In comparision to the clock approach in cakeML's FBS semantics, there is less
- * distinction between finite|infinite programs, which allows local reasoning.
+ * which are convenient for expressing silent program steps which may differ
+ * depending on context. Taus are necessary in the semantics, as otherwise
+ * termination of loops must be determined ahead of time (undecidable).
  * Oracle queries are encoded by events, and 'evaluating' in a context where the
  * responses are limited, we can simulate interaction with the external world.
  * Although that possibility depends on the granularity of restrictions on results.
  *
- * specifications should be *structural*, proofs should be *syntax-directed*
+ * In comparision to the clock approach in cakeML's FBS semantics, there is less
+ * distinction between finite|infinite programs, usually allowing local reasoning.
+ * Consider this an equivalent representation more suited to program reasoning, as
+ * opposed to compiler correctness proofs.
+ *
+ * specifications should be *structural*, in terms of observable interaction rather
+ * than detailing implementation. but proofs should be *syntax-directed*
  *
  * One promising approach:
  * 1. express a clear (tauless) decomposition of the spec with conditions on FFI
- * 2. prove equivalence to the actual program semantics via weak bisimulation
+ * 2. trim away invalid responses by the environment not covered by a proof
+ * 3. prove equivalence to the trimmed program semantics via weak bisimulation
  *
  * future work: ideally we want some way of automatically unfolding|executing a
  * program, to easily show facts about its interaction tree directly. This should
@@ -550,7 +555,7 @@ End
 (*   cheat *)
 (* QED *)
 
-(*/ interp nonsense
+(*/ interp nonsense, unused
    weird
  *)
 
