@@ -1,5 +1,5 @@
 ;;
-;;;; intuitionistic equational logic reasoner
+;;;;
 ;;
 
 (require 'printv)
@@ -34,6 +34,9 @@
                            :finally (return copy))
                      subtree))))
       (values (rec vec) did-sub))))
+
+(assert (equalp #(1 2) (vsubst #(1 2) (lambda (e) (if (equal e nil) 42)))))
+(assert (equalp #(b b) (vsubst #(a a) (lambda (e) (if (eq e 'a) 'b)))))
 
 (defun nvsubst (vec test)
   "substitute the result of test for subterms if true. NIL is not a valid term."
@@ -170,16 +173,13 @@
       (eq s term)
       (some (lambda (e) (occurs s e)) term)))
 
-(assert (equalp #(1 2) (nvsubst #(1 2) (lambda (e) (if (equal e nil) 42)))))
-(assert (equalp #(b b) (nvsubst #(a a) (lambda (e) (if (eq e 'a) 'b)))))
-
 (defun get-subst (subst v)
   (when-let (eqn (find v subst :test 'equal :key 'eqn-lh))
     (eqn-rh eqn)))
 
 ;; does not respect binding: only schematic vars substituted
 (defun usubst (subst term)
-  (nvsubst term (lambda (subtree) (get-subst subst subtree))))
+  (vsubst term (lambda (subtree) (get-subst subst subtree))))
 
 (defun unify (ta tb)
   (let ((subst (list)))
@@ -313,6 +313,9 @@
 (defeq ("addS") #(add #(S :n) :m) = #(S #(add :n :m)))
 (defeq ("gUnit") #(g :a one) = :a)
 (defeq ("gAssoc") #(g :a #(g :b :c)) = #(g #(g :a :b) c))
+;;(defeq ("glInv") #(g :x :i) = one)
+;;
+;;       ?i * !x = one
 
 (defun print-theorems ()
   (maphash (lambda (k v) (format t "~a ~s~%" k v)) *defbase*))
@@ -326,7 +329,7 @@
 
 ;; (defun fsearch (lh rh thms)
 ;;   (loop
-;;     :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0)) ; TODO
+;;     :with eqns = (mapcar (lambda (thm) (svref (thm-inf thm) 0))
 ;;                          (hash-table-values thms))
 ;;     :with proof = ()
 ;;     :do (when (second (multiple-value-list (unify lh rh)))

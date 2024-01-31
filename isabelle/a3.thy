@@ -1,10 +1,11 @@
 (*
  * COMP4161 Assignment 3
+  imports
+    AutoCorres.AutoCorres
  *)
 
 theory a3
   imports
-    AutoCorres.AutoCorres
     "HOL-Library.Prefix_Order"
 begin
 

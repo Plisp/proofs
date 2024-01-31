@@ -296,6 +296,10 @@ proof -
     by fast
 qed
 
+lemma test:
+  "(\<forall>x. P(x)) \<Longrightarrow> \<exists>x. P(x)"
+  by fast
+
 (* inductive types *)
 datatype 'a mylist = MyNil | MyCons 'a "'a mylist"
 datatype 'a tree = Tip | Node "'a tree" 'a "'a tree"

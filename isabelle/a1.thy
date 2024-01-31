@@ -112,7 +112,8 @@ lemma prop_a: "A \<longrightarrow> \<not>\<not>A"
   apply assumption
   done
 
-lemma prop_b: "\<not>\<not>\<not> A \<longrightarrow> \<not>A"
+(* constructive *)
+lemma prop_b: "(\<not>\<not>\<not>A) \<longrightarrow> \<not>A"
   apply(rule impI)
   apply(rule notI)
   apply(erule notE)
@@ -122,7 +123,7 @@ lemma prop_b: "\<not>\<not>\<not> A \<longrightarrow> \<not>A"
   apply assumption
   done
 
-lemma prop_c: "\<not>\<not> A \<longrightarrow> A"
+lemma prop_c: "\<not>\<not>A \<longrightarrow> A"
   apply(rule impI)
   apply(cases A)
    apply assumption
@@ -154,6 +155,7 @@ lemma prop_e:  "(A \<longrightarrow> B) \<longrightarrow> (\<not> A \<or> B)"
   apply assumption
   done
 
+(* constructive *)
 lemma prop_f:  "\<not>A\<and>\<not>B \<longleftrightarrow> \<not>(A\<or>B)"
   apply(rule iffI)
    apply(rule notI)
@@ -175,6 +177,7 @@ lemma prop_f:  "\<not>A\<and>\<not>B \<longleftrightarrow> \<not>(A\<or>B)"
   apply assumption
   done
 
+(* constructive *)
 lemma prop_e_inv: "(\<not> A \<or> B) \<Longrightarrow> (A \<longrightarrow> B)"
   apply(rule impI)
   apply(erule disjE)
@@ -236,6 +239,7 @@ You must use only these proof rules:
    - allI, allE, exI, and exE
 *)
 
+(* constructive *)
 lemma hol_a: "(\<exists>x. P x \<longrightarrow> Q) \<longrightarrow> (\<forall>x. P x) \<longrightarrow> Q"
   apply(rule impI)
   apply(rule impI)
@@ -245,6 +249,7 @@ lemma hol_a: "(\<exists>x. P x \<longrightarrow> Q) \<longrightarrow> (\<forall>
   apply assumption
   done
 
+(* constructive *)
 lemma hol_b: "((\<exists>x. P x) \<longrightarrow> Q) \<longleftrightarrow> (\<forall>x. P x \<longrightarrow> Q)"
   apply(rule iffI)
    apply(rule allI)
@@ -267,7 +272,7 @@ lemma hol_c_lem: "\<nexists>x. \<not> P x \<Longrightarrow> \<forall>x. P x"
   apply(rule exI)
   apply assumption
   done
-
+(* left to right is constructive *)
 lemma hol_c: "(\<forall>x. P x) \<longleftrightarrow> \<not> (\<exists>x. \<not> P x)"
   apply(rule iffI)
    apply(rule notI)
@@ -279,6 +284,7 @@ lemma hol_c: "(\<forall>x. P x) \<longleftrightarrow> \<not> (\<exists>x. \<not>
   apply assumption
   done
 
+(* constructive *)
 lemma hol_d: "(\<forall>x. P x \<and> Q x) \<longrightarrow> (\<forall>x. P x) \<and> (\<forall>x. Q x)"
   apply(rule impI)
   apply(rule conjI)
@@ -292,6 +298,7 @@ lemma hol_d: "(\<forall>x. P x \<and> Q x) \<longrightarrow> (\<forall>x. P x) \
   apply assumption
   done
 
+(* constructive *)
 lemma hol_e: "(\<exists>x. P x \<or> Q x) \<longrightarrow> (\<exists>x. P x) \<or> (\<exists>x. Q x)"
   apply(rule impI)
   apply(erule exE)
@@ -324,7 +331,7 @@ lemma hol_c_neg: "\<not>(\<forall>x. P x) \<Longrightarrow> \<exists>x. \<not>P 
   apply assumption
   done
 
-lemma hol_f: "(\<forall>x y. A y \<or> B x) \<longrightarrow> (\<forall>x. B x) \<or> (\<forall>y. A y)"
+lemma hol_f: "(\<forall>x y. B x \<or> A y) \<longrightarrow> (\<forall>x. A x) \<or> (\<forall>x. B x)"
   apply(rule contrapos)
   apply(rule impI)
   apply(rule notI)

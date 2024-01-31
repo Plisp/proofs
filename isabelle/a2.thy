@@ -693,7 +693,6 @@ lemma s_sem_n_Seq:
   apply(metis s_sem.intros(4))
   done
 
-
 text\<open>
 2-(i): Prove that if a program executes in the big-step semantics to a
    resulting rstate rs', then it executes in the small-step semantics

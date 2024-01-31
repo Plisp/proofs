@@ -359,7 +359,7 @@ Proof
   rw[Once itree_wbisim_cases] >>
   pop_assum mp_tac >> qid_spec_tac ‘t’ >>
   Induct_on ‘strip_tau’ >> rw[] >>
-  gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()]
+  gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs(), itree_wbisim_refl]
 QED
 
 Theorem pull_ffi_case[simp]:
