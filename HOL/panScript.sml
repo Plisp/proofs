@@ -85,6 +85,10 @@ Proof
   srw_tac[][wordsTheory.WORD_LESS_OR_EQ] >> fs[wordsTheory.word_lt_n2w]
 QED
 
+Definition mem_has_word_def:
+  mem_has_word mem addr = ∃w. mem (byte_align addr) = Word (w : word32)
+End
+
 (* generalize if needed to an arbitrary list + offset *)
 Theorem load_write_bytearray_thm:
   (byte_align addr = addr) ∧
@@ -102,47 +106,59 @@ Proof
 QED
 
 Theorem load_write_bytearray_thm2:
-  (∀(w : word32). w ∈ s.memaddrs) ∧
-  (∃(k : word32). oldmem (byte_align addr) = Word k) ⇒
+  (∀(w : word32). w ∈ s.memaddrs) ⇒
   mem_load_byte (write_bytearray addr [v] oldmem s.memaddrs s.be)
                 s.memaddrs s.be addr
-  = SOME v
+  = if (mem_has_word oldmem addr) then (SOME v) else NONE
 Proof
-  rw[mem_load_byte_def] >>
-  rw[write_bytearray_def] >>
-  rw[mem_store_byte_def] >>
-  rw[byteTheory.get_byte_set_byte]
+  rw[mem_has_word_def] >-
+   (rw[mem_load_byte_def, write_bytearray_def] >>
+    rw[mem_store_byte_def] >>
+    rw[byteTheory.get_byte_set_byte]) >>
+  Cases_on ‘oldmem (byte_align addr)’ >> fs[] >>
+  rw[mem_load_byte_def, write_bytearray_def] >>
+  rw[mem_store_byte_def]
 QED
+
+Definition the_word[simp]:
+  the_word (Word v) = v
+End
 
 Theorem load_write_bytearray_other:
   (∀(w : word32). w ∈ s.memaddrs) ∧
-  (∃(k : word32). smem (byte_align addr) = Word k) ∧
-  (∃(k : word32). smem (byte_align other) = Word k) ⇒
-  other ≠ addr ⇒
+  other ≠ addr
+  ⇒
   mem_load_byte (write_bytearray other [c] smem s.memaddrs s.be)
                 s.memaddrs s.be addr
-  = mem_load_byte smem s.memaddrs s.be addr
+  =
+  if (mem_has_word smem addr ∧ mem_has_word smem other)
+  then mem_load_byte smem s.memaddrs s.be addr
+  else if (mem_has_word smem addr)
+  then SOME (get_byte addr (the_word (smem (byte_align addr))) s.be)
+  else NONE
 Proof
-  rw[mem_load_byte_def] >>
-  rw[write_bytearray_def] >>
-  rw[mem_store_byte_def] >>
-  Cases_on ‘byte_align addr = byte_align other’ >>
-  rw[] >-
-   (‘k = k'’ by fs[] >>
-    gvs[] >>
-    irule miscTheory.get_byte_set_byte_diff >>
-    rw[] >> EVAL_TAC) >>
+  rw[mem_has_word_def,
+     mem_load_byte_def, write_bytearray_def, mem_store_byte_def] >-
+   (Cases_on ‘byte_align addr = byte_align other’ >>
+    rw[] >-
+     (gvs[] >>
+      irule miscTheory.get_byte_set_byte_diff >>
+      rw[] >> EVAL_TAC) >>
+    rw[combinTheory.UPDATE_APPLY]) >-
+   (gvs[] >> Cases_on ‘smem (byte_align other)’ >> fs[]) >>
+  Cases_on ‘smem (byte_align addr)’ >> gvs[] >>
+  Cases_on ‘smem (byte_align other)’ >> gvs[] >>
+  Cases_on ‘byte_align addr = byte_align other’ >> gvs[] >>
   rw[combinTheory.UPDATE_APPLY]
 QED
 
-Theorem write_bytearray_preserve_words[simp]:
-  oldmem (byte_align w) = Word k ⇒
-  ∃(k : word32). (write_bytearray loc l oldmem s.memaddrs s.be) (byte_align w)
-                 = Word k
+Theorem write_bytearray_preserve_words:
+  mem_has_word oldmem w ⇒
+  mem_has_word (write_bytearray loc l oldmem s.memaddrs s.be) w
 Proof
+  simp[mem_has_word_def] >>
   strip_tac >>
-  qid_spec_tac ‘loc’ >>
-  Induct_on ‘l’ >>
+  qid_spec_tac ‘loc’ >> Induct_on ‘l’ >>
   rw[write_bytearray_def] >>
   fs[mem_store_byte_def] >>
   Cases_on ‘write_bytearray (loc+1w) l oldmem s.memaddrs s.be (byte_align loc)’ >>
@@ -162,12 +178,7 @@ Theorem baseaddr_ref[simp]:
                      (p,s with locals
                         := s.locals |+ (name,ValWord (s.base_addr + k)))))
 Proof
-  CONJ_TAC >-
-   (‘eval s BaseAddr = SOME (ValWord s.base_addr)’ by rw[eval_def] >>
-    drule dec_lifted >> rw[]) >>
-  ‘eval s (Op Add [BaseAddr; Const k]) = SOME (ValWord (s.base_addr + k))’
-    by rw[eval_def, wordLangTheory.word_op_def] >>
-  drule dec_lifted >> rw[]
+  fs[eval_def, wordLangTheory.word_op_def, dec_lifted]
 QED
 
 Theorem word_add_neq:
@@ -410,7 +421,7 @@ Definition mux_at_pred_def:
 End
 
 Theorem word_moment:
-  a < x ⇒ (1w + a) ≤ x
+  a < (x : word32) ⇒ (1w + a) ≤ x
 Proof
   cheat
 QED
@@ -541,11 +552,14 @@ Proof
   cheat
 QED
 
-(* TODO reuse proof for repeated program fragment *)
-
-Definition the_word:
-  the_word (Word v) = v
-End
+(*
+TODO reuse proof for repeated program fragment
+TODO do away with state aliases
+     keep write-bytearray, consider disjoint writes of arbitrary length;
+TODO use skip_tau as early as possible
+TODO make things compute using if
+TODO replace mem_load_byte assumptions with aliases like b3
+ *)
 
 Theorem muxrx_correct:
   (∀(w : word32). w ∈ s.memaddrs) ∧
@@ -558,18 +572,8 @@ Theorem muxrx_correct:
   (byte_align (s.base_addr + 7w) = s.base_addr) ∧
   (byte_align (s.base_addr + 8w) = (s.base_addr + 8w)) ∧
   (byte_align (s.base_addr + 9w) = (s.base_addr + 8w)) ∧
-  (∃uninitb. s.memory s.base_addr = Word uninitb) ∧
-  (∃uninitb. s.memory (s.base_addr + 8w) = Word uninitb) ∧
-  (∃uninitb.
-    mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 3w) = SOME uninitb) ∧
-  (∃uninitb.
-    mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 4w) = SOME uninitb) ∧
-  (∃uninitb.
-    mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 5w) = SOME uninitb) ∧
-  (∃uninitb.
-    mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 8w) = SOME uninitb) ∧
-  (∃uninitb.
-    mem_load_byte s.memory s.memaddrs s.be (s.base_addr + 9w) = SOME uninitb)
+  mem_has_word s.memory s.base_addr ∧
+  mem_has_word s.memory (s.base_addr + 8w)
   ⇒
   future_safe muxrx_pred (muxrx_sem s)
 Proof
@@ -577,41 +581,33 @@ Proof
   rw[muxrx_sem_def, itree_semantics_def, itree_evaluate_alt] >>
   assume_tac (GEN_ALL muxrx_pred_notau) >>
   rw[seq_thm] >>
-  qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
-  rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[read_bytearray_1, mem_load_byte_def] >>
-  rw[Once future_safe_cases] >> disj1_tac >>
-  rw[muxrx_pred_def] >>
-  qunabbrev_tac ‘rest’ >> rw[] >>
-  qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,st)’ >>
-  subgoal ‘eval st (LoadByte (Var «drv_dequeue_a»)) = SOME (ValWord (w2w c))’ >-
-   (qunabbrev_tac ‘st’ >> rw[eval_def] >> rw[load_write_bytearray_thm2]) >>
-  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
-  (* get_escape_character *)
+  rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+  rfs[read_bytearray_1, mem_has_word_def, mem_load_byte_def] >>
+  rw[Once future_safe_cases] >> disj1_tac >> rw[muxrx_pred_def] >>
+  fs[dec_lifted, eval_def, mem_has_word_def, load_write_bytearray_thm2] >>
   rw[seq_thm] >>
-  qmatch_goalsub_abbrev_tac ‘(bind _ rest)’ >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[read_bytearray_1] >>
-  qunabbrev_tac ‘st’ >> rw[] >>
-  rw[load_write_bytearray_other] >>
+  rw[read_bytearray_1, load_write_bytearray_other, mem_load_byte_def] >>
+  qpat_abbrev_tac ‘b3 = get_byte _ _ _’ >>
   (* get_escape_char *)
   qmatch_goalsub_abbrev_tac ‘Vis _ k2’ >>
-  qexistsl_tac [‘k2’, ‘uninitb''’] >>
+  qexistsl_tac [‘k2’, ‘b3’] >>
   rw[itree_wbisim_refl] >-
    (* backslash *)
-   (qunabbrev_tac ‘k2’ >> qunabbrev_tac ‘rest’ >>
+   (qunabbrev_tac ‘k2’ >>
     assume_tac (GEN_ALL mux_backslash_pred_notau) >>
     rw[] >>
+    qmatch_goalsub_abbrev_tac ‘itree_mrec _ (Dec _ _ (Seq _ rest),st)’ >>
     ‘∃k. (write_bytearray (s.base_addr + 1w) [c] s.memory s.memaddrs s.be)
          (byte_align (s.base_addr + 3w)) = Word k’
       by rw[write_bytearray_preserve_words] >>
-    qmatch_goalsub_abbrev_tac ‘itree_mrec _ (_,st)’ >>
     subgoal ‘eval st (LoadByte (Var «escape_character_a»)) = SOME (ValWord 1w)’ >-
      (rw[eval_def, Abbr ‘st’] >> rw[load_write_bytearray_thm2]) >>
     drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
     rw[Once seq_thm] >>
-    (* if the first bind (if-branch) returns we're done *)
+    (* if the first bind (if-branch) returns we're done, discard rest *)
     ho_match_mp_tac mux_return_branch >>
+    qunabbrev_tac ‘rest’ >>
 
     rw[itree_mrec_alt, h_prog_def, h_prog_rule_cond_def] >>
     rw[Once eval_def, asmTheory.word_cmp_def] >>
@@ -1212,6 +1208,7 @@ Proof
     rw[h_prog_def] >>
     skip_tau >> skip_tau >> skip_tau >> skip_tau >> skip_tau >> skip_tau >>
     pop_assum kall_tac >> pop_assum kall_tac >>
+    cheat
    )
 QED
 

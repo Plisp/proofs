@@ -445,13 +445,17 @@ Proof
 QED
 
 Theorem dec_lifted:
-  (eval s e = SOME k) ⇒
   to_ffi (itree_mrec h_prog (Dec name e p,s))
-  = Tau (to_ffi (itree_mrec h_prog (p, s with locals := s.locals |+ (name,k))))
+  = if (eval s e = NONE)
+    then Ret (SOME Error)
+    else Tau (to_ffi
+              (itree_mrec h_prog
+                          (p, s with locals := s.locals |+ (name,THE (eval s e)))))
 Proof
-  rw[] >>
-  drule dec_thm >>
-  rw[to_ffi_revert_bind]
+  rw[] >-
+   (rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def]) >-
+   (Cases_on ‘eval s e’ >> fs[] >>
+    drule dec_thm >> rw[to_ffi_revert_bind])
 QED
 
 
