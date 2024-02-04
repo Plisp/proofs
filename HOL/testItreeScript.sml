@@ -446,11 +446,12 @@ QED
 
 Theorem dec_lifted:
   to_ffi (itree_mrec h_prog (Dec name e p,s))
-  = if (eval s e = NONE)
-    then Ret (SOME Error)
-    else Tau (to_ffi
-              (itree_mrec h_prog
-                          (p, s with locals := s.locals |+ (name,THE (eval s e)))))
+  = let res = eval s e in
+      if (res = NONE)
+      then Ret (SOME Error)
+      else Tau (to_ffi
+                (itree_mrec h_prog
+                            (p, s with locals := s.locals |+ (name,THE res))))
 Proof
   rw[] >-
    (rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def]) >-
