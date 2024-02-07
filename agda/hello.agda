@@ -38,6 +38,10 @@ ackermann = recℕ mzero msucc
     msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
     msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
 
+reindex : {J I : Set} {A : I → Set} (α : J → I)
+        → Σ j ∶ J , A (α j) → Σ i ∶ I , A i
+reindex α (p1 , p2) = (α p1 , p2)
+
 {-
   an empty initial algebra
 -}

@@ -452,7 +452,6 @@ Proof
   blastLib.BBLAST_TAC
 QED
 
-(* XXX note the implicit assumption 48 ≤ c *)
 Definition muxrx_pred_def:
   muxrx_pred t =
   ∀c.
@@ -545,7 +544,8 @@ QED
 Theorem escape_pred_to_backslash:
   ∀t. future_safe mux_backslash_pred (t : α sem32tree)
       ⇒ (w2w c) ≠ (92w : word32) ∧ (w2w c) ≠ (64w : word32)
-      ⇒ future_safe mux_backslash_pred t ⇒ future_safe (mux_escape_pred (w2w c)) t
+      ⇒ future_safe mux_backslash_pred t
+      ⇒ future_safe (mux_escape_pred (w2w c)) t
 Proof
   ho_match_mp_tac future_safe_ind >>
   rw[] >-
@@ -563,7 +563,7 @@ Proof
 QED
 
 (*
-  proof
+  proof TODO fix alignment assumption
  *)
 
 Definition muxrx_mem_assms:
@@ -726,7 +726,7 @@ Proof
    (rw[Abbr ‘thing’, Abbr ‘mem2’] >>
     ‘mem_has_word s.memory (s.base_addr + 8w)’ by rw[mem_has_word_def] >>
     irule write_bytearray_preserve_words >>
-    irule write_bytearray_preserve_words >> (* XXX depth limit? *)
+    irule write_bytearray_preserve_words >> (* Cond_rewr.stack_limit = 6 *)
     gvs[write_bytearray_preserve_words]) >>
   fs[mem_has_word_def, mem_load_byte_def] >>
   rw[Once future_safe_cases] >> disj2_tac >>
@@ -751,13 +751,6 @@ Proof
   rw[mux_backslash_pred_def] >>
   (* show return 0 *)
   rw[h_prog_def, h_prog_rule_return_def, size_of_shape_def, shape_of_def]
-QED
-
-(* XXX inline *)
-Triviality muxrx_triv:
-  ValWord (0w : word32) = ValWord (w2w (0w : word8))
-Proof
-  rw[]
 QED
 
 Theorem muxrx_correct:
@@ -973,7 +966,8 @@ Proof
     rw[Once h_prog_def] >>
     (* use assumptions to convert mux_escape_pred to backslash, TODO reuse proof *)
     irule escape_pred_to_backslash >> rw[] >>
-    PURE_REWRITE_TAC[triv] >>
+    PURE_REWRITE_TAC[
+        prove(“ValWord (0w : word32) = ValWord (w2w (0w : word8))”, rw[])] >>
     irule escape_set_branch >>
     rw[muxrx_mem_assms, mem_has_word_def])
 QED
@@ -988,6 +982,7 @@ QED
 
 (*
 Globals.max_print_depth := 20
+Cond_rewr.stack_limit := 6
 *)
 
 
