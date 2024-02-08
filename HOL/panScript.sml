@@ -10,6 +10,7 @@ open panPtreeConversionTheory; (* parse_funs_to_ast *)
 open panSemTheory; (* eval_def, byte stuff *)
 open panLangTheory; (* size_of_shape_def *)
 open arithmeticTheory;
+open listTheory;
 
 local
   val f =
@@ -88,6 +89,54 @@ QED
 Definition mem_has_word_def:
   mem_has_word mem addr = ∃w. mem (byte_align addr) = Word (w : word32)
 End
+
+(* wfrites, disjoint_writes
+  wordf ≡ disjointness, has Words
+
+  point: prevent proliferation of write_bytearray (via disjointness)
+  reads of disjoint_writes should compute if within a single region
+  writes within boundaries (not necessarily current) preserve wf
+
+  making new regions requires quadratic obligations for disjointness
+ *)
+
+Definition writes_disjoint_def:
+  write_disjoint (s1,l1) (s2,l2)
+  = ((s1 + n2w(LENGTH l1) < s2) ∨ (s2 + n2w(LENGTH l2) < s1))
+End
+
+Inductive wordf:
+  (wordf []) ∧
+  (EVERY (write_disjoint a) as ∧ wordf as ⇒ wordf (a::as))
+End
+
+Definition bwrites_def:
+  bwrites [] s = s.memory ∧
+  bwrites ((off,l)::as) s
+  = write_bytearray (s.base_addr + off) l (bwrites as s) s.memaddrs s.be
+End
+
+Theorem test:
+  (write_bytearray
+  (s.base_addr + (3w : word32)) [x]
+  (write_bytearray (s.base_addr + 1w) [c] s.memory
+                   s.memaddrs s.be) s.memaddrs s.be)
+  =
+  bwrites [(3w : word32,[x]);(1w : word32,[c])] s
+Proof
+  rw[bwrites_def]
+QED
+
+Theorem test2:
+  wordf [(3w : word32,[x]);(1w : word32,[c])]
+Proof
+  rw[Once wordf_cases] >-
+   (rw[writes_disjoint_def]) >>
+  rw[Once wordf_cases] >>
+  rw[Once wordf_cases]
+QED
+
+(* old *)
 
 Theorem store_bytearray_1:
   byte_align addr ∈ dm ∧ mem_has_word m addr ⇒
