@@ -568,6 +568,29 @@ Proof
   metis_tac[mux_return_branch_gen]
 QED
 
+Theorem mux_return_gen:
+  ∀a0. future_safe (mux_at_pred e) a0
+  ⇒
+  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
+             ⇒ future_safe (mux_at_pred e)
+                           (to_ffi
+                            (bind branch (λ(res,s'). if res = NONE
+                                                     then (f res s')
+                                                     else Ret (res,s'))))
+Proof
+  ho_match_mp_tac future_safe_ind >>
+  rw[] >-
+   (cheat
+   ) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases]) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases] >>
+    metis_tac[])
+QED
+
 Triviality mux_return_branch_at:
  future_safe (mux_at_pred e) (to_ffi branch : (α sem32tree))
  ⇒ future_safe (mux_at_pred e)
@@ -576,7 +599,30 @@ Triviality mux_return_branch_at:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  cheat
+  metis_tac[mux_return_gen]
+QED
+
+Theorem mux_escape_gen:
+  ∀a0. future_safe (mux_escape_pred e) a0
+  ⇒
+  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
+             ⇒ future_safe (mux_escape_pred e)
+                           (to_ffi
+                            (bind branch (λ(res,s'). if res = NONE
+                                                     then (f res s')
+                                                     else Ret (res,s'))))
+Proof
+  ho_match_mp_tac future_safe_ind >>
+  rw[] >-
+   (cheat
+   ) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases]) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases] >>
+    metis_tac[])
 QED
 
 Triviality mux_return_branch_esc:
@@ -587,7 +633,7 @@ Triviality mux_return_branch_esc:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  cheat
+  metis_tac[mux_escape_gen]
 QED
 
 Theorem escape_pred_to_backslash:
