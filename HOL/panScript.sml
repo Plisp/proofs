@@ -522,19 +522,40 @@ Proof
   rw[muxrx_pred_def]
 QED
 
-(* the proof *)
+(*
+ the proof
+*)
 
-Theorem mux_return_branch_gen:
-  ∀a0.
-  future_safe mux_backslash_pred a0
+Triviality seq_bind_into_ind:
+  (∀a0.
+    future_safe P a0
+    ⇒
+    ∀(branch : (δ, sem_vis_event # (α ffi_result -> δ), 32 result option # γ) itree)
+     f. a0 = (to_ffi branch : (α sem32tree))
+        ⇒ future_safe P (to_ffi
+                         (bind branch (λ(res,s'). if res = NONE
+                                                  then (f res s')
+                                                  else Ret (res,s')))))
   ⇒
-  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
-             ⇒ future_safe mux_backslash_pred
-                           (to_ffi
-                            (bind branch (λ(res,s'). if res = NONE
-                                                     then (f res s')
-                                                     else Ret (res,s'))))
+  (future_safe P (to_ffi (branch : (δ, sem_vis_event # (α ffi_result -> δ),
+                                    32 result option # γ) itree))
+                  ⇒ future_safe P (to_ffi
+                                   (bind branch (λ(res,s'). if res = NONE
+                                                            then (f res s')
+                                                            else Ret (res,s')))))
 Proof
+  metis_tac[]
+QED
+
+Triviality mux_return_branch:
+ future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
+ ⇒ future_safe mux_backslash_pred
+               (to_ffi
+                (bind branch (λ(res,s'). if res = NONE
+                                         then (f res s')
+                                         else Ret (res,s'))))
+Proof
+  ho_match_mp_tac seq_bind_into_ind >>
   ho_match_mp_tac future_safe_ind >>
   rw[] >-
    (fs[mux_backslash_pred_def] >-
@@ -557,31 +578,57 @@ Proof
     metis_tac[])
 QED
 
-Triviality mux_return_branch:
- future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
- ⇒ future_safe mux_backslash_pred
-               (to_ffi
-                (bind branch (λ(res,s'). if res = NONE
-                                         then (f res s')
-                                         else Ret (res,s'))))
+Triviality mux_set_escape_branch:
+  future_safe (mux_set_escape_pred e) (to_ffi t : (α sem32tree)) ⇒
+  future_safe (mux_set_escape_pred e)
+              (to_ffi
+               (bind t
+                     (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))))
 Proof
-  metis_tac[mux_return_branch_gen]
-QED
-
-Theorem mux_return_gen:
-  ∀a0. future_safe (mux_at_pred e) a0
-  ⇒
-  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
-             ⇒ future_safe (mux_at_pred e)
-                           (to_ffi
-                            (bind branch (λ(res,s'). if res = NONE
-                                                     then (f res s')
-                                                     else Ret (res,s'))))
-Proof
+  ho_match_mp_tac seq_bind_into_ind >>
   ho_match_mp_tac future_safe_ind >>
   rw[] >-
-   (cheat
-   ) >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    gvs[mux_set_escape_pred_def] >-
+     (disj1_tac >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq]) >-
+     (disj2_tac >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()])) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases]) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases] >>
+    metis_tac[])
+QED
+
+Triviality mux_set_client_branch:
+  future_safe (λcont. ∃k2.
+                e + 0xFFFFFFD0w ≤ w2w n ⇒
+                cont =
+                Vis (FFI_call "set_client" [w2w (e + 0xFFFFFFD0w)] []) k2 ∧
+                future_safe (mux_set_escape_pred 0w) (k2 (FFI_return ARB [])))
+  (to_ffi t : (α sem32tree)) ⇒
+  future_safe (λcont. ∃k2.
+                e + 0xFFFFFFD0w ≤ w2w n ⇒
+                cont =
+                Vis (FFI_call "set_client" [w2w (e + 0xFFFFFFD0w)] []) k2 ∧
+                future_safe (mux_set_escape_pred 0w) (k2 (FFI_return ARB [])))
+              (to_ffi (bind t (λ(res,s'). if res = NONE
+                                          then (f res s')
+                                          else Ret (res,s'))))
+Proof
+  ho_match_mp_tac seq_bind_into_ind >>
+  ho_match_mp_tac future_safe_ind >>
+  rw[] >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    Cases_on ‘e + 0xFFFFFFD0w ≤ w2w n’ >>
+    gvs[GSYM wordsTheory.WORD_NOT_LESS_EQUAL] >>
+    gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[mux_set_escape_branch]
+    ) >-
    (pop_assum mp_tac >>
     rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
     rw[Once future_safe_cases]) >-
@@ -599,23 +646,20 @@ Triviality mux_return_branch_at:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  metis_tac[mux_return_gen]
-QED
-
-Theorem mux_escape_gen:
-  ∀a0. future_safe (mux_escape_pred e) a0
-  ⇒
-  ∀branch f. a0 = (to_ffi branch : (α sem32tree))
-             ⇒ future_safe (mux_escape_pred e)
-                           (to_ffi
-                            (bind branch (λ(res,s'). if res = NONE
-                                                     then (f res s')
-                                                     else Ret (res,s'))))
-Proof
+  ho_match_mp_tac seq_bind_into_ind >>
   ho_match_mp_tac future_safe_ind >>
   rw[] >-
-   (cheat
-   ) >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    fs[mux_at_pred_def] >>
+    Cases_on ‘e + 0xFFFFFFD0w < 1w’ >> gvs[GSYM wordsTheory.WORD_NOT_LESS_EQUAL] >-
+     (gvs[mux_set_escape_pred_def] >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq]) >-
+     (gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      strip_tac >> pop_last_assum $ qspec_then ‘n’ assume_tac >>
+      rw[mux_set_client_branch]) >-
+     (gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()]) >-
+     (gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()])) >-
    (pop_assum mp_tac >>
     rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
     rw[Once future_safe_cases]) >-
@@ -633,7 +677,27 @@ Triviality mux_return_branch_esc:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  metis_tac[mux_escape_gen]
+  ho_match_mp_tac seq_bind_into_ind >>
+  ho_match_mp_tac future_safe_ind >>
+  rw[] >-
+   (rw[Once future_safe_cases] >> disj1_tac >>
+    rw[mux_escape_pred_def] >> fs[mux_escape_pred_def] >-
+     (gvs[mux_set_escape_pred_def] >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq]) >-
+     (gvs[mux_set_escape_pred_def] >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq]) >-
+     (gvs[mux_backslash_pred_def] >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+      rw[to_ffi_seq])) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases]) >-
+   (pop_assum mp_tac >>
+    rw[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()] >>
+    rw[Once future_safe_cases] >>
+    metis_tac[])
 QED
 
 Theorem escape_pred_to_backslash:
@@ -881,6 +945,8 @@ Proof
     rw[Once future_safe_cases] >> disj2_tac >>
     rw[] >-
      (rw[Once future_safe_cases, mux_backslash_pred_def]) >>
+    PURE_REWRITE_TAC[
+        prove(“ValWord (1w : word32) = ValWord (w2w (1w : word8))”, rw[])] >>
     irule escape_set_branch >>
     gvs[muxrx_mem_assms, mem_has_word_def])
   >- (* part 2 *)
@@ -1020,9 +1086,9 @@ Proof
       gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>
       rw[Once h_prog_rule_ext_call_def] >>
       gvs[read_bytearray_1, write_bytearray_preserve_words,
-        load_write_bytearray_thm2, mem_has_word_def] >>
+          load_write_bytearray_thm2, mem_has_word_def] >>
       rw[Once future_safe_cases] >> disj1_tac >>
-      rw[mux_escape_pred_def, mux_set_escape_pred_def]
+      rw[mux_escape_pred_def, mux_set_escape_pred_def] >>
       rw[h_prog_def, h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
     Cases_on ‘c = 64w’ >-
      (rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >>
@@ -1065,14 +1131,6 @@ Proof
         prove(“ValWord (0w : word32) = ValWord (w2w (0w : word8))”, rw[])] >>
     irule escape_set_branch >>
     rw[muxrx_mem_assms, mem_has_word_def])
-QED
-
-Theorem test:
-  (a : α word) ≠ (b : α word) ∧
-  dimword (:α) < dimword (:β) ⇒ (w2w a : β word) ≠ (w2w b : β word)
-Proof
-  rw[addressTheory.w2w_CLAUSES] >>
-
 QED
 
 (*
