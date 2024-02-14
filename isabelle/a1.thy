@@ -186,6 +186,8 @@ lemma prop_e_inv: "(\<not> A \<or> B) \<Longrightarrow> (A \<longrightarrow> B)"
   apply assumption
   done
 
+thm Set.image_Int_subset Set.image_Un Set.vimage_Un Set.vimage_Int
+
 lemma contrapos: "(\<not>B \<longrightarrow> \<not>A) \<Longrightarrow> A \<longrightarrow> B"
   apply(rule prop_e_inv)
   apply(drule prop_e[THEN mp])

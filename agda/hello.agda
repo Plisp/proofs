@@ -29,6 +29,19 @@ open import univalence
 plus : ℕ → ℕ → ℕ  -- 0-plus and vv a-plus → a+1 plus
 plus = recℕ (λ b → b) (λ a plus-a → λ b → suc (plus-a b))
 
+-- unpack and repack alg until lift bottoms out (ignores its argument)
+-- (inl ⋆ : (1+ℕ)) --⋆--> (inl ⋆)
+--       ^                   v
+--     Z : ℕ       - - -> alg-zero
+--
+-- if X is a coalgebra, this may not terminate as iso will
+-- unwrap indefinitely
+--
+-- init : {A X : Set} {P : Set → Set}
+--      → (∀{A B : Set} → (A → B) → (P A → P B))
+--      → (P A → A) → (X → P X) → (X → A)
+-- init lift alg iso = alg ∘ (lift (init lift alg iso)) ∘ iso
+
 ackermann : ℕ → ℕ → ℕ
 ackermann = recℕ mzero msucc
   where

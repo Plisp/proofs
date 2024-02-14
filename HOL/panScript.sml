@@ -29,6 +29,39 @@ fun parse_pancake q =
     rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
 end
 
+fun parse_pancake_nosimp q =
+  let
+    val code = quote_to_strings q |> String.concatWith "\n" |> fromMLstring
+  in
+    EVAL “(parse_funs_to_ast ^code)”
+end
+
+
+
+(* TODO ring buffer (internal) correctness
+   need correctness condition to be 'local' to some memory, write-invariant
+ *)
+
+(* Theorem test: *)
+(*   s.code = (FEMPTY |+ («f», ([(«n», One)], (Return (Var «n»))))) ⇒ *)
+(*   itree_evaluate (Dec «r» (Const 0w) (Call NONE (Label «f») [Var «r»])) s *)
+(*   = ARB *)
+(* Proof *)
+(*   rw[itree_evaluate_alt] >> *)
+(*   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >> *)
+(*   rw[eval_def] >> *)
+(*   rw[h_prog_def] >> *)
+(*   rw[h_prog_rule_call_def] >> *)
+(*   rw[eval_def] >> *)
+(*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
+(*   rw[lookup_code_def, shape_of_def] >> *)
+(*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
+(* QED *)
+
+
+
+
+
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
   ∧ eval s (Var v) = FLOOKUP s.locals v
@@ -93,11 +126,13 @@ End
 (* wfrites, disjoint_writes
   wordf ≡ disjointness, has Words
 
-  point: prevent proliferation of write_bytearray (via disjointness)
+  TODO: prevent proliferation of write_bytearray (via disjointness)
   reads of disjoint_writes should compute if within a single region
   writes within boundaries (not necessarily current) preserve wf
 
   making new regions requires quadratic obligations for disjointness
+
+  maybe look into fun2set in set_sepScript
  *)
 
 Definition writes_disjoint_def:
@@ -115,6 +150,11 @@ Definition bwrites_def:
   bwrites ((off,l)::as) s
   = write_bytearray (s.base_addr + off) l (bwrites as s) s.memaddrs s.be
 End
+
+(* Theorem join_bwrites: *)
+(*   write_bytearray (s.base_addr + off) bs (bwrites [] s) s.memaddrs s.be *)
+(* Proof *)
+(* QED *)
 
 Theorem test:
   (write_bytearray
@@ -164,6 +204,7 @@ Proof
   rw[byteTheory.get_byte_set_byte]
 QED
 
+(* spose_not_then kall_tac *)
 Theorem load_write_bytearray_thm2:
   (∀(w : word32). w ∈ s.memaddrs) ⇒
   mem_load_byte (write_bytearray addr [v] oldmem s.memaddrs s.be)
@@ -293,9 +334,32 @@ QED
 
 (*/ real
    XXX there's a semantic error caused by loading from drv_dequeue_c, read-only
+   XXX pancake multiple definitions? shape access checks .0.0.0.0?
+
+fun enq({1} root, {1} e) {
+    var head_a = root - 2;
+    var tail_a = root - 1;
+    var head = load head_a;
+    var tail = load tail_a;
+
+    store ((root + head) % 999), e;
+    store head_a, (head + 1);
+    return 0;
+}
+
+fun deq({1} root) {
+    var head_a = root - 2;
+    var tail_a = root - 1;
+    var head = load head_a;
+    var tail = load tail_a;
+
+    ret = load ((root + tail) % 999);
+    store tail_a, (tail + 1);
+    return ret;
+}
+
    simp[ExclSF “LET”]
    Proof[exclude_frags = LET] ...
-
    DEP_REWRITE_TAC
  *)
 
@@ -526,28 +590,23 @@ QED
  the proof
 *)
 
-Triviality seq_bind_into_ind:
-  (∀a0.
-    future_safe P a0
-    ⇒
-    ∀(branch : (δ, sem_vis_event # (α ffi_result -> δ), 32 result option # γ) itree)
-     f. a0 = (to_ffi branch : (α sem32tree))
-        ⇒ future_safe P (to_ffi
-                         (bind branch (λ(res,s'). if res = NONE
-                                                  then (f res s')
-                                                  else Ret (res,s')))))
-  ⇒
-  (future_safe P (to_ffi (branch : (δ, sem_vis_event # (α ffi_result -> δ),
-                                    32 result option # γ) itree))
-                  ⇒ future_safe P (to_ffi
-                                   (bind branch (λ(res,s'). if res = NONE
-                                                            then (f res s')
-                                                            else Ret (res,s')))))
-Proof
-  metis_tac[]
-QED
+Inductive terminates_def:
+  (∀r. terminates (Ret r)) ∧
+  (terminates t ⇒ terminates (Tau t)) ∧
+  ((∀a. terminates (k a)) ⇒ terminates (Vis e k))
+End
+
+Definition returns_ret_def:
+  returns_ret f = (f (Ret r) = r)
+End
+
+(*
+terminates P → id_on_ret k
+future_safe P (to_ffi a) → future_safe P (to_ffi (bind a k))
+*)
 
 Triviality mux_return_branch:
+ ∀branch.
  future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
  ⇒ future_safe mux_backslash_pred
                (to_ffi
@@ -555,8 +614,7 @@ Triviality mux_return_branch:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  ho_match_mp_tac seq_bind_into_ind >>
-  ho_match_mp_tac future_safe_ind >>
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (fs[mux_backslash_pred_def] >-
      (rw[Once future_safe_cases] >> disj1_tac >>
@@ -579,14 +637,15 @@ Proof
 QED
 
 Triviality mux_set_escape_branch:
+  ∀t.
   future_safe (mux_set_escape_pred e) (to_ffi t : (α sem32tree)) ⇒
   future_safe (mux_set_escape_pred e)
               (to_ffi
                (bind t
                      (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))))
 Proof
-  ho_match_mp_tac seq_bind_into_ind >>
-  ho_match_mp_tac future_safe_ind >>
+
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     gvs[mux_set_escape_pred_def] >-
@@ -605,6 +664,7 @@ Proof
 QED
 
 Triviality mux_set_client_branch:
+  ∀t.
   future_safe (λcont. ∃k2.
                 e + 0xFFFFFFD0w ≤ w2w n ⇒
                 cont =
@@ -620,8 +680,7 @@ Triviality mux_set_client_branch:
                                           then (f res s')
                                           else Ret (res,s'))))
 Proof
-  ho_match_mp_tac seq_bind_into_ind >>
-  ho_match_mp_tac future_safe_ind >>
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     Cases_on ‘e + 0xFFFFFFD0w ≤ w2w n’ >>
@@ -639,6 +698,7 @@ Proof
 QED
 
 Triviality mux_return_branch_at:
+ ∀branch.
  future_safe (mux_at_pred e) (to_ffi branch : (α sem32tree))
  ⇒ future_safe (mux_at_pred e)
                (to_ffi
@@ -646,8 +706,7 @@ Triviality mux_return_branch_at:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  ho_match_mp_tac seq_bind_into_ind >>
-  ho_match_mp_tac future_safe_ind >>
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     fs[mux_at_pred_def] >>
@@ -670,6 +729,7 @@ Proof
 QED
 
 Triviality mux_return_branch_esc:
+ ∀branch.
  future_safe (mux_escape_pred e) (to_ffi branch : (α sem32tree))
  ⇒ future_safe (mux_escape_pred e)
                (to_ffi
@@ -677,8 +737,7 @@ Triviality mux_return_branch_esc:
                                          then (f res s')
                                          else Ret (res,s'))))
 Proof
-  ho_match_mp_tac seq_bind_into_ind >>
-  ho_match_mp_tac future_safe_ind >>
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     rw[mux_escape_pred_def] >> fs[mux_escape_pred_def] >-
@@ -706,7 +765,7 @@ Theorem escape_pred_to_backslash:
       ⇒ future_safe mux_backslash_pred t
       ⇒ future_safe (mux_escape_pred (w2w c)) t
 Proof
-  ho_match_mp_tac future_safe_ind >>
+  Induct_on ‘future_safe’ >>
   rw[] >-
    (rw[Once future_safe_cases] >> disj1_tac >>
     rw[mux_escape_pred_def]) >-
@@ -829,7 +888,6 @@ Proof
   rw[seq_thm] >>
   rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
   rw[read_bytearray_1] >>
-  (* TODO look into fun2set in set_sepScript *)
   simp[write_bytearray_preserve_words, mem_has_word_def,
        load_write_bytearray_other] >>
   rw[mem_load_byte_def] >>
@@ -863,7 +921,7 @@ Proof
     rw[Once future_safe_cases, mux_backslash_pred_def]) >>
   rw[Once h_prog_def] >> pop_assum kall_tac >>
   rw[seq_thm] >>
-  (* store byte from client in arg XXX reproduce term literal error *)
+  (* store byte from client in arg *)
   rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_store_byte_def] >>
   qmatch_goalsub_abbrev_tac ‘(iter _ (_ (mem_store_byte thing _ _ _ _) _ _))’ >>
   subgoal ‘mem_has_word thing (s.base_addr + 6w)’ >-
@@ -987,7 +1045,7 @@ Proof
         rw[Once itree_mrec_alt, h_prog_def,
            h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
       Cases_on ‘¬(w2w c + 0xFFFFFFD0w < (1w : word32))’ >> gvs[] >>
-      (* XXX this is named terribly *)
+      (* XXX this is named terribly, change it later *)
       rw[wordsTheory.WORD_NOT_LESS_EQUAL]) >>
     rw[h_prog_def, h_prog_rule_dec_def, eval_def, wordLangTheory.word_op_def] >>
     rw[h_prog_rule_seq_def] >>
@@ -1125,7 +1183,6 @@ Proof
     rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >>
     rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
     rw[Once h_prog_def] >>
-    (* use assumptions to convert mux_escape_pred to backslash, TODO reuse proof *)
     irule escape_pred_to_backslash >> rw[] >>
     PURE_REWRITE_TAC[
         prove(“ValWord (0w : word32) = ValWord (w2w (0w : word8))”, rw[])] >>
@@ -1185,8 +1242,8 @@ Cond_rewr.stack_limit := 6
    - using new state, execute loop condition again, then body
 *)
 
-(*/ loops!
-   TODO an infinite example
+(*/
+   loops!
  *)
 
 val while_ast = parse_pancake ‘
@@ -1337,3 +1394,10 @@ Proof
   pop_assum $ qspecl_then [‘n'’, ‘0’] strip_assume_tac >>
   fs[wordsTheory.WORD_LT]
 QED
+
+(* TODO write a tactic?
+goal = (term list, term)
+tactic = goal -> goal list * validation
+
+foo_tac = fn goal => (tactic) goal
+*)
