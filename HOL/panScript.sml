@@ -3,7 +3,9 @@
  * properties needed for verification
  * - describing trees given arbitrary restrictions on ffi responses
  * - spec must be transparently related to the (correct) result of itree_evaluate
- * - skipping 'irrelevant' (e.g. logging) calls, optional
+
+ Globals.max_print_depth := 190
+ Cond_rewr.stack_limit := 8
  *)
 
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
@@ -568,17 +570,17 @@ QED
 Definition muxrx_pred_def:
   muxrx_pred t =
   ∀c.
-  (∃k1 k2 uninit1 uninit2 uninit.
-    (t = Vis (FFI_call "drv_dequeue_used" [uninit1] [uninit2]) k1) ∧
-    (k1 (FFI_return ARB [c]) ≈
-        Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
-    (* backslash escape case, transitions to zero *)
-    future_safe mux_backslash_pred (k2 (FFI_return ARB [1w])) ∧
-    future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w])) ∧
-    future_safe (mux_escape_pred (w2w c)) (k2 (FFI_return ARB [0w]))
-  ) ∨
-  (∃outcome. t = Ret (SOME (FinalFFI outcome)))
-End
+               (∃k1 k2 uninit1 uninit2 uninit.
+                 (t = Vis (FFI_call "drv_dequeue_used" [uninit1] [uninit2]) k1) ∧
+                 (k1 (FFI_return ARB [c]) ≈
+                     Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
+                 (* backslash escape case, transitions to zero *)
+                 future_safe mux_backslash_pred (k2 (FFI_return ARB [1w])) ∧
+                 future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w])) ∧
+                 future_safe (mux_escape_pred (w2w c)) (k2 (FFI_return ARB [0w]))
+               ) ∨
+               (∃outcome. t = Ret (SOME (FinalFFI outcome)))
+              End
 
 Theorem muxrx_pred_notau:
   ¬muxrx_pred (Tau (t : α sem32tree))
@@ -606,13 +608,13 @@ future_safe P (to_ffi a) → future_safe P (to_ffi (bind a k))
 *)
 
 Triviality mux_return_branch:
- ∀branch.
- future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
- ⇒ future_safe mux_backslash_pred
-               (to_ffi
-                (bind branch (λ(res,s'). if res = NONE
-                                         then (f res s')
-                                         else Ret (res,s'))))
+  ∀branch.
+               future_safe mux_backslash_pred (to_ffi branch : (α sem32tree))
+               ⇒ future_safe mux_backslash_pred
+                             (to_ffi
+                              (bind branch (λ(res,s'). if res = NONE
+                                                       then (f res s')
+                                                       else Ret (res,s'))))
 Proof
   Induct_on ‘future_safe’ >>
   rw[] >-
@@ -1191,9 +1193,188 @@ Proof
 QED
 
 (*
-Globals.max_print_depth := 20
-Cond_rewr.stack_limit := 6
+  muxtx
 *)
+
+val muxtx_ast = parse_pancake ‘
+fun fn() {
+var clients = 0;
+var num_clients_a = @base;
+// Get the number of clients as defined in our FFI file
+#num_clients(0, 0, num_clients_a, 1);
+clients = ldb num_clients_a;
+
+// Check if the driver's tx used ring was empty.
+var drv_was_empty_c = @base + 1;
+var drv_was_empty_a = @base + 2;
+// Store 0 as arg to get the used ring
+strb drv_was_empty_c, 0;
+#drv_ring_empty(drv_was_empty_c, 1, drv_was_empty_a, 1);
+var was_empty = ldb drv_was_empty_a;
+
+var client = 0;
+while (client < clients) {
+    // Loop through all of the current client's available ring
+    var cli_dequeue_used_c = @base + 3;
+    var cli_dequeue_used_a = @base + 4;
+
+    strb cli_dequeue_used_c, client;
+    #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 24);
+    var dequeue_used_ret = ldb cli_dequeue_used_c;
+
+    while (dequeue_used_ret != 1) {
+        // We now want to copy this buffer over to the drv shared ring buffers
+        var drv_enqueue_dequeue_a = @base + 29;
+        #batch_driver_dequeue_enqueue(cli_dequeue_used_a,24,drv_enqueue_dequeue_a,1);
+
+        var driver_dequeue_enqueue_ret = ldb drv_enqueue_dequeue_a;
+        if (driver_dequeue_enqueue_ret != 0) {
+            return 1;
+        }
+
+        var cli_enqueue_avail_a = @base + 30;
+        strb cli_enqueue_avail_a, client;
+        // Enqueue buffer back into the client available ring
+        #cli_enqueue_avail(cli_dequeue_used_a, 24, cli_enqueue_avail_a, 1);
+
+        // Continue to next iteration of the loop
+        strb cli_dequeue_used_c, client;
+        #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 24);
+        dequeue_used_ret = ldb cli_dequeue_used_c;
+    }
+
+    client = client + 1;
+}
+
+// If we were empty before, notify the driver that we have something to print
+if (was_empty == 1) {
+    #notify_driver(0,0,0,0);
+}
+
+return 0;
+}’;
+
+Definition muxtx_sem_def:
+  muxtx_sem (s:('a,'ffi) panSem$state) =
+  itree_evaluate (SND $ SND $ HD ^muxtx_ast) s
+End
+
+Definition trim_itree:
+  trim_itree Pa t =
+  itree_unfold (λt. case t of
+                      Ret r => Ret' r
+                    | Tau t => Tau' t
+                    | Vis e k => Vis' e (λa. if (Pa e a) then (k a)
+                                             else (Ret (SOME Error))))
+               t
+End
+
+Theorem trim_itree_alt[simp]:
+  trim_itree P (Ret r) = Ret r ∧
+  trim_itree P (Tau t) = Tau (trim_itree P t) ∧
+  trim_itree P (Vis e k) = Vis e (λa. if (P e a) then (trim_itree P (k a))
+                                      else (Ret (SOME Error)))
+Proof
+  rw[trim_itree] >> rw[FUN_EQ_THM, Once itree_unfold] >>
+  rw[FUN_EQ_THM] >>
+  rw[Once itree_unfold]
+QED
+
+Definition tx_ev_pred[simp]:
+  tx_ev_pred (FFI_call s conf buf) a =
+  case a of
+    (FFI_return s bs) => (LENGTH bs = LENGTH buf)
+  | (FFI_final a) => F
+End
+
+Definition muxtx_mem_assms:
+  muxtx_mem s =
+  ((∀(w : word32). w ∈ (s : (32,α) state).memaddrs) ∧
+   (∀n. n < 32 ⇒ mem_has_word s.memory (s.base_addr + n2w n)) ∧
+   (byte_aligned s.base_addr))
+End
+
+Theorem align_offset:
+  aligned (LOG2 (dimindex (:32) DIV 8)) (addr : word32) ∧
+  w2n n < (dimindex (:32) DIV 8)
+  ⇒ byte_align (addr + n) = addr
+Proof
+  rw[alignmentTheory.byte_align_def] >>
+  rw[alignmentTheory.align_add_aligned]
+QED
+
+Definition muxtx_body:
+  muxtx_body s n_clients (k : word8) =
+  let w = (the_word (s.memory (s.base_addr + 4w))) in
+  Vis (FFI_call "dequeue_used" [k] ARB)
+      (λ(res : α ffi_result).
+         if k = n_clients then Ret (INR (NONE : word32 result option))
+         else Ret (INL (k + 1w)))
+End
+
+Definition muxtx_spec:
+  muxtx_spec s =
+  (let w = (the_word (s.memory s.base_addr)) in
+   trim_itree tx_ev_pred
+   (Vis (FFI_call "num_clients" [] [get_byte s.base_addr w s.be])
+    (λres.
+       case res of
+         (FFI_return _ [n]) =>
+           Vis (FFI_call "drv_ring_empty" [0w] [get_byte (s.base_addr + 2w) w s.be])
+               (λres.
+                  bind
+                  (iter (muxtx_body s n) 0w)
+                  (λres. Vis (FFI_call "notify_driver" [] []) ARB)
+
+        ))
+   ))
+End
+
+val align_thm = LIST_CONJ [alignmentTheory.byte_aligned_def,
+                           alignmentTheory.byte_align_def,
+                           alignmentTheory.aligned_def,
+                           align_offset];
+val vis_tac = irule itree_wbisim_vis >> Cases;
+val assign_tac = gvs[Once itree_mrec_alt, Once h_prog_def,
+                     h_prog_rule_assign_def, eval_def];
+val strb_tac = rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_store_byte_def];
+Theorem dec_simp[simp] = dec_lifted;
+Theorem seq_simp[simp] = seq_thm;
+Theorem valid_value_simp[simp] = is_valid_value_def;
+Theorem shape_of_simp[simp] = shape_of_def;
+
+Theorem test:
+  (muxtx_mem s) ⇒ trim_itree tx_ev_pred (muxtx_sem s) ≈ muxtx_spec s
+Proof
+  rw[muxtx_sem_def, muxtx_mem_assms, muxtx_spec, itree_evaluate_alt] >>
+  rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+  rw[read_bytearray_1, mem_load_byte_def] >>
+  (* XXX byte- -ed matrix *)
+  subgoal ‘byte_align s.base_addr = s.base_addr ∧
+           ∃w. s.memory s.base_addr = Word w’ >-
+   (align_tac >>
+    qpat_x_assum ‘∀n. n < 32 => _’ $ qspec_then ‘0’ assume_tac >>
+    gvs[mem_has_word_def, alignmentTheory.byte_align_def]) >>
+  rw[] >>
+  vis_tac >> rw[] >> Cases_on ‘l’ >> fs[] >> pop_assum kall_tac >>
+  assign_tac >>
+  rfs[mem_has_word_def, load_write_bytearray_thm2] >>
+  (* store byte *)
+  subgoal ‘byte_align (s.base_addr + 1w) = s.base_addr’ >- align_tac >>
+  strb_tac >>
+  gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>
+  rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+  gvs[read_bytearray_1, write_bytearray_preserve_words,
+      load_write_bytearray_thm2, mem_has_word_def] >>
+  subgoal ‘byte_align (s.base_addr + 2w) = s.base_addr’ >- align_tac >>
+  subgoal ‘s.base_addr ≠ (s.base_addr + 2w)’ >- (rw[word_add_neq]) >>
+  gvs[write_bytearray_preserve_words,load_write_bytearray_other,mem_has_word_def] >>
+  rw[mem_load_byte_def] >>
+  vis_tac >> rw[eval_def] >> Cases_on ‘l’ >> gvs[] >-
+   (gvs[write_bytearray_preserve_words,load_write_bytearray_thm2,mem_has_word_def]) >>
+  qmatch_goalsub_abbrev_tac ‘bind _ rest’ >>
+
+QED
 
 
 
