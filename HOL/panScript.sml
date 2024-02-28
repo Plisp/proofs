@@ -4,7 +4,7 @@
  * - describing trees given arbitrary restrictions on ffi responses
  * - spec must be transparently related to the (correct) result of itree_evaluate
 
- Globals.max_print_depth := 190
+ Globals.max_print_depth := 19
  Cond_rewr.stack_limit := 8
  *)
 
@@ -1280,6 +1280,12 @@ Proof
   rw[Once itree_unfold]
 QED
 
+Theorem trim_respects_wbisim:
+  t ≈ t' ⇒ trim_itree P t ≈ trim_itree P t'
+Proof
+  cheat
+QED
+
 Definition tx_ev_pred[simp]:
   tx_ev_pred (FFI_call s conf buf) a =
   case a of
@@ -1303,33 +1309,6 @@ Proof
   rw[alignmentTheory.align_add_aligned]
 QED
 
-Definition muxtx_body:
-  muxtx_body s n_clients (k : word8) =
-  let w = (the_word (s.memory (s.base_addr + 4w))) in
-  Vis (FFI_call "dequeue_used" [k] ARB)
-      (λ(res : α ffi_result).
-         if k = n_clients then Ret (INR (NONE : word32 result option))
-         else Ret (INL (k + 1w)))
-End
-
-Definition muxtx_spec:
-  muxtx_spec s =
-  (let w = (the_word (s.memory s.base_addr)) in
-   trim_itree tx_ev_pred
-   (Vis (FFI_call "num_clients" [] [get_byte s.base_addr w s.be])
-    (λres.
-       case res of
-         (FFI_return _ [n]) =>
-           Vis (FFI_call "drv_ring_empty" [0w] [get_byte (s.base_addr + 2w) w s.be])
-               (λres.
-                  bind
-                  (iter (muxtx_body s n) 0w)
-                  (λres. Vis (FFI_call "notify_driver" [] []) ARB)
-
-        ))
-   ))
-End
-
 val align_thm = LIST_CONJ [alignmentTheory.byte_aligned_def,
                            alignmentTheory.byte_align_def,
                            alignmentTheory.aligned_def,
@@ -1342,6 +1321,38 @@ Theorem dec_simp[simp] = dec_lifted;
 Theorem seq_simp[simp] = seq_thm;
 Theorem valid_value_simp[simp] = is_valid_value_def;
 Theorem shape_of_simp[simp] = shape_of_def;
+Theorem h_prog_skip[simp] = cj 1 h_prog_def;
+(*
+  muxtx proof
+ *)
+
+Definition muxtx_body:
+  muxtx_body s n_clients (k : word8) =
+  let w = (the_word (s.memory (s.base_addr + 4w))) in
+    if k = n_clients then Ret (INR (NONE : word32 result option))
+    else Vis (FFI_call "dequeue_used" [k] ARB)
+             (λ(res : α ffi_result). ARB)
+End
+(* Ret (INL (k + 1w)) *)
+Definition muxtx_spec:
+  muxtx_spec s =
+  (let w = (the_word (s.memory s.base_addr)) in
+   trim_itree tx_ev_pred
+   (Vis (FFI_call "num_clients" [] [get_byte s.base_addr w s.be])
+    (λres.
+       case res of
+         (FFI_return _ [n]) =>
+           Vis (FFI_call "drv_ring_empty" [0w] [get_byte (s.base_addr + 2w) w s.be])
+               (λres.
+                  case res of
+                    (FFI_return _ [b]) =>
+                      bind (iter (muxtx_body s n) 0w)
+                           (λres. if b = 1w
+                                  then Vis (FFI_call "notify_driver" [] [])
+                                           (λres. Ret (SOME (Return (ValWord 0w))))
+                                  else (Ret (SOME (Return (ValWord 0w)))))
+        ))))
+End
 
 Theorem test:
   (muxtx_mem s) ⇒ trim_itree tx_ev_pred (muxtx_sem s) ≈ muxtx_spec s
@@ -1349,10 +1360,9 @@ Proof
   rw[muxtx_sem_def, muxtx_mem_assms, muxtx_spec, itree_evaluate_alt] >>
   rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
   rw[read_bytearray_1, mem_load_byte_def] >>
-  (* XXX byte- -ed matrix *)
   subgoal ‘byte_align s.base_addr = s.base_addr ∧
            ∃w. s.memory s.base_addr = Word w’ >-
-   (align_tac >>
+   (fs[align_thm] >>
     qpat_x_assum ‘∀n. n < 32 => _’ $ qspec_then ‘0’ assume_tac >>
     gvs[mem_has_word_def, alignmentTheory.byte_align_def]) >>
   rw[] >>
@@ -1360,19 +1370,45 @@ Proof
   assign_tac >>
   rfs[mem_has_word_def, load_write_bytearray_thm2] >>
   (* store byte *)
-  subgoal ‘byte_align (s.base_addr + 1w) = s.base_addr’ >- align_tac >>
+  subgoal ‘byte_align (s.base_addr + 1w) = s.base_addr’ >- fs[align_thm] >>
   strb_tac >>
   gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>
   rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
   gvs[read_bytearray_1, write_bytearray_preserve_words,
       load_write_bytearray_thm2, mem_has_word_def] >>
-  subgoal ‘byte_align (s.base_addr + 2w) = s.base_addr’ >- align_tac >>
+  subgoal ‘byte_align (s.base_addr + 2w) = s.base_addr’ >- fs[align_thm] >>
   subgoal ‘s.base_addr ≠ (s.base_addr + 2w)’ >- (rw[word_add_neq]) >>
   gvs[write_bytearray_preserve_words,load_write_bytearray_other,mem_has_word_def] >>
   rw[mem_load_byte_def] >>
-  vis_tac >> rw[eval_def] >> Cases_on ‘l’ >> gvs[] >-
-   (gvs[write_bytearray_preserve_words,load_write_bytearray_thm2,mem_has_word_def]) >>
+  vis_tac >> rw[eval_def] >> Cases_on ‘l’ >>
+  gvs[write_bytearray_preserve_words,load_write_bytearray_thm2,mem_has_word_def] >>
   qmatch_goalsub_abbrev_tac ‘bind _ rest’ >>
+  simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_while_def] >>
+  Induct_on ‘w2n h’ >> simp[] >-
+   (* zero case *)
+   (simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+    simp[eval_def, asmTheory.word_cmp_def] >>
+    rw[Abbr ‘rest’, Once itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >-
+     (rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+      simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+      qmatch_goalsub_abbrev_tac ‘LHS ≈ _’ >>
+      rw[Once itree_iter_thm, muxtx_body] >>
+      qunabbrev_tac ‘LHS’ >>
+      vis_tac >> rw[] >>
+      rw[Once itree_mrec_alt, Once h_prog_def,
+         h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
+    ‘(w2w h' : word32) ≠ 1w’ by cheat >>
+    rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+    rw[Once itree_mrec_alt, Once h_prog_def,
+       h_prog_rule_return_def, size_of_shape_def, shape_of_def] >>
+    rw[Once itree_iter_thm, muxtx_body]) >>
+  (* one loop iteration *)
+  strip_tac >>
+  simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+  ‘0w < (w2w h : word32)’ by cheat >>
+  qmatch_goalsub_abbrev_tac ‘_ ≈ (_ _ (bind _ clean))’ >>
+  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+  qmatch_goalsub_abbrev_tac ‘trim_itree _ (_ (_ (iter _ (bind _ loop)) _))’ >>
 
 QED
 
