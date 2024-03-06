@@ -4,7 +4,7 @@
  * - describing trees given arbitrary restrictions on ffi responses
  * - spec must be transparently related to the (correct) result of itree_evaluate
 
- Globals.max_print_depth := 19
+ Globals.max_print_depth := 20
  Cond_rewr.stack_limit := 8
  *)
 
@@ -137,48 +137,50 @@ End
   maybe look into fun2set in set_sepScript
  *)
 
-Definition writes_disjoint_def:
-  write_disjoint (s1,l1) (s2,l2)
-  = ((s1 + n2w(LENGTH l1) < s2) ∨ (s2 + n2w(LENGTH l2) < s1))
-End
+(* Definition writes_disjoint_def: *)
+(*   write_disjoint (s1,l1) (s2,l2) *)
+(*   = ((s1 + n2w(LENGTH l1) < s2) ∨ (s2 + n2w(LENGTH l2) < s1)) *)
+(* End *)
 
-Inductive wordf:
-  (wordf []) ∧
-  (EVERY (write_disjoint a) as ∧ wordf as ⇒ wordf (a::as))
-End
+(* Inductive wordf: *)
+(*   (wordf []) ∧ *)
+(*   (EVERY (write_disjoint a) as ∧ wordf as ⇒ wordf (a::as)) *)
+(* End *)
 
-Definition bwrites_def:
-  bwrites [] s = s.memory ∧
-  bwrites ((off,l)::as) s
-  = write_bytearray (s.base_addr + off) l (bwrites as s) s.memaddrs s.be
-End
+(* Definition bwrites_def: *)
+(*   bwrites [] s = s.memory ∧ *)
+(*   bwrites ((off,l)::as) s *)
+(*   = write_bytearray (s.base_addr + off) l (bwrites as s) s.memaddrs s.be *)
+(* End *)
 
 (* Theorem join_bwrites: *)
 (*   write_bytearray (s.base_addr + off) bs (bwrites [] s) s.memaddrs s.be *)
 (* Proof *)
 (* QED *)
 
-Theorem test:
-  (write_bytearray
-  (s.base_addr + (3w : word32)) [x]
-  (write_bytearray (s.base_addr + 1w) [c] s.memory
-                   s.memaddrs s.be) s.memaddrs s.be)
-  =
-  bwrites [(3w : word32,[x]);(1w : word32,[c])] s
-Proof
-  rw[bwrites_def]
-QED
+(* Theorem test: *)
+(*   (write_bytearray *)
+(*   (s.base_addr + (3w : word32)) [x] *)
+(*   (write_bytearray (s.base_addr + 1w) [c] s.memory *)
+(*                    s.memaddrs s.be) s.memaddrs s.be) *)
+(*   = *)
+(*   bwrites [(3w : word32,[x]);(1w : word32,[c])] s *)
+(* Proof *)
+(*   rw[bwrites_def] *)
+(* QED *)
 
-Theorem test2:
-  wordf [(3w : word32,[x]);(1w : word32,[c])]
-Proof
-  rw[Once wordf_cases] >-
-   (rw[writes_disjoint_def]) >>
-  rw[Once wordf_cases] >>
-  rw[Once wordf_cases]
-QED
+(* Theorem test2: *)
+(*   wordf [(3w : word32,[x]);(1w : word32,[c])] *)
+(* Proof *)
+(*   rw[Once wordf_cases] >- *)
+(*    (rw[writes_disjoint_def]) >> *)
+(*   rw[Once wordf_cases] >> *)
+(*   rw[Once wordf_cases] *)
+(* QED *)
 
-(* old *)
+(*
+  old byte theorems
+ *)
 
 Theorem store_bytearray_1:
   byte_align addr ∈ dm ∧ mem_has_word m addr ⇒
@@ -570,17 +572,17 @@ QED
 Definition muxrx_pred_def:
   muxrx_pred t =
   ∀c.
-               (∃k1 k2 uninit1 uninit2 uninit.
-                 (t = Vis (FFI_call "drv_dequeue_used" [uninit1] [uninit2]) k1) ∧
-                 (k1 (FFI_return ARB [c]) ≈
-                     Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
-                 (* backslash escape case, transitions to zero *)
-                 future_safe mux_backslash_pred (k2 (FFI_return ARB [1w])) ∧
-                 future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w])) ∧
-                 future_safe (mux_escape_pred (w2w c)) (k2 (FFI_return ARB [0w]))
-               ) ∨
-               (∃outcome. t = Ret (SOME (FinalFFI outcome)))
-              End
+  (∃k1 k2 uninit1 uninit2 uninit.
+    (t = Vis (FFI_call "drv_dequeue_used" [uninit1] [uninit2]) k1) ∧
+    (k1 (FFI_return ARB [c]) ≈
+        Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
+    (* backslash escape case, transitions to zero *)
+    future_safe mux_backslash_pred (k2 (FFI_return ARB [1w])) ∧
+    future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w])) ∧
+    future_safe (mux_escape_pred (w2w c)) (k2 (FFI_return ARB [0w]))
+  ) ∨
+  (∃outcome. t = Ret (SOME (FinalFFI outcome)))
+End
 
 Theorem muxrx_pred_notau:
   ¬muxrx_pred (Tau (t : α sem32tree))
@@ -1192,6 +1194,15 @@ Proof
     rw[muxrx_mem_assms, mem_has_word_def])
 QED
 
+
+
+
+
+
+
+
+
+
 (*
   muxtx
 *)
@@ -1224,13 +1235,12 @@ while (client < clients) {
 
     while (dequeue_used_ret != 1) {
         // We now want to copy this buffer over to the drv shared ring buffers
-        var drv_enqueue_dequeue_a = @base + 29;
-        #batch_driver_dequeue_enqueue(cli_dequeue_used_a,24,drv_enqueue_dequeue_a,1);
-
-        var driver_dequeue_enqueue_ret = ldb drv_enqueue_dequeue_a;
-        if (driver_dequeue_enqueue_ret != 0) {
-            return 1;
-        }
+        (* var drv_enqueue_dequeue_a = @base + 29; *)
+        (* #batch_driver_dequeue_enqueue(cli_dequeue_used_a,24,drv_enqueue_dequeue_a,1); *)
+        (* var driver_dequeue_enqueue_ret = ldb drv_enqueue_dequeue_a; *)
+        (* if (driver_dequeue_enqueue_ret != 0) { *)
+        (*     return 1; *)
+        (* } *)
 
         var cli_enqueue_avail_a = @base + 30;
         strb cli_enqueue_avail_a, client;
@@ -1280,12 +1290,6 @@ Proof
   rw[Once itree_unfold]
 QED
 
-Theorem trim_respects_wbisim:
-  t ≈ t' ⇒ trim_itree P t ≈ trim_itree P t'
-Proof
-  cheat
-QED
-
 Definition tx_ev_pred[simp]:
   tx_ev_pred (FFI_call s conf buf) a =
   case a of
@@ -1322,18 +1326,38 @@ Theorem seq_simp[simp] = seq_thm;
 Theorem valid_value_simp[simp] = is_valid_value_def;
 Theorem shape_of_simp[simp] = shape_of_def;
 Theorem h_prog_skip[simp] = cj 1 h_prog_def;
+
 (*
   muxtx proof
+  since this follows a different protocol (reading from the read buffer)
+  I will insert an assumption about that one byte changing
  *)
 
+Definition muxtx_cli_loop:
+  muxtx_cli_loop s client _ =
+  (let w = (the_word (s.memory s.base_addr)) in
+     let w' = (the_word (s.memory (s.base_addr + 4w))) in
+       Vis (FFI_call "dequeue_used" [n2w client]
+                     [get_byte (s.base_addr + 4w) w' s.be])
+           (λ(res : α ffi_result).
+              case res of
+                (FFI_return _ [used]) =>
+                  if used ≠ 1w
+                  then (Vis (FFI_call "cli_enqueue_avail"
+                                      [get_byte (s.base_addr + 4w) w' s.be]
+                                      [n2w client])
+                            (λres. Ret (INL ())))
+                  else (Ret (INR (NONE : word32 result option)))))
+End
+
 Definition muxtx_body:
-  muxtx_body s n_clients (k : word8) =
+  muxtx_body s (n_clients : num) k =
   let w = (the_word (s.memory (s.base_addr + 4w))) in
     if k = n_clients then Ret (INR (NONE : word32 result option))
-    else Vis (FFI_call "dequeue_used" [k] ARB)
-             (λ(res : α ffi_result). ARB)
+    else (bind (iter (muxtx_cli_loop s k) ())
+               (λres. Ret (INL (k + 1))))
 End
-(* Ret (INL (k + 1w)) *)
+
 Definition muxtx_spec:
   muxtx_spec s =
   (let w = (the_word (s.memory s.base_addr)) in
@@ -1346,13 +1370,147 @@ Definition muxtx_spec:
                (λres.
                   case res of
                     (FFI_return _ [b]) =>
-                      bind (iter (muxtx_body s n) 0w)
+                      bind (iter (muxtx_body s (w2n n)) 0)
                            (λres. if b = 1w
                                   then Vis (FFI_call "notify_driver" [] [])
                                            (λres. Ret (SOME (Return (ValWord 0w))))
                                   else (Ret (SOME (Return (ValWord 0w)))))
         ))))
 End
+
+Theorem tx_ind:
+   (∀w. w ∈ s.memaddrs) ∧
+   (∀n. n < 32 ⇒ ∃w. s.memory (byte_align (n2w n + s.base_addr)) = Word w) ∧
+   (byte_aligned s.base_addr) ∧
+   (byte_align s.base_addr = s.base_addr) ∧
+   (s.memory s.base_addr = Word w) ∧
+   (byte_align (s.base_addr + 1w) = s.base_addr) ∧
+   (byte_align (s.base_addr + 2w) = s.base_addr) ∧
+   (s.base_addr ≠ s.base_addr + 2w) ∧
+   (Abbrev
+          (rest =
+           (λ(res,s').
+                if res = NONE then
+                  Tau
+                    (Tau
+                       (bind
+                          (itree_mrec h_prog
+                             (If (Cmp Equal (Var «was_empty») (Const 1w))
+                                (ExtCall «notify_driver» (Const 0w)
+                                   (Const 0w) (Const 0w) (Const 0w)) Skip,s'))
+                          (λ(res,s').
+                               if res = NONE then
+                                 Tau
+                                   (itree_mrec h_prog (Return (Const 0w),s'))
+                               else Ret (res,s'))))
+                else Ret (res,s')))) ⇒
+  trim_itree
+  tx_ev_pred
+  (to_ffi
+   (bind
+    (itree_mrec
+     h_prog
+     (While (Cmp Less (Var «client») (Var «clients»))
+            (Dec «cli_dequeue_used_c» (Op Add [BaseAddr; Const 3w])
+                 (Dec «cli_dequeue_used_a»
+                      (Op Add [BaseAddr; Const 4w])
+                      (Seq
+                       (StoreByte (Var «cli_dequeue_used_c») (Var «client»))
+                       (Seq
+                        (ExtCall «dequeue_used»
+                                 (Var «cli_dequeue_used_c») (Const 1w)
+                                 (Var «cli_dequeue_used_a») (Const 24w))
+                        (Dec «dequeue_used_ret»
+                             (LoadByte (Var «cli_dequeue_used_c»))
+                             (Seq
+                              (While
+                               (Cmp NotEqual (Var «dequeue_used_ret») (Const 1w))
+                               (Dec «cli_enqueue_avail_a»
+                                    (Op Add [BaseAddr; Const 30w])
+                                    (Seq
+                                     (StoreByte
+                                      (Var «cli_enqueue_avail_a»)
+                                      (Var «client»))
+                                     (Seq
+                                      (ExtCall «cli_enqueue_avail»
+                                               (Var «cli_dequeue_used_a»)
+                                               (Const 24w)
+                                               (Var «cli_enqueue_avail_a»)
+                                               (Const 1w))
+                                      (Seq
+                                       (StoreByte
+                                        (Var «cli_dequeue_used_c»)
+                                        (Var «client»))
+                                       (Seq
+                                        (ExtCall «dequeue_used»
+                                         (Var «cli_dequeue_used_c»)
+                                         (Const 1w)
+                                         (Var «cli_dequeue_used_a»)
+                                         (Const 24w))
+                                        (Assign «dequeue_used_ret»
+                                                (LoadByte
+                                                 (Var «cli_dequeue_used_c»)))))))))
+                              (Assign «client»
+                                      (Op Add [Var «client»; Const 1w])))))))),
+      s with
+        <|locals :=
+          s.locals |+
+           («clients»,ValWord 0w) |+
+           («num_clients_a»,ValWord s.base_addr) |+
+           («clients»,ValWord (w2w n_clients)) |+
+           («drv_was_empty_c»,ValWord (s.base_addr + 1w)) |+
+           («drv_was_empty_a»,ValWord (s.base_addr + 2w)) |+
+           («was_empty»,ValWord (w2w was_empty)) |+
+           («client»,ValWord client);
+          memory :=
+          write_bytearray (s.base_addr + 2w) [was_empty]
+            (write_bytearray (s.base_addr + 1w) [0w]
+               (write_bytearray s.base_addr [n_clients] s.memory s.memaddrs s.be)
+            s.memaddrs s.be)
+          s.memaddrs s.be; ffi := f'|>)) rest))
+  ≈
+  trim_itree tx_ev_pred
+  (bind (iter (muxtx_body s (w2n n_clients)) (w2n client))
+        (λres.
+           if was_empty = 1w then
+             Vis (FFI_call "notify_driver" [] [])
+                 (λres. Ret (SOME (Return (ValWord 0w))))
+           else Ret (SOME (Return (ValWord 0w))))) : (α sem32tree)
+Proof
+  rpt strip_tac >>
+  Induct_on ‘w2n (w2w n_clients - client)’ >> simp[] >-
+   (* zero case *)
+   (rpt strip_tac >>
+    simp[itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
+    simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+    ‘w2w n_clients = client’ by cheat >>
+    simp[eval_def, asmTheory.word_cmp_def] >>
+    ‘w2n (w2w n_clients : word32) = w2n n_clients’ by cheat >>
+    rw[Abbr ‘rest’, Once itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >-
+     (simp[Once eval_def,asmTheory.word_cmp_def,finite_mapTheory.FLOOKUP_UPDATE] >>
+      simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+      qmatch_goalsub_abbrev_tac ‘LHS ≈ _’ >>
+      simp[Once itree_iter_thm, muxtx_body] >>
+      qunabbrev_tac ‘LHS’ >>
+      vis_tac >> rw[] >>
+      rw[Once itree_mrec_alt, Once h_prog_def,
+         h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
+    simp[Once eval_def,asmTheory.word_cmp_def,finite_mapTheory.FLOOKUP_UPDATE] >>
+    ‘w2w was_empty ≠ 1w : word32’ by cheat >>
+    simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+    rw[Once itree_mrec_alt, Once h_prog_def,
+       h_prog_rule_return_def, size_of_shape_def, shape_of_def] >>
+    rw[Once itree_iter_thm, muxtx_body]) >>
+  (* one loop iteration *)
+  rpt strip_tac >>
+  qmatch_goalsub_abbrev_tac ‘_ ≈ (_ _ (bind _ clean))’ >>
+  rw[itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
+  simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
+  qmatch_goalsub_abbrev_tac ‘trim_itree _ (_ (_ (iter _ (bind _ loop)) _))’ >>
+QED
+
+
 
 Theorem test:
   (muxtx_mem s) ⇒ trim_itree tx_ev_pred (muxtx_sem s) ≈ muxtx_spec s
@@ -1383,36 +1541,12 @@ Proof
   vis_tac >> rw[eval_def] >> Cases_on ‘l’ >>
   gvs[write_bytearray_preserve_words,load_write_bytearray_thm2,mem_has_word_def] >>
   qmatch_goalsub_abbrev_tac ‘bind _ rest’ >>
-  simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_while_def] >>
-  Induct_on ‘w2n h’ >> simp[] >-
-   (* zero case *)
-   (simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
-    simp[eval_def, asmTheory.word_cmp_def] >>
-    rw[Abbr ‘rest’, Once itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >-
-     (rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-      simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
-      qmatch_goalsub_abbrev_tac ‘LHS ≈ _’ >>
-      rw[Once itree_iter_thm, muxtx_body] >>
-      qunabbrev_tac ‘LHS’ >>
-      vis_tac >> rw[] >>
-      rw[Once itree_mrec_alt, Once h_prog_def,
-         h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
-    ‘(w2w h' : word32) ≠ 1w’ by cheat >>
-    rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-    rw[Once itree_mrec_alt, Once h_prog_def,
-       h_prog_rule_return_def, size_of_shape_def, shape_of_def] >>
-    rw[Once itree_iter_thm, muxtx_body]) >>
-  (* one loop iteration *)
-  strip_tac >>
-  simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
-  ‘0w < (w2w h : word32)’ by cheat >>
-  qmatch_goalsub_abbrev_tac ‘_ ≈ (_ _ (bind _ clean))’ >>
-  rw[Once eval_def, asmTheory.word_cmp_def, finite_mapTheory.FLOOKUP_UPDATE] >>
-  qmatch_goalsub_abbrev_tac ‘trim_itree _ (_ (_ (iter _ (bind _ loop)) _))’ >>
-
+  PURE_ONCE_REWRITE_TAC[
+      prove(“(iter (muxtx_body s (w2n h)) 0) =
+             (iter (muxtx_body s (w2n h)) (w2n (0w : word32)))”, rw[])] >>
+  ho_match_mp_tac tx_ind >>
+  rw[]
 QED
-
-
 
 
 
@@ -1593,18 +1727,13 @@ Theorem while_sem_thm:
 Proof
   rw[while_sem_def, itree_semantics_def, itree_evaluate_alt] >>
   assume_tac (GEN_ALL while_pred_notau) >>
-  ‘eval s (Const 0w) = SOME (ValWord 0w)’ by rw[eval_def] >>
-  drule dec_lifted >> rw[] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[dec_lifted]
   (* seq *)
-  rw[seq_thm] >>
   rw[itree_mrec_alt, h_prog_def, h_prog_rule_ext_call_def] >>
-  rw[miscTheory.read_bytearray_def] >>
-  PURE_REWRITE_TAC[ONE] >>
-  rw[miscTheory.read_bytearray_def] >>
-  rw[mem_load_byte_def] >>
+  rw[read_bytearray_1, mem_load_byte_def] >>
   rw[Once future_safe_cases] >> disj1_tac >>
   rw[while_pred_def] >>
-  rw[h_prog_rule_while_alt] >>
+  rw[GSYM h_prog_rule_while_alt] >>
   Cases_on ‘n’ >>
   ‘w2n (n2w n' : word8) = n' - 0’ by rw[wordsTheory.w2n_n2w] >>
   drule (INST_TYPE [gamma |-> alpha] while_sem_lem) >> rw[] >>

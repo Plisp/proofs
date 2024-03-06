@@ -56,6 +56,19 @@ reindex : {J I : Set} {A : I → Set} (α : J → I)
 reindex α (p1 , p2) = (α p1 , p2)
 
 {-
+  what models this?
+-}
+
+data infalg : Set where
+  leaf : infalg
+  branch : (ℕ → infalg) → infalg
+
+{- (ℕ→A)→A can only peek at finitely many subtrees by calling ℕ→A -}
+infalg-ind : {A : Set} → A → ((ℕ → A) → A) → infalg → A
+infalg-ind la ba leaf = la
+infalg-ind la ba (branch nb) = ba (λ n → infalg-ind la ba (nb n))
+
+{-
   an empty initial algebra
 -}
 
