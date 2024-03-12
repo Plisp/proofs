@@ -622,7 +622,7 @@ QED
 
 Triviality mux_uncond_set_branch:
   ∀branch.
-  future_safe (mux_set_escape_pred e) (to_ffi branch : (α sem32tree))
+  future_safe (mux_set_escape_pred e) (to_ffi branch)
   ⇒ future_safe (mux_set_escape_pred e)
                 (to_ffi
                  (bind branch (λ(res,s'). if res = NONE
@@ -655,7 +655,7 @@ Triviality mux_set_client_branch:
                 cont =
                 Vis (FFI_call "set_client" [w2w (e + 0xFFFFFFD0w)] []) k2 ∧
                 future_safe (mux_set_escape_pred 0w) (k2 (FFI_return ARB [])))
-  (to_ffi t : (α sem32tree)) ⇒
+  (to_ffi t) ⇒
   future_safe (λcont. ∃k2.
                 e + 0xFFFFFFD0w ≤ w2w n ⇒
                 cont =
@@ -695,8 +695,14 @@ Proof
         Once itree_wbisim_cases] >>
     qmatch_goalsub_abbrev_tac ‘bind t _’ >>
     qmatch_goalsub_abbrev_tac ‘future_safe _ (to_ffi (bind t1 _))’ >>
-    cheat
-   ) >-
+    CONJ_TAC >-
+     (qpat_x_assum ‘future_safe _ _’ kall_tac >> pop_assum kall_tac >>
+      pop_last_assum mp_tac >> qid_spec_tac ‘t’ >> pop_assum kall_tac >>
+      Induct_on ‘strip_tau’ >> rw[] >-
+       (gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()]) >>
+      gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()]) >>
+    qpat_x_assum ‘strip_tau _ _’ kall_tac >> rw[Abbr ‘t’] >>
+    rw[mux_uncond_set_branch]) >-
    (disj2_tac >>
     gvs[Once $ DefnBase.one_line_ify NONE to_ffi_alt, AllCaseEqs()])
 QED
@@ -724,7 +730,7 @@ QED
 
 Triviality mux_return_branch_at:
  ∀branch.
- future_safe (mux_at_pred e) (to_ffi branch : (α sem32tree))
+ future_safe (mux_at_pred e) (to_ffi branch)
  ⇒ future_safe (mux_at_pred e)
                (to_ffi
                 (bind branch (λ(res,s'). if res = NONE
@@ -755,7 +761,7 @@ QED
 
 Triviality mux_return_branch_esc:
  ∀branch.
- future_safe (mux_escape_pred e) (to_ffi branch : (α sem32tree))
+ future_safe (mux_escape_pred e) (to_ffi branch)
  ⇒ future_safe (mux_escape_pred e)
                (to_ffi
                 (bind branch (λ(res,s'). if res = NONE
@@ -783,7 +789,7 @@ Proof
 QED
 
 Theorem escape_pred_to_backslash:
-  ∀t. future_safe (mux_checked_set_escape_pred 0w) (t : α sem32tree)
+  ∀t. future_safe (mux_checked_set_escape_pred 0w) t
       ⇒ (w2w c) ≠ (92w : word32) ∧ (w2w c) ≠ (64w : word32)
       ⇒ future_safe (mux_escape_pred (w2w c)) t
 Proof

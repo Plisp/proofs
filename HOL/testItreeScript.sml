@@ -15,6 +15,10 @@
  * Consider this an equivalent representation more suited to program reasoning, as
  * opposed to compiler correctness proofs.
  *
+ * detail: fix_clock is necessary in proofs as with induction on e.g.(Seq p1 p2)
+ * to prove productivity we need to adjust the clock of p2 to start from the
+ * amount after running p1.
+ *
  * specifications should be *structural*, in terms of observable interaction rather
  * than detailing implementation. but proofs should be *syntax-directed*
  *
@@ -498,8 +502,7 @@ QED
 Theorem even_add2:
   EVEN (n+2) ⇔ EVEN n
 Proof
-  ‘EVEN (n+1+1) ⇔ EVEN (n+2)’ suffices_by metis_tac[EVEN, SUC_ONE_ADD, ADD_SYM] >>
-  rw[]
+  rw[EVEN_ADD]
 QED
 
 Theorem even_spec_plus2:
