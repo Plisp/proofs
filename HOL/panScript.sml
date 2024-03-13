@@ -38,9 +38,19 @@ fun parse_pancake_nosimp q =
     EVAL “(parse_funs_to_ast ^code)”
 end
 
-(* fun omitprinter _ _ sys _ gs d = *)
-(*   sys {gravs=gs,depth=2,binderp=false} o fst o dest_comb; *)
-(* val _ = temp_add_user_printer ("omitprinter", “OMIT x : 32 prog”, omitprinter); *)
+(* add_user_printer docs, sml-mode *)
+fun omitprinter _ _ sys ppfns gs d t =
+let open term_pp_utils term_pp_types smpp
+  val (f , args) = strip_comb t
+  val {add_string,add_break,...} = ppfns : term_pp_types.ppstream_funs
+in
+  block PP.INCONSISTENT 0
+        (add_string "While" >> add_break(1,0) >>
+         sys {gravs=gs,depth= decdepth d,binderp=false} (hd args) >>
+                                         add_string " …")
+end
+
+val _ = temp_add_user_printer("omitprinter", “While _ x : 32 prog”, omitprinter);
 
 (* TODO ring buffer (internal) correctness
    need correctness condition to be 'local' to some memory, write-invariant
@@ -99,6 +109,7 @@ Theorem h_prog_skip[simp] = cj 1 h_prog_def;
 val assign_tac = gvs[Once itree_mrec_alt, Once h_prog_def,
                      h_prog_rule_assign_def, eval_def];
 val strb_tac = rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_store_byte_def];
+Globals.max_print_depth := 21;
 
 (*/ word nonsense
    inst type vars: INST_TYPE [gamma |-> beta, alpha |-> beta, beta |-> gamma]
@@ -320,6 +331,7 @@ QED
    - temporal logic?
  *)
 
+(* XXX what does this do for me again *)
 (* Inductive walk: *)
 (* [~Tau:] (∀t. (walk t responses result ⇒
                  walk (Tau t) responses result)) ∧ *)
@@ -327,19 +339,6 @@ QED
 (*            ⇒ walk (Vis e k) (r::responses) ((e,r)::result)) ∧ *)
 (* [~Ret:] (∀r. walk (Ret r) [] []) *)
 (* End *)
-
-Inductive next:
-  (P (Ret r) ⇒ next P (Ret r)) ∧
-  (P (Tau t) ⇒ next P t) ∧
-  ((∀a. P (k a)) ⇒ next P (Vis e k))
-End
-
-(* RTC of above: AF in CTL *)
-Inductive future:
-  (P t ⇒ future P t) ∧
-  (future P t ⇒ future P (Tau t)) ∧
-  ((∀a. future P (k a)) ⇒ future P (Vis e k))
-End
 
 (* future but with assumption that bytes written back fit in the passed array *)
 Inductive future_safe:
@@ -543,7 +542,7 @@ Proof
 QED
 
 Definition mux_checked_set_escape_pred_def:
-  mux_checked_set_escape_pred (escape : word8) t =
+  mux_checked_set_escape_pred t =
   ((∃uninit k.
      t = Vis (FFI_call "check_num_to_get_chars" [] [uninit]) k ∧
      k (FFI_return ARB [0w]) ≈ Ret (SOME (Return (ValWord 0w))) ∧
@@ -585,7 +584,7 @@ Definition mux_escape_pred_def:
   mux_escape_pred (gchar : word32) t =
   (((gchar = 92w) ⇒ mux_set_escape_pred 1w t) ∧
    ((gchar = 64w) ⇒ mux_set_escape_pred 2w t) ∧
-   ((gchar ≠ 92w ∧ gchar ≠ 64w) ⇒ (mux_checked_set_escape_pred 0w) t))
+   ((gchar ≠ 92w ∧ gchar ≠ 64w) ⇒ mux_checked_set_escape_pred t))
 End
 
 Theorem mux_escape_pred_notau:
@@ -603,7 +602,7 @@ Definition muxrx_pred_def:
     (k1 (FFI_return ARB [c]) ≈
         Vis (FFI_call "get_escape_character" [] [uninit]) k2) ∧
     (* backslash escape case, transitions to zero *)
-    future_safe (mux_checked_set_escape_pred 0w) (k2 (FFI_return ARB [1w])) ∧
+    future_safe mux_checked_set_escape_pred (k2 (FFI_return ARB [1w])) ∧
     future_safe (mux_at_pred (w2w c)) (k2 (FFI_return ARB [2w])) ∧
     future_safe (mux_escape_pred (w2w c)) (k2 (FFI_return ARB [0w]))
   ) ∨
@@ -682,9 +681,8 @@ Proof
 QED
 
 Triviality set_escape_seq:
-  mux_checked_set_escape_pred e (to_ffi t) ⇒
+  mux_checked_set_escape_pred (to_ffi t) ⇒
   mux_checked_set_escape_pred
-  e
   (to_ffi
    (bind t
          (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))))
@@ -709,8 +707,8 @@ QED
 
 Triviality mux_checked_set_branch:
   ∀t.
-  future_safe (mux_checked_set_escape_pred e) (to_ffi t) ⇒
-  future_safe (mux_checked_set_escape_pred e)
+  future_safe mux_checked_set_escape_pred (to_ffi t) ⇒
+  future_safe mux_checked_set_escape_pred
   (to_ffi
    (bind t
          (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))))
@@ -789,7 +787,7 @@ Proof
 QED
 
 Theorem escape_pred_to_backslash:
-  ∀t. future_safe (mux_checked_set_escape_pred 0w) t
+  ∀t. future_safe mux_checked_set_escape_pred t
       ⇒ (w2w c) ≠ (92w : word32) ∧ (w2w c) ≠ (64w : word32)
       ⇒ future_safe (mux_escape_pred (w2w c)) t
 Proof
@@ -828,7 +826,7 @@ Theorem escape_set_branch:
   muxrx_mem (s : (32, α) state)
   ⇒
   future_safe
-  (mux_checked_set_escape_pred 0w : α sem32tree -> bool)
+  (mux_checked_set_escape_pred : α sem32tree -> bool)
   (to_ffi
    (bind
     (itree_mrec h_prog
@@ -1239,9 +1237,9 @@ while (client < clients) {
     var cli_dequeue_used_c = @base + 3;
     var cli_dequeue_used_a = @base + 4;
 
-    strb cli_dequeue_used_c, client;
-    #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 24);
-    var dequeue_used_ret = ldb cli_dequeue_used_c;
+    strb cli_dequeue_used_c, client;  (* vv changed for testing, wasn't valid *)
+    #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 1);
+    var dequeue_used_ret = ldb cli_dequeue_used_a;
 
     while (dequeue_used_ret != 1) {
         // We now want to copy this buffer over to the drv shared ring buffers
@@ -1255,12 +1253,12 @@ while (client < clients) {
         var cli_enqueue_avail_a = @base + 30;
         strb cli_enqueue_avail_a, client;
         // Enqueue buffer back into the client available ring
-        #cli_enqueue_avail(cli_dequeue_used_a, 24, cli_enqueue_avail_a, 1);
+        #cli_enqueue_avail(cli_dequeue_used_a, 1, cli_enqueue_avail_a, 1);
 
         // Continue to next iteration of the loop
         strb cli_dequeue_used_c, client;
-        #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 24);
-        dequeue_used_ret = ldb cli_dequeue_used_c;
+        #dequeue_used(cli_dequeue_used_c, 1, cli_dequeue_used_a, 1);
+        dequeue_used_ret = ldb cli_dequeue_used_a;
     }
 
     client = client + 1;
@@ -1317,32 +1315,31 @@ End
 (*
   muxtx proof
   since this follows a different protocol (reading from the read buffer)
-  I will insert an assumption about that one byte changing
+  I changed dequeue_used_ret to r/w from the contents of cli_dequeue_used_a
+  XXX change capacity back to 24
  *)
 
 Definition muxtx_cli_loop:
-  muxtx_cli_loop s client _ =
+  muxtx_cli_loop s client used_ret =
   (let w = (the_word (s.memory s.base_addr)) in
-     let w' = (the_word (s.memory (s.base_addr + 4w))) in
-       Vis (FFI_call "dequeue_used" [n2w client]
-                     [get_byte (s.base_addr + 4w) w' s.be])
+       Vis (FFI_call "dequeue_used" [n2w client] [used_ret])
            (λ(res : α ffi_result).
               case res of
                 (FFI_return _ [used]) =>
                   if used ≠ 1w
-                  then (Vis (FFI_call "cli_enqueue_avail"
-                                      [get_byte (s.base_addr + 4w) w' s.be]
-                                      [n2w client])
-                            (λres. Ret (INL ())))
+                  then (Vis (FFI_call "cli_enqueue_avail" [used] [n2w client])
+                            (λres. Ret (INL used)))
                   else (Ret (INR (NONE : word32 result option)))))
 End
 
 Definition muxtx_body:
   muxtx_body s (n_clients : num) k =
   let w = (the_word (s.memory (s.base_addr + 4w))) in
-    if k = n_clients then Ret (INR (NONE : word32 result option))
-    else (bind (iter (muxtx_cli_loop s k) ())
-               (λres. Ret (INL (k + 1))))
+    let w' = (the_word (s.memory (s.base_addr + 4w))) in
+      if k = n_clients then Ret (INR (NONE : word32 result option))
+      else (bind (iter (muxtx_cli_loop s k)
+                       (get_byte (s.base_addr + 4w) w' s.be))
+                 (λres. Ret (INL (k + 1))))
 End
 
 Definition muxtx_spec:
@@ -1367,6 +1364,38 @@ End
 
 Definition state1:
   state1 client rest f' h' h s =
+  let subprog =
+      (Seq
+       (StoreByte (Var «cli_dequeue_used_c») (Var «client»))
+       (Seq
+        (ExtCall «dequeue_used»
+                 (Var «cli_dequeue_used_c») (Const 1w)
+                 (Var «cli_dequeue_used_a») (Const 1w))
+        (Dec «dequeue_used_ret»
+             (LoadByte (Var «cli_dequeue_used_a»))
+             (Seq
+              (While
+               (Cmp NotEqual (Var «dequeue_used_ret») (Const 1w))
+               (Dec «cli_enqueue_avail_a»
+                    (Op Add [BaseAddr; Const 30w])
+                    (Seq
+                     (StoreByte (Var «cli_enqueue_avail_a») (Var «client»))
+                     (Seq
+                      (ExtCall «cli_enqueue_avail»
+                               (Var «cli_dequeue_used_a») (Const 1w)
+                               (Var «cli_enqueue_avail_a») (Const 1w))
+                      (Seq
+                       (StoreByte (Var «cli_dequeue_used_c») (Var «client»))
+                       (Seq
+                        (ExtCall «dequeue_used»
+                                 (Var «cli_dequeue_used_c») (Const 1w)
+                                 (Var «cli_dequeue_used_a») (Const 1w))
+                        (Assign «dequeue_used_ret»
+                                (LoadByte
+                                 (Var
+                                  «cli_dequeue_used_a»)))))))))
+              (Assign «client» (Op Add [Var «client»; Const 1w])))))) in
+  (Tau ∘ Tau ∘ Tau)
   (trim_itree
    (tx_ev_pred :sem_vis_event -> α ffi_result -> bool)
    (to_ffi
@@ -1375,57 +1404,7 @@ Definition state1:
       (mrec_cb (h_prog :32 prog # (32, α) state -> (32, α) mtree))
       (bind
        (h_prog
-        (Seq
-         (StoreByte (Var «cli_dequeue_used_c»)
-                    (Var «client»))
-         (Seq
-          (ExtCall «dequeue_used»
-                   (Var «cli_dequeue_used_c») (Const 1w)
-                   (Var «cli_dequeue_used_a») (Const 24w))
-          (Dec «dequeue_used_ret»
-               (LoadByte (Var «cli_dequeue_used_c»))
-               (Seq
-                (While
-                 (Cmp NotEqual
-                      (Var «dequeue_used_ret»)
-                      (Const 1w))
-                 (Dec «cli_enqueue_avail_a»
-                      (Op Add [BaseAddr; Const 30w])
-                      (Seq
-                       (StoreByte
-                        (Var
-                         «cli_enqueue_avail_a»)
-                        (Var «client»))
-                       (Seq
-                        (ExtCall
-                         «cli_enqueue_avail»
-                         (Var
-                          «cli_dequeue_used_a»)
-                         (Const 24w)
-                         (Var
-                          «cli_enqueue_avail_a»)
-                         (Const 1w))
-                        (Seq
-                         (StoreByte
-                          (Var
-                           «cli_dequeue_used_c»)
-                          (Var «client»))
-                         (Seq
-                          (ExtCall
-                           «dequeue_used»
-                           (Var
-                            «cli_dequeue_used_c»)
-                           (Const 1w)
-                           (Var
-                            «cli_dequeue_used_a»)
-                           (Const 24w))
-                          (Assign
-                           «dequeue_used_ret»
-                           (LoadByte
-                            (Var
-                             «cli_dequeue_used_c»)))))))))
-                (Assign «client»
-                        (Op Add [Var «client»; Const 1w]))))),
+        (subprog,
          s with
            <|locals :=
              s.locals |+ («clients»,ValWord 0w) |+
@@ -1442,11 +1421,12 @@ Definition state1:
               («cli_dequeue_used_a»,
                 ValWord (s.base_addr + 4w));
              memory :=
-             write_bytearray (s.base_addr + 2w) [h']
-                             (write_bytearray (s.base_addr + 1w) [0w]
-                                              (write_bytearray s.base_addr [h]
-                                                               s.memory s.memaddrs s.be)
-                                              s.memaddrs s.be) s.memaddrs s.be;
+             write_bytearray
+             (s.base_addr + 2w) [h']
+             (write_bytearray (s.base_addr + 1w) [0w]
+                              (write_bytearray s.base_addr [h]
+                                               s.memory s.memaddrs s.be)
+                              s.memaddrs s.be) s.memaddrs s.be;
              ffi := f'|>))
        (λ(x :32 result option # (32, α) state).
           bind
@@ -1519,95 +1499,19 @@ Definition state1:
                       (Op Add
                           [BaseAddr;
                            Const 4w])
-                      (Seq
-                       (StoreByte
-                        (Var
-                         «cli_dequeue_used_c»)
-                        (Var
-                         «client»))
-                       (Seq
-                        (ExtCall
-                         «dequeue_used»
-                         (Var
-                          «cli_dequeue_used_c»)
-                         (Const
-                          1w)
-                         (Var
-                          «cli_dequeue_used_a»)
-                         (Const
-                          24w))
-                        (Dec
-                         «dequeue_used_ret»
-                         (LoadByte
-                          (Var
-                           «cli_dequeue_used_c»))
-                         (Seq
-                          (While
-                           (Cmp
-                            NotEqual
-                            (Var
-                             «dequeue_used_ret»)
-                            (Const
-                             1w))
-                           (Dec
-                            «cli_enqueue_avail_a»
-                            (Op
-                             Add
-                             [BaseAddr;
-                              Const
-                              30w])
-                            (Seq
-                             (StoreByte
-                              (Var
-                               «cli_enqueue_avail_a»)
-                              (Var
-                               «client»))
-                             (Seq
-                              (ExtCall
-                               «cli_enqueue_avail»
-                               (Var
-                                «cli_dequeue_used_a»)
-                               (Const
-                                24w)
-                               (Var
-                                «cli_enqueue_avail_a»)
-                               (Const
-                                1w))
-                              (Seq
-                               (StoreByte
-                                (Var
-                                 «cli_dequeue_used_c»)
-                                (Var
-                                 «client»))
-                               (Seq
-                                (ExtCall
-                                 «dequeue_used»
-                                 (Var
-                                  «cli_dequeue_used_c»)
-                                 (Const
-                                  1w)
-                                 (Var
-                                  «cli_dequeue_used_a»)
-                                 (Const
-                                  24w))
-                                (Assign
-                                 «dequeue_used_ret»
-                                 (LoadByte
-                                  (Var
-                                   «cli_dequeue_used_c»)))))))))
-                          (Assign «client» (Op Add [Var «client»; Const 1w]))))))))
+                      subprog))
                     res s' : (32 result option #
-                                                        (32, α) state,
-                                                        32 prog #
-                                                        (32, α) state +
-                                                        sem_vis_event #
-                                                        (α ffi_result ->
-                                                         32 result option #
-                                                         (32, α) state),
-                                                        32 prog #
-                                                        (32, α) state +
-                                                        32 result option #
-                                                        (32, α) state) itree) x)
+                                 (32, α) state,
+                              32 prog #
+                                 (32, α) state +
+                              sem_vis_event #
+                                            (α ffi_result ->
+                                               32 result option #
+                                               (32, α) state),
+                              32 prog #
+                                 (32, α) state +
+                              32 result option #
+                                 (32, α) state) itree) x)
                 (λx.
                    case x of
                      INL a =>
@@ -1634,12 +1538,233 @@ Definition state1:
                              32 result option # (32, α) state) itree))))
 End
 
+Definition state2:
+  state2 client rest f' h' h s ffi_upd h'' =
+  let oldmem = write_bytearray ((s :(32, α) state).base_addr + (2w :word32))
+             [(h' :word8)]
+             (write_bytearray (s.base_addr + (1w :word32)) [(0w :word8)]
+                (write_bytearray s.base_addr [(h :word8)] s.memory s.memaddrs
+                                 s.be) s.memaddrs s.be) s.memaddrs s.be
+  in
+  let state2prog : 32 prog =
+        (Dec «dequeue_used_ret»
+             (LoadByte
+              (Var «cli_dequeue_used_a» :32 exp))
+             (Seq
+              (While
+               (Cmp NotEqual
+                    (Var «dequeue_used_ret» :32 exp)
+                    (Const (1w :word32) :32 exp))
+               (Dec «cli_enqueue_avail_a»
+                    (Op Add
+                        [(BaseAddr :32 exp);
+                         (Const (30w :word32) :32 exp)])
+                    (Seq
+                     (StoreByte
+                      (Var «cli_enqueue_avail_a» :
+                       32 exp)
+                      (Var «client» :32 exp))
+                     (Seq
+                      (ExtCall «cli_enqueue_avail»
+                               (Var
+                                «cli_dequeue_used_a» :
+                                32 exp)
+                               (Const (1w :word32) :
+                                32 exp)
+                               (Var
+                                «cli_enqueue_avail_a» :
+                                32 exp)
+                               (Const (1w :word32) :
+                                32 exp))
+                      (Seq
+                       (StoreByte
+                        (Var «cli_dequeue_used_c»)
+                        (Var «client»))
+                       (Seq
+                        (ExtCall «dequeue_used»
+                         (Var «cli_dequeue_used_c») (Const 1w)
+                         (Var «cli_dequeue_used_a») (Const 1w))
+                        (Assign «dequeue_used_ret»
+                         (LoadByte (Var «cli_dequeue_used_a»)))))))))
+              (Assign «client» (Op Add [(Var «client»);(Const 1w)]))))
+  in
+  Tau
+  (Tau
+   (trim_itree (tx_ev_pred :sem_vis_event -> α ffi_result -> bool)
+               (to_ffi
+                (bind
+                 (iter
+                  (mrec_cb
+                   (h_prog :32 prog # (32, α) state -> (32, α) mtree))
+                  (bind
+                   (h_prog (state2prog,
+                            (s :(32, α) state) with
+                            <|locals :=
+                              s.locals |+
+                               («clients»,ValWord (0w :word32)) |+
+                               («num_clients_a»,ValWord s.base_addr) |+
+                               («clients»,
+                                 ValWord (w2w (h :word8) :word32)) |+
+                               («drv_was_empty_c»,
+                                 ValWord (s.base_addr + (1w :word32))) |+
+                               («drv_was_empty_a»,
+                                 ValWord (s.base_addr + (2w :word32))) |+
+                               («was_empty»,
+                                 ValWord (w2w (h' :word8) :word32)) |+
+                               («client»,
+                                 ValWord (n2w (client :num) :word32)) |+
+                               («cli_dequeue_used_c»,
+                                 ValWord (s.base_addr + (3w :word32))) |+
+                               («cli_dequeue_used_a»,
+                                 ValWord (s.base_addr + (4w :word32)));
+                              memory :=
+                              write_bytearray
+                              (s.base_addr + (4w :word32))
+                              [(h'' :word8)]
+                              (write_bytearray
+                               (s.base_addr + (3w :word32))
+                               [(w2w (n2w client :word32) :word8)]
+                               (oldmem :word32 -> 32 word_lab)
+                               s.memaddrs s.be) s.memaddrs s.be;
+                              ffi := (ffi_upd :α ffi_state)|>))
+                   (λ(x :32 result option # (32, α) state).
+                      bind
+                      (revert_binding «cli_dequeue_used_a»
+                                      (s with
+                                         <|locals :=
+                                           s.locals |+
+                                            («clients»,ValWord (0w :word32)) |+
+                                            («num_clients_a»,
+                                              ValWord s.base_addr) |+
+                                            («clients»,ValWord (w2w h :word32)) |+
+                                            («drv_was_empty_c»,
+                                              ValWord
+                                              (s.base_addr + (1w :word32))) |+
+                                            («drv_was_empty_a»,
+                                              ValWord
+                                              (s.base_addr + (2w :word32))) |+
+                                            («was_empty»,
+                                              ValWord (w2w h' :word32)) |+
+                                            («client»,
+                                              ValWord (n2w client :word32)) |+
+                                            («cli_dequeue_used_c»,
+                                              ValWord
+                                              (s.base_addr + (3w :word32)));
+                                           memory := oldmem;
+                                           ffi := (f' :α ffi_state)|>) x :
+                       (32, α) mtree)
+                      (λ(x :32 result option # (32, α) state).
+                         bind
+                         (revert_binding
+                          «cli_dequeue_used_c»
+                          (s with
+                             <|locals :=
+                               s.locals |+
+                                («clients», ValWord (0w :word32)) |+
+                                («num_clients_a», ValWord s.base_addr) |+
+                                («clients», ValWord (w2w h :word32)) |+
+                                («drv_was_empty_c»,
+                                 ValWord (s.base_addr + (1w :word32))) |+
+                                («drv_was_empty_a»,
+                                ValWord (s.base_addr + (2w :word32))) |+
+                                («was_empty», ValWord (w2w h' :word32)) |+
+                                («client», ValWord (n2w client :word32));
+                               memory := oldmem; ffi := f'|>)
+                          x :(32, α) mtree)
+                         (λ(x :32 result option # (32, α) state).
+                            bind
+                            ((λ((res :32 result option),
+                                (s' :(32, α) state)).
+                                (h_prog_whilebody_cb
+                                 (Dec «cli_dequeue_used_c»
+                                  (Op Add [BaseAddr;(Const 3w)])
+                                  (Dec «cli_dequeue_used_a»
+                                   (Op Add [BaseAddr; Const 4w])
+                                   (Seq
+                                    (StoreByte
+                                     (Var «cli_dequeue_used_c»)
+                                     (Var «client»))
+                                    (Seq
+                                     (ExtCall «dequeue_used»
+                                      (Var «cli_dequeue_used_c») (Const 1w)
+                                      (Var «cli_dequeue_used_a») (Const 1w))
+                                     state2prog))))
+                                 res s'))
+                             x)
+                            (λ(x :32 prog # (32, α) state +
+                               32 result option #
+                                  (32, α) state).
+                               case x of
+                                 INL a =>
+                                   Tau
+                                   (iter
+                                    (λ((p' :32 prog),
+                                       (s' :(32, α) state)).
+                                       (h_prog_while_cb
+                                        (p',s')
+                                        (case FLOOKUP s'.locals «client»
+                                         of
+                                          SOME (ValWord w1) =>
+                                            (case FLOOKUP s'.locals «clients»
+                                            of SOME (ValWord w2) =>
+                                           SOME (ValWord
+                                                (if w1 < w2 then 1w else 0w))
+                                            | _ => NONE)
+                                         | _ => (NONE :32 v option)) :
+                                        (32
+                                         result
+                                         option
+                                         #
+                                         (32, α)
+                                         state,
+                                         32 prog
+                                            #
+                                            (32, α)
+                                            state +
+                                         sem_vis_event
+                                         #
+                                         (α
+                                          ffi_result
+                                          ->
+                                          32
+                                          result
+                                          option
+                                          #
+                                          (32, α)
+                                          state),
+                                         32 prog
+                                            #
+                                            (32, α)
+                                            state +
+                                         32
+                                         result
+                                         option
+                                         #
+                                         (32, α)
+                                         state)
+                                        itree))
+                                    a)
+                               | (INR b :
+                                  32 prog #
+                                     (32, α) state +
+                                  32 result option #
+                                     (32, α) state) =>
+                                   (Ret b :(32, α) mtree)))))))
+                 (rest :32 result option # (32, α) state ->
+                           (32 result option # (32, α) state,
+                            sem_vis_event #
+                                          (α ffi_result ->
+                                             32 result option # (32, α) state),
+                            32 result option # (32, α) state) itree)))))
+End
+
 val vis_tac = irule itree_wbisim_vis >> Cases;
 
 Theorem test:
   (muxtx_mem s) ⇒ trim_itree tx_ev_pred (muxtx_sem s) ≈ muxtx_spec s
 Proof
   rw[muxtx_sem_def, muxtx_mem_assms, muxtx_spec, itree_evaluate_alt] >>
+  rw[dec_lifted] >>
   rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
   rw[read_bytearray_1, mem_load_byte_def] >>
   subgoal ‘byte_align s.base_addr = s.base_addr ∧
@@ -1663,6 +1788,7 @@ Proof
   gvs[write_bytearray_preserve_words,load_write_bytearray_other,mem_has_word_def] >>
   rw[mem_load_byte_def] >>
   vis_tac >> rw[eval_def] >> Cases_on ‘l’ >>
+  simp[dec_lifted, eval_def] >>
   gvs[write_bytearray_preserve_words,load_write_bytearray_thm2,mem_has_word_def] >>
   qmatch_goalsub_abbrev_tac ‘bind _ rest’ >>
   PURE_ONCE_REWRITE_TAC[
@@ -1670,80 +1796,119 @@ Proof
              (iter (muxtx_body s (w2n h)) (w2n (0w : word32)))”, rw[])] >>
   qmatch_goalsub_abbrev_tac ‘While _ loop’ >>
   (* we want for each value of clients - client (0)
-     - restrictions on state
-     - dequeue_used and cli_enqueue_avail to correspond
+     ∀rreturns-  ∃client st either kr R|≈ kr >>
+     (≈ when after state 1 ∧ used_ret = 1 ∧ exiting)
+     (1R when after state 1 ∧ used_ret = 1 ∧ going next client)
+     (2R when after state 1 ∧ used_ret = 0)
+     (1R when after state 2 always)
    *)
+  ‘w2n h ≠ 0’ by cheat >>
+  qmatch_goalsub_abbrev_tac ‘bind (iter _ _) cleanup’ >>
   irule itree_wbisim_coind_upto >>
   qexists_tac
   ‘λprog spec.
      ∃client.
-    client ≤ (w2n h)
-    ∧
-    prog = (state1 client rest f' h' h s)
-    ∧
-    spec =
-    (trim_itree tx_ev_pred
-                (bind (iter (muxtx_body s (w2n h)) client)
-                      (λres.
-                         if h' = 1w then
-                           Vis (FFI_call "notify_driver" [] [])
-                               (λres. Ret (SOME (Return (ValWord 0w))))
-                         else Ret (SOME (Return (ValWord 0w))))))’ >>
+    client < (w2n h) ∧
+    (prog = (state1 client rest f' h' h s) ∧
+     spec = (trim_itree tx_ev_pred
+                        (bind (iter (muxtx_body s (w2n h)) client)
+                              (λres.
+                                 if h' = 1w then
+                                   Vis (FFI_call "notify_driver" [] [])
+                                       (λres. Ret (SOME (Return (ValWord 0w))))
+                                 else Ret (SOME (Return (ValWord 0w))))))
+     ∨
+     ∃ffi_upd h''.
+      h'' ≠ 1w ∧
+      prog = (state2 client rest f' h' h s ffi_upd h'') ∧
+      spec = Vis (FFI_call "cli_enqueue_avail" [h''] [n2w client])
+                 (λres.
+                    if (case res of
+                          FFI_return _ bs => LENGTH bs = 1
+                        | FFI_final _ => F)
+                    then Tau (trim_itree
+                              tx_ev_pred
+                              (bind
+                               (bind
+                                (bind (iter (muxtx_cli_loop s client) h'')
+                                      (λres. Ret (INL (client + 1))))
+                                (λx.
+                                   case x of
+                                     INL a => Tau (iter (muxtx_body s (w2n h)) a)
+                                   | INR b => Ret b)) cleanup))
+                    else Ret (SOME Error)))’ >>
   rpt strip_tac >-
-   (disj2_tac >> qunabbrev_tac ‘loop’ >>
-    fs[state1] >>
-    cheat >>
-    disj1_tac >>
-    qmatch_goalsub_abbrev_tac ‘bind (iter _ _) cleanup’ >>
-    simp[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
-    simp[Once itree_iter_thm] >>
-    simp[Once itree_iter_thm] >>
-    ‘(n2w client : word32) < w2w h’ by cheat >>
-    simp[eval_def, asmTheory.word_cmp_def] >>
-    simp[Once h_prog_def, h_prog_rule_dec_alt] >>
-    simp[eval_def, wordLangTheory.word_op_def] >>
-    simp[Once h_prog_def, h_prog_rule_dec_alt] >>
-    simp[eval_def, wordLangTheory.word_op_def] >>
+   (or2_tac >> qunabbrev_tac ‘loop’ >> gvs[] >>
+    fs[Once state1] >>
+    rw[Once h_prog_def, h_prog_rule_seq_def] >>
+    rw[Once h_prog_def, h_prog_rule_store_byte_def] >>
+    ‘byte_align (s.base_addr + 3w) = s.base_addr’ by fs[align_thm] >>
+    gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>
+    rw[Once h_prog_def, h_prog_rule_seq_def] >>
 
-    simp[Once h_prog_def, h_prog_rule_seq_def] >>
-    rw[]
-    cheat
+    rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
+    rw[read_bytearray_1] >>
+    qmatch_goalsub_abbrev_tac
+    ‘option_CASE (mem_load_byte (write_bytearray _ _ oldmem _ _) _ _ _) _ _’ >>
+    subgoal ‘mem_has_word oldmem (s.base_addr + 3w)’ >- cheat >>
+    gvs[load_write_bytearray_thm2, mem_has_word_def] >>
+    subgoal ‘byte_align (s.base_addr + 4w) = s.base_addr + 4w ∧
+             ∃w. s.memory (s.base_addr + 4w) = Word w’ >- cheat >>
+    (* reading 4w *)
+    subgoal ‘mem_load_byte
+             (write_bytearray
+              (s.base_addr + (3w :word32))
+              [(w2w (n2w client :word32) :word8)]
+              (oldmem :word32 -> 32 word_lab)
+              s.memaddrs s.be) s.memaddrs s.be
+             (s.base_addr + (4w :word32))
+             = SOME (get_byte (s.base_addr + 4w) w'' s.be)’ >- cheat >>
+    rw[] >>
+    rw[Once itree_iter_thm, muxtx_body] >>
+    rw[Once itree_iter_thm, muxtx_cli_loop] >-
+     (cheat) >>
+    Cases_on ‘r’ >> rw[] >>
+    Cases_on ‘l’ >> gvs[] >>
+    Cases_on ‘h'' = 1w’ >-
+     (* *)
+     (cheat) >>
+    disj1_tac >> qexists_tac ‘client’ >> gvs[] >>
+    qmatch_goalsub_abbrev_tac ‘_ ∧ spec’ >>
+    rw[Once h_prog_def, h_prog_rule_dec_def] >>
+    simp[eval_def, wordLangTheory.word_op_def] >>
+    qmatch_goalsub_abbrev_tac ‘(_ (mem_load_byte mem2 _ _ _) _ _)’ >>
+    subgoal ‘mem_load_byte mem2 s.memaddrs s.be (s.base_addr + 4w)
+             = SOME (h'')’ >- cheat >>
+    rw[] >>
+    rw[Once h_prog_def, h_prog_rule_seq_def] >>
+    rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
+    simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+    ‘(w2w h'' : word32) ≠ 1w’ by cheat >>
+    simp[eval_def, asmTheory.word_cmp_def] >>
    ) >>
-   >> (* Globals.max_print_depth := 20 *)
-  qexists_tac ‘0’ >> rw[]
+  simp[] >>
+  qexists_tac ‘0’ >> simp[] >>
+  rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
+  simp[Once itree_iter_thm] >> simp[Once itree_iter_thm] >>
+  ‘0w < (w2w h : word32)’ by cheat >>
+  simp[eval_def, asmTheory.word_cmp_def] >>
+  rw[Abbr ‘loop’] >>
+  rw[Once h_prog_def, h_prog_rule_dec_alt] >>
+  simp[eval_def, wordLangTheory.word_op_def] >>
+  rw[Once h_prog_def, h_prog_rule_dec_alt] >>
+  simp[eval_def, wordLangTheory.word_op_def] >>
+  gvs[state1]
 QED
 
-∃e k k'. strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧  (∀r. R (k r) (k' r))
+Globals.max_print_depth := 250;
 Theorem test:
-  (trim_itree tx_ev_pred (iter (muxtx_body s (w2n h)) (w2n 0w))) = ARB
+  client < w2n h ⇒
+  trim_itree tx_ev_pred
+  (bind (iter (muxtx_body s (w2n h)) client) cleanup) = ARB
 Proof
   simp[Once itree_iter_thm, muxtx_body] >>
-  ‘h ≠ 0w’ by cheat >>
   simp[Once itree_iter_thm, muxtx_cli_loop] >>
 QED
-
-for equal case later
-Cases_on ‘client = w2n h’ >-
-   (or3_tac >>
-    simp[Once itree_iter_thm, muxtx_body] >>
-    simp[itree_mrec_alt, Once h_prog_def, h_prog_rule_while_alt] >>
-    simp[Once itree_iter_thm] >>
-    simp[Once itree_iter_thm] >>
-    ‘n2w (w2n h) = (w2w h : word32)’ by cheat >>
-    simp[eval_def, asmTheory.word_cmp_def] >>
-    qunabbrev_tac ‘rest’ >>
-    simp[itree_mrec_alt, Once h_prog_def, h_prog_rule_cond_def] >>
-    Cases_on ‘h' = 1w’ >-
-     (simp[eval_def, asmTheory.word_cmp_def] >>
-      rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
-      vis_tac >> rw[] >> gvs[] >>
-      rw[Once itree_mrec_alt, Once h_prog_def,
-         h_prog_rule_return_def, size_of_shape_def, shape_of_def]) >>
-    simp[eval_def, asmTheory.word_cmp_def] >>
-    ‘w2w h' ≠ 1w : word32’ by cheat >> simp[] >>
-    rw[Once itree_mrec_alt, Once h_prog_def,
-       h_prog_rule_return_def, size_of_shape_def, shape_of_def])
-   simp[]
 
 
 
