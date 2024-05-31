@@ -67,6 +67,8 @@ val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
 val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
 
+val vis_tac = irule itree_wbisim_vis >> Cases;
+
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the capital algebra
    where f = structure map (into primed itree), seed = itree algebra instance
@@ -170,6 +172,37 @@ Definition iterate_def:
   iterate emit succ zero =
   itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
+
+(* coinduction upto stripping finite taus, useful for iter and friends *)
+Inductive after_taus:
+  (R x y ⇒ after_taus R x y) ∧
+  (after_taus R x y ⇒ after_taus R (Tau x) y) ∧
+  (after_taus R x y ⇒ after_taus R x (Tau y)) ∧
+  ((∀r. after_taus R (k r) (k' r)) ⇒ after_taus R (Vis e k) (Vis e k'))
+End
+
+Theorem itree_coind_after_taus:
+  ∀R. (∀t t'.
+         R t t' ⇒
+         (∃t2 t3.
+            t = Tau t2 ∧ t' = Tau t3 ∧ (after_taus R t2 t3 ∨ itree_wbisim t2 t3)) ∨
+         (∃e k k'.
+            strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
+            ∀r. after_taus R (k r) (k' r) ∨ itree_wbisim (k r) (k' r)) ∨
+         (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r)) ∨
+         itree_wbisim t t') ⇒
+      ∀t t'. R t t' ⇒ itree_wbisim t t'
+Proof
+  rpt strip_tac >>
+  irule itree_wbisim_coind_upto >>
+  qexists ‘after_taus R’ >>
+  reverse conj_tac
+  >- metis_tac[after_taus_rules] >>
+  pop_assum kall_tac >>
+  Induct_on ‘after_taus’ >>
+  rw[] >>
+  metis_tac[after_taus_rules]
+QED
 
 open panItreeSemTheory;
 
