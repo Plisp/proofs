@@ -16,6 +16,23 @@ Inductive even_list:
   (∀x xs. EVEN x ∧ even_list xs ⇒ even_list (x::xs))
 End
 
+CoInductive inf:
+  inf l ⇒ inf (e:::l)
+End
+
+Theorem test:
+  inf l ⇒ ¬(LFINITE l)
+Proof
+  spose_not_then assume_tac >>
+  pop_assum mp_tac >>
+  qid_spec_tac ‘l’ >>
+  Induct_on ‘LFINITE l’ >>
+  gvs[Once inf_cases] >>
+  rw[] >>
+  pop_last_assum kall_tac >>
+  rw[Once inf_cases] >>
+QED
+
 (* F(X) = {[]} ∪ {y | y = x:: xs ∧ EVEN x ∧ xs ∈ X} *)
 (* F(X) ⊆ X = {[]} ∪ {y | y = x:: xs ∧ EVEN x ∧ xs ∈ X} ⊆ X *)
 (* = [] ∈ X ∧ (!y x xs. y = x::xs ∧ EVEN x ∧ xs ∈ X ⇒ y ∈ X *)

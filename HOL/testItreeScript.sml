@@ -67,8 +67,6 @@ val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
 val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
 
-val vis_tac = irule itree_wbisim_vis >> Cases;
-
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the capital algebra
    where f = structure map (into primed itree), seed = itree algebra instance
@@ -130,6 +128,8 @@ Proof
   metis_tac[strip_tau_cases, itree_wbisim_cases]
 QED
 
+val vis_tac = irule itree_wbisim_vis >> Cases;
+
 (*/ coinduction
    for greater structural variation
  *)
@@ -181,6 +181,8 @@ Inductive after_taus:
   ((∀r. after_taus R (k r) (k' r)) ⇒ after_taus R (Vis e k) (Vis e k'))
 End
 
+Theorem after_tau_l = cj 2 after_taus_rules;
+Theorem after_tau_r = cj 3 after_taus_rules;
 Theorem itree_coind_after_taus:
   ∀R. (∀t t'.
          R t t' ⇒

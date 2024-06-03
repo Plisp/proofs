@@ -1924,28 +1924,29 @@ Proof
   gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>
   rw[Once h_prog_def, h_prog_rule_seq_def] >>
 
-  irule itree_wbisim_coind_upto >>
+  irule itree_coind_after_taus >>
   qexists_tac
   ‘λprog spec.
-     ∃client.
-    ((prog = (state1 client rest f' was_empty n_clients s) ∧
-      ∃b.
-       spec = trim_itree tx_ev_pred
+     ∃client s.
+    (muxtx_mem s) ∧
+    ((∃f. prog = (state1 client rest f was_empty n_clients s)) ∧
+     ∃b.
+      spec = trim_itree tx_ev_pred
+                        (bind
                          (bind
-                          (bind
-                           (bind (iter (muxtx_cli_loop s client) b)
-                                 (λres. Ret (INL (client + 1))))
-                           (λx.
-                              case x of
-                                INL a => Tau (iter (muxtx_body s (w2n n_clients)) a)
-                              | INR b => Ret b))
-                          (λres.
-                             if was_empty = 1w then
-                               Vis (FFI_call "notify_driver" [] [])
-                                   (λres. Ret (SOME (Return (ValWord 0w))))
-                             else Ret (SOME (Return (ValWord 0w))))))
-     ∨
-     ∃mem2 ffi_upd used_a used_ret.
+                          (bind (iter (muxtx_cli_loop s client) b)
+                                (λres. Ret (INL (client + 1))))
+                          (λx.
+                             case x of
+                               INL a => Tau (iter (muxtx_body s (w2n n_clients)) a)
+                             | INR b => Ret b))
+                         (λres.
+                            if was_empty = 1w then
+                              Vis (FFI_call "notify_driver" [] [])
+                                  (λres. Ret (SOME (Return (ValWord 0w))))
+                            else Ret (SOME (Return (ValWord 0w)))))
+      ∨
+      ∃mem2 ffi_upd used_a used_ret.
       used_a ≠ 1w ∧
       prog = (state2 client rest mem2 was_empty n_clients s ffi_upd used_ret) ∧
       spec =
@@ -1967,29 +1968,30 @@ Proof
              else Ret (SOME Error)))’ >>
   rpt strip_tac >- cheat
    (disj2_tac >> gvs[] >-
-     (fs[Once state1] >>
+     (fs[muxtx_mem_assms, Once state1] >>
       rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
       rw[read_bytearray_1] >>
       qmatch_goalsub_abbrev_tac
       ‘option_CASE (mem_load_byte (write_bytearray _ _ oldmem _ _) _ _ _) _ _’ >>
-      subgoal ‘mem_has_word oldmem (s.base_addr + 3w)’ >- cheat >>
+      subgoal ‘mem_has_word oldmem (s'.base_addr + 3w)’ >- cheat >>
       gvs[load_write_bytearray_thm2, mem_has_word_def] >>
-      subgoal ‘byte_align (s.base_addr + 4w) = s.base_addr + 4w ∧
-               ∃w. s.memory (s.base_addr + 4w) = Word w’ >- cheat >>
+      subgoal ‘byte_align (s'.base_addr + 4w) = s'.base_addr + 4w ∧
+               ∃w. s'.memory (s'.base_addr + 4w) = Word w’ >- cheat >>
       (* reading 4w *)
       subgoal ‘mem_load_byte
                (write_bytearray
-                (s.base_addr + (3w :word32))
+                (s'.base_addr + (3w :word32))
                 [(w2w (n2w client :word32) :word8)]
                 (oldmem :word32 -> 32 word_lab)
-                s.memaddrs s.be) s.memaddrs s.be
-               (s.base_addr + (4w :word32))
-               = SOME (get_byte (s.base_addr + 4w) w'' s.be)’ >- cheat >>
+                s'.memaddrs s'.be) s'.memaddrs s'.be
+               (s'.base_addr + (4w :word32))
+               = SOME (get_byte (s'.base_addr + 4w) w'' s'.be)’ >- cheat >>
       rw[] >>
       disj1_tac >>
       rw[Once itree_iter_thm, muxtx_cli_loop] >-
        (cheat) >-
        (cheat) >>
+      qmatch_goalsub_abbrev_tac ‘after_taus pred _ _’ >>
       Cases_on ‘r’ >> rw[] >>
       Cases_on ‘l’ >> gvs[] >>
       rename1 ‘if used_ret ≠ 1w then _ else _’ >>
@@ -1998,7 +2000,7 @@ Proof
        (rw[h_prog_def, h_prog_rule_dec_def] >>
         simp[eval_def, wordLangTheory.word_op_def] >>
         qmatch_goalsub_abbrev_tac ‘(_ (mem_load_byte mem2 _ _ _) _ _)’ >>
-        subgoal ‘mem_load_byte mem2 s.memaddrs s.be (s.base_addr + 4w)
+        subgoal ‘mem_load_byte mem2 s'.memaddrs s'.be (s'.base_addr + 4w)
                  = SOME (1w)’ >- cheat >>
         rw[] >>
         rw[h_prog_def, h_prog_rule_seq_def] >>
@@ -2015,27 +2017,27 @@ Proof
           ‘(res_var
             (res_var
              (res_var
-              (s.locals |+
+              (s'.locals |+
                 («clients»,ValWord 0w) |+
-                («num_clients_a», ValWord s.base_addr) |+
+                («num_clients_a», ValWord s'.base_addr) |+
                 («clients»,ValWord (w2w n_clients)) |+
-                («drv_was_empty_c», ValWord (s.base_addr + 1w)) |+
-                («drv_was_empty_a», ValWord (s.base_addr + 2w)) |+
+                («drv_was_empty_c», ValWord (s'.base_addr + 1w)) |+
+                («drv_was_empty_a», ValWord (s'.base_addr + 2w)) |+
                 («was_empty», ValWord (w2w was_empty)) |+
                 («client»,ValWord (n2w client)) |+
-                («cli_dequeue_used_c», ValWord (s.base_addr + 3w)) |+
-                («cli_dequeue_used_a», ValWord (s.base_addr + 4w)) |+
+                («cli_dequeue_used_c», ValWord (s'.base_addr + 3w)) |+
+                («cli_dequeue_used_a», ValWord (s'.base_addr + 4w)) |+
                 («dequeue_used_ret»,ValWord 1w) |+
                 («client», ValWord (n2w client + 1w)))
-              («dequeue_used_ret», FLOOKUP s.locals «dequeue_used_ret»))
-             («cli_dequeue_used_a», FLOOKUP s.locals «cli_dequeue_used_a»))
-            («cli_dequeue_used_c», FLOOKUP s.locals «cli_dequeue_used_c»))
-           = (s.locals |+
+              («dequeue_used_ret», FLOOKUP s'.locals «dequeue_used_ret»))
+             («cli_dequeue_used_a», FLOOKUP s'.locals «cli_dequeue_used_a»))
+            («cli_dequeue_used_c», FLOOKUP s'.locals «cli_dequeue_used_c»))
+           = (s'.locals |+
                («clients»,ValWord 0w) |+
-               («num_clients_a», ValWord s.base_addr) |+
+               («num_clients_a», ValWord s'.base_addr) |+
                («clients»,ValWord (w2w n_clients)) |+
-               («drv_was_empty_c», ValWord (s.base_addr + 1w)) |+
-               («drv_was_empty_a», ValWord (s.base_addr + 2w)) |+
+               («drv_was_empty_c», ValWord (s'.base_addr + 1w)) |+
+               («drv_was_empty_a», ValWord (s'.base_addr + 2w)) |+
                («was_empty», ValWord (w2w was_empty)) |+
                («client», ValWord (n2w client + 1w)))’ by cheat >>
           simp[] >>
@@ -2063,6 +2065,7 @@ Proof
                h_prog_rule_return_def, size_of_shape_def])) >>
         (* continue loop for client + 1 *)
         disj1_tac >>
+        rpt (irule after_tau_l) >> irule after_tau_r >>
         rw[h_prog_rule_while_alt] >>
         rw[Once itree_iter_thm] >> rw[Once itree_iter_thm] >>
         simp[eval_def, asmTheory.word_cmp_def] >>
@@ -2072,31 +2075,31 @@ Proof
         ‘(res_var
           (res_var
            (res_var
-            (s.locals |+
+            (s'.locals |+
               («clients»,ValWord 0w) |+
-              («num_clients_a», ValWord s.base_addr) |+
+              («num_clients_a», ValWord s'.base_addr) |+
               («clients»,ValWord (w2w n_clients)) |+
-              («drv_was_empty_c», ValWord (s.base_addr + 1w)) |+
-              («drv_was_empty_a», ValWord (s.base_addr + 2w)) |+
+              («drv_was_empty_c», ValWord (s'.base_addr + 1w)) |+
+              («drv_was_empty_a», ValWord (s'.base_addr + 2w)) |+
               («was_empty», ValWord (w2w was_empty)) |+
               («client»,ValWord (n2w client)) |+
-              («cli_dequeue_used_c», ValWord (s.base_addr + 3w)) |+
-              («cli_dequeue_used_a», ValWord (s.base_addr + 4w)) |+
+              («cli_dequeue_used_c», ValWord (s'.base_addr + 3w)) |+
+              («cli_dequeue_used_a», ValWord (s'.base_addr + 4w)) |+
               («dequeue_used_ret»,ValWord 1w) |+
               («client», ValWord (n2w client + 1w)))
-            («dequeue_used_ret», FLOOKUP s.locals «dequeue_used_ret»))
-           («cli_dequeue_used_a», FLOOKUP s.locals «cli_dequeue_used_a»))
-          («cli_dequeue_used_c», FLOOKUP s.locals «cli_dequeue_used_c»))
-         = (s.locals |+
+            («dequeue_used_ret», FLOOKUP s'.locals «dequeue_used_ret»))
+           («cli_dequeue_used_a», FLOOKUP s'.locals «cli_dequeue_used_a»))
+          («cli_dequeue_used_c», FLOOKUP s'.locals «cli_dequeue_used_c»))
+         = (s'.locals |+
              («clients»,ValWord 0w) |+
-             («num_clients_a», ValWord s.base_addr) |+
+             («num_clients_a», ValWord s'.base_addr) |+
              («clients»,ValWord (w2w n_clients)) |+
-             («drv_was_empty_c», ValWord (s.base_addr + 1w)) |+
-             («drv_was_empty_a», ValWord (s.base_addr + 2w)) |+
+             («drv_was_empty_c», ValWord (s'.base_addr + 1w)) |+
+             («drv_was_empty_a», ValWord (s'.base_addr + 2w)) |+
              («was_empty», ValWord (w2w was_empty)) |+
              («client», ValWord (n2w client + 1w)))’ by cheat >>
         simp[] >> (* TODO vv needs induction? *)
-        ‘n2w client + 1w < w2w n_clients’ by cheat >>
+        ‘n2w client + (1w : word32) < w2w n_clients’ by cheat >>
         rw[] >>
         rw[Once h_prog_def, h_prog_rule_dec_def] >>
         simp[eval_def, wordLangTheory.word_op_def] >>
@@ -2104,24 +2107,35 @@ Proof
         simp[eval_def, wordLangTheory.word_op_def] >>
         rw[Once h_prog_def, h_prog_rule_seq_def] >>
         rw[Once h_prog_def, h_prog_rule_store_byte_def] >>
-        ‘byte_align (s.base_addr + 3w) = s.base_addr’ by fs[align_thm] >>
+        ‘byte_align (s'.base_addr + 3w) = s'.base_addr’ by fs[align_thm] >>
         ‘mem_store_byte mem2
-         s.memaddrs s.be (s.base_addr + 3w) (w2w (n2w client + 1w : word32))
-         = SOME (write_bytearray (s.base_addr + 3w)
+         s'.memaddrs s'.be (s'.base_addr + 3w) (w2w (n2w client + 1w : word32))
+         = SOME (write_bytearray (s'.base_addr + 3w)
                                  [(w2w (n2w client + 1w : word32))]
-                                 mem2 s.memaddrs s.be)’ by cheat >>
+                                 mem2 s'.memaddrs s'.be)’ by cheat >>
         rw[Once h_prog_def, h_prog_rule_seq_def] >>
-        qexists_tac ‘client + 1’ >>
+        rpt (irule after_tau_l) >>
+
+        qunabbrev_tac ‘pred’ >> irule (cj 1 after_taus_rules) >>
+        rw[] >>
+        qexistsl_tac [‘client + 1’,‘s'’] >>
         CONJ_TAC >- cheat >>
+        rw[] >-
+         (fs[state1] >>
+          qmatch_goalsub_abbrev_tac
+          ‘trim_itree _ (to_ffi (bind (iter _ (bind _ x)) _)) = _’ >>
+          qexists_tac ‘f'’ >>
+          ‘mem2 = oldmem’ by cheat >>
+          ‘(n2w (client + 1) : word32) = (n2w client + 1w)’ by cheat >>
+          rw[]) >>
         rw[Once itree_iter_thm, muxtx_body] >>
-        cheat (* extra tau ?? *)
-       ) >>
+        metis_tac[]) >>
       disj1_tac >> qexists_tac ‘client’ >> gvs[] >>
       disj2_tac >>
       rw[Once h_prog_def, h_prog_rule_dec_def] >>
       simp[eval_def, wordLangTheory.word_op_def] >>
       qmatch_goalsub_abbrev_tac ‘(_ (mem_load_byte mem2 _ _ _) _ _)’ >>
-      subgoal ‘mem_load_byte mem2 s.memaddrs s.be (s.base_addr + 4w)
+      subgoal ‘mem_load_byte mem2 s'.memaddrs s'.be (s'.base_addr + 4w)
                = SOME (used_ret)’ >- cheat >>
       rw[] >>
       rw[Once h_prog_def, h_prog_rule_seq_def] >>
@@ -2133,25 +2147,25 @@ Proof
       simp[eval_def, wordLangTheory.word_op_def] >>
       rw[Once h_prog_def, h_prog_rule_seq_def] >>
       rw[Once h_prog_def, h_prog_rule_store_byte_def] >>
-      ‘byte_align (s.base_addr + 30w) = s.base_addr + 28w’ by cheat >>
+      ‘byte_align (s'.base_addr + 30w) = s'.base_addr + 28w’ by cheat >>
       (* gvs[store_bytearray_1, mem_has_word_def, write_bytearray_preserve_words] >>*)
-      ‘mem_store_byte mem2 s.memaddrs s.be (s.base_addr + 30w)
+      ‘mem_store_byte mem2 s'.memaddrs s'.be (s'.base_addr + 30w)
        (w2w (n2w client : word32))
-       = SOME (write_bytearray (s.base_addr + 30w) [(w2w (n2w client : word32))]
-                               mem2 s.memaddrs s.be)’ by cheat >>
+       = SOME (write_bytearray (s'.base_addr + 30w) [(w2w (n2w client : word32))]
+                               mem2 s'.memaddrs s'.be)’ by cheat >>
       rw[] >>
       rw[Once h_prog_def, h_prog_rule_seq_def] >>
       rw[Once itree_mrec_alt, Once h_prog_def, h_prog_rule_ext_call_def] >>
       rw[read_bytearray_1] >>
-      ‘mem_load_byte (write_bytearray (s.base_addr + 30w)
+      ‘mem_load_byte (write_bytearray (s'.base_addr + 30w)
                                       [w2w (n2w client : word32)]
-                                      mem2 s.memaddrs s.be)
-       s.memaddrs s.be (s.base_addr + 4w) = SOME used_ret’ by cheat >>
+                                      mem2 s'.memaddrs s'.be)
+       s'.memaddrs s'.be (s'.base_addr + 4w) = SOME used_ret’ by cheat >>
       rw[] >>
-      ‘mem_load_byte (write_bytearray (s.base_addr + 30w)
+      ‘mem_load_byte (write_bytearray (s'.base_addr + 30w)
                                       [w2w (n2w client : word32)]
-                                      mem2 s.memaddrs s.be)
-       s.memaddrs s.be (s.base_addr + 30w) = SOME (n2w client)’ by cheat >>
+                                      mem2 s'.memaddrs s'.be)
+       s'.memaddrs s'.be (s'.base_addr + 30w) = SOME (n2w client)’ by cheat >>
       rw[] >>
       qexistsl_tac [‘mem2’, ‘f’, ‘used_ret’] >>
       rw[state2] >>
