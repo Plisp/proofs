@@ -4,12 +4,15 @@
  * Directly express an infinite tree program-semantics structure via continuations.
  * By developing an algebra, reasoning can be mostly done above the Tau level,
  * which are convenient for expressing silent program steps which may differ
- * depending on context. Taus are necessary in the semantics, as otherwise
- * termination of loops must be determined ahead of time (undecidable).
+ * depending on context. Taus are necessary in the semantics, as termination of
+ * of loops cannot determined ahead of time but we need productivity for soundness.
  * Oracle queries are encoded by events, and 'evaluating' in a context where the
  * responses are limited, we can simulate interaction with the external world.
  * Although that possibility depends on the granularity of restrictions on results.
  *
+ * Itrees make the nondeterminism external to the structure: this is a better fit
+ * for mix-and-match with sets of restrictions on interactions - device models -
+ * rather than coding specific oracles.
  * In comparision to the clock approach in cakeML's FBS semantics, there is less
  * distinction between finite|infinite programs, usually allowing local reasoning.
  * Consider this an equivalent representation more suited to program reasoning, as
@@ -23,14 +26,13 @@
  * than detailing implementation. but proofs should be *syntax-directed*
  *
  * One promising approach:
- * 1. express a clear (tauless) decomposition of the spec with conditions on FFI
+ * 1. express abstract HOL version of the program with conditions on FFI
  * 2. trim away invalid responses by the environment not covered by a proof
  * 3. prove equivalence to the trimmed program semantics via weak bisimulation
+ * 4. prove properties of the abstraction, which then also proves the same thing?
+ *    about the program semantics
  *
- * future work: ideally we want some way of automatically unfolding|executing a
- * program, to easily show facts about its interaction tree directly. This should
- * also allow for automated removal of Tau nodes. Could this be easier with types?
- *
+ * future work:
  * note: Since they are the greatest fixpoint, they may also encode recursive tree
  * types using appropriate event data - e.g. W-trees. *
  * note: programs|simps|rewrites getting stuck in general is hard to predict and
