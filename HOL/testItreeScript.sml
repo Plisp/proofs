@@ -104,12 +104,6 @@ Proof
   rw[itree_trigger_def, itree_bind_thm, FUN_EQ_THM]
 QED
 
-Theorem itree_bind_ret_inv:
-  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
-Proof
-  Cases_on ‘t’ >> fs[itree_bind_thm]
-QED
-
 Theorem itree_bind_tau_inv:
   bind t k = Tau s ∧ (¬∃r. t = Ret r) ⇒ ∃s'. t = Tau s' ∧ bind s' k = s
 Proof
@@ -175,38 +169,10 @@ Definition iterate_def:
   itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
 
-(* coinduction upto stripping finite taus, useful for iter and friends *)
-Inductive after_taus:
-  (R x y ⇒ after_taus R x y) ∧
-  (after_taus R x y ⇒ after_taus R (Tau x) y) ∧
-  (after_taus R x y ⇒ after_taus R x (Tau y)) ∧
-  ((∀r. after_taus R (k r) (k' r)) ⇒ after_taus R (Vis e k) (Vis e k'))
-End
 
-Theorem after_tau_l = cj 2 after_taus_rules;
-Theorem after_tau_r = cj 3 after_taus_rules;
-Theorem itree_coind_after_taus:
-  ∀R. (∀t t'.
-         R t t' ⇒
-         (∃t2 t3.
-            t = Tau t2 ∧ t' = Tau t3 ∧ (after_taus R t2 t3 ∨ itree_wbisim t2 t3)) ∨
-         (∃e k k'.
-            strip_tau t (Vis e k) ∧ strip_tau t' (Vis e k') ∧
-            ∀r. after_taus R (k r) (k' r) ∨ itree_wbisim (k r) (k' r)) ∨
-         (∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r)) ∨
-         itree_wbisim t t') ⇒
-      ∀t t'. R t t' ⇒ itree_wbisim t t'
-Proof
-  rpt strip_tac >>
-  irule itree_wbisim_coind_upto >>
-  qexists ‘after_taus R’ >>
-  reverse conj_tac
-  >- metis_tac[after_taus_rules] >>
-  pop_assum kall_tac >>
-  Induct_on ‘after_taus’ >>
-  rw[] >>
-  metis_tac[after_taus_rules]
-QED
+
+
+
 
 open panItreeSemTheory;
 
@@ -252,12 +218,6 @@ Proof
    (Cases_on ‘a’ >> fs[])
 QED
 
-Theorem itree_bind_ret_inv:
-  bind t k = Ret r ⇒ ∃r'. t = Ret r' ∧ Ret r = (k r')
-Proof
-  Cases_on ‘t’ >> fs[itree_bind_thm]
-QED
-
 (* mrec iterates sequentially on its seed *)
 Theorem itree_mrec_bind:
   iter (mrec_cb rh) (bind t k) =
@@ -296,6 +256,12 @@ QED
 (*/ pancake theorems
    syntax directed rewrites
  *)
+
+Inductive leaf:
+  (leaf r (Ret r)) ∧
+  (leaf r t ⇒ leaf r (Tau t)) ∧
+  (∀a. leaf r (f a) ⇒ leaf r (Vis e f))
+End
 
 Theorem seq_thm:
   itree_mrec h_prog (Seq p p2, s) =
