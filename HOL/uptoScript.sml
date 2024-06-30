@@ -1,5 +1,4 @@
 open bossLib;
-open llistTheory;
 open relationTheory;
 open fixedPointTheory;
 open pred_setTheory;
@@ -7,13 +6,215 @@ open pairTheory;
 
 val _ = new_theory "upto";
 
+Definition compatible_def:
+  compatible b f = (monotone b ∧ monotone f ∧ ∀x. f(b x) ⊆ b(f x))
+End
+
+Definition companion_def:
+  companion b = λX. BIGUNION {f X | compatible b f}
+End
+
+Theorem compatible_below_companion:
+  compatible b f ⇒ f x ⊆ (companion b) x
+Proof
+  rw[companion_def, SUBSET_DEF] >>
+  metis_tac[]
+QED
+
+Theorem companion_mono[simp]:
+  monotone b
+⇒ monotone (companion b)
+Proof
+  rw[monotone_def, companion_def, SUBSET_DEF, PULL_EXISTS] >>
+  metis_tac[compatible_def, monotone_def, SUBSET_DEF]
+QED
+
+Theorem compatible_companion:
+  monotone b
+⇒ compatible b (companion b)
+Proof
+  (* TODO generalize *)
+  rw[compatible_def,companion_def,SUBSET_DEF] >>
+  first_assum drule >>
+  qmatch_goalsub_abbrev_tac ‘_ ∈ b a1 ⇒ _ ∈ b a2’ >>
+  ‘a1 ⊆ a2’ by (rw[Abbr ‘a1’, Abbr ‘a2’,SUBSET_DEF,PULL_EXISTS] >> metis_tac[]) >>
+  metis_tac[monotone_def,SUBSET_DEF]
+QED
+
+Theorem compatible_id:
+  monotone b ⇒ compatible b I
+Proof
+  rw[compatible_def, monotone_def]
+QED
+
+Theorem compatible_b:
+  monotone b ⇒ compatible b b
+Proof
+  rw[compatible_def]
+QED
+
+Theorem compatible_const_gfp:
+  monotone b ⇒ compatible b (K (gfp b))
+Proof
+  rw[compatible_def, monotone_def, gfp_greatest_fixedpoint]
+QED
+
+Theorem compatible_compose:
+  monotone b
+⇒ compatible b f ∧ compatible b g
+⇒ compatible b (f ∘ g)
+Proof
+  rw[compatible_def, PULL_EXISTS, monotone_def] >>
+  metis_tac[SUBSET_TRANS]
+QED
+
+Theorem companion_gt:
+  monotone b ⇒ x ⊆ companion b x
+Proof
+  rpt strip_tac >>
+  ho_match_mp_tac compatible_below_companion >>
+  metis_tac[compatible_id]
+QED
+
+Theorem companion_idem:
+  monotone b
+⇒ companion b ((companion b) x) = (companion b) x
+Proof
+  rw[SET_EQ_SUBSET] >-
+   (‘compatible b (companion b ∘ companion b)’
+      by rw[compatible_compose, compatible_companion] >>
+    ho_match_mp_tac compatible_below_companion >>
+    metis_tac[])
+  >- rw[companion_gt]
+QED
+
+(* TODO put in fixedpointtheory *)
+Theorem monotone_comp:
+  monotone f ∧ monotone g ⇒ monotone (f ∘ g)
+Proof
+  rw[monotone_def]
+QED
+
+Theorem companion_bot_gfp:
+  monotone b
+  ⇒ companion b ∅ = gfp b
+Proof
+  rw[SET_EQ_SUBSET] >-
+   (* t⊥ ≤ tb⊥ ≤ bt⊥ *)
+   (irule gfp_coinduction >>
+    simp[] >>
+    match_mp_tac SUBSET_TRANS >>
+    drule (REWRITE_RULE [companion_mono,compatible_def] compatible_companion) >>
+    strip_tac >>
+    (* TODO shortcut using el *)
+    first_assum $ irule_at (Pos (el 2)) >>
+    irule $ iffLR monotone_def >>
+    rw[])
+  >- (* TODO drule then strip_assume when... *)
+   (drule_then strip_assume_tac compatible_const_gfp >>
+    simp[companion_def] >>
+    rw[SUBSET_DEF, PULL_EXISTS] >> (* TODO PULL_EXISTS to toplevel instantiates *)
+    metis_tac[combinTheory.K_DEF])
+QED
+
+Definition enhance_def:
+  enhance b = b ∘ (companion b)
+End
+
+Theorem companion_coinduct:
+  monotone b
+  ⇒ x ⊆ enhance b x
+  ⇒ x ⊆ gfp b
+Proof
+  rw[enhance_def] >>
+  ‘(companion b) x ⊆ gfp b’ suffices_by metis_tac[companion_gt, SUBSET_TRANS] >>
+  irule gfp_coinduction >>
+  simp[] >>
+  drule companion_mono >>
+  strip_tac >>
+  irule SUBSET_TRANS >>
+  qexists_tac ‘(companion b) (b (companion b x))’ >>
+  CONJ_TAC >- (fs[monotone_def, companion_mono]) >>
+  irule SUBSET_TRANS >>
+  qexists_tac ‘b (companion b (companion b x))’ >>
+  CONJ_TAC >-
+   (fs[REWRITE_RULE [companion_mono,compatible_def] compatible_companion]) >>
+  gvs[monotone_def, companion_idem, combinTheory.o_DEF]
+QED
+
+Theorem enhanced_gfp:
+  monotone b
+  ⇒ gfp (enhance b) = gfp b
+Proof
+  rw[enhance_def, SET_EQ_SUBSET] >-
+   (drule_then match_mp_tac companion_coinduct >>
+    ‘monotone (enhance b)’
+      by metis_tac[monotone_def, enhance_def, monotone_comp, companion_mono] >>
+    fs[enhance_def] >>
+    metis_tac[cj 1 gfp_greatest_fixedpoint, combinTheory.o_DEF, SET_EQ_SUBSET])
+  >-
+   (irule gfp_coinduction >>
+    rw[monotone_comp, companion_mono] >>
+    simp[SimpL “$SUBSET”, Once $ GSYM gfp_greatest_fixedpoint] >>
+    irule $ iffLR monotone_def >>
+    rw[companion_gt])
+QED
+
+(* parameterized *)
+Definition semicompatible_def:
+  semicompatible b f = ∀x. f x ⊆ companion b x
+End
+
+Theorem param_coind_init:
+  monotone b
+  ⇒ {(xs,ys)} ⊆ companion b ∅
+  ⇒ (xs,ys) ∈ gfp b
+Proof
+  rw[companion_bot_gfp]
+QED
+
+Theorem param_coind_done:
+  monotone b
+  ⇒ y ⊆ x ⇒ y ⊆ companion b x
+Proof
+  metis_tac[companion_gt, SUBSET_TRANS]
+QED
+
+Theorem param_coind_upto_f:
+  monotone b
+  ⇒ y ⊆ f (companion b x) ∧ semicompatible b f
+  ⇒ y ⊆ companion b x
+Proof
+  rw[semicompatible_def] >>
+  (* matches drule precondition against assumptions *)
+  drule_then match_mp_tac SUBSET_TRANS >>
+  match_mp_tac SUBSET_TRANS >>
+  first_assum $ irule_at (Pos hd) >>
+  simp[companion_idem]
+QED
+
+Theorem param_coind:
+  ∀R S. R ⊆ llist_functional(companion(R ∪ S)) ⇒ R ⊆ companion S
+Proof
+  cheat
+QED
+
+
+
+
+
+
+
+
+(* example *)
+
+open llistTheory;
 Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
   ({[||],[||]} ∪ {(x:::xs,y:::ys) | x = y ∧ (xs,ys) ∈ R})
 End
 
 open itreeTauTheory;
-
 Definition itree_wbisim_functional:
   itree_wbisim_functional R =
   ({ (t,t') | ∃r. strip_tau t (Ret r) ∧ strip_tau t' (Ret r)}
@@ -46,7 +247,7 @@ QED
 Theorem monotone_itree_functional[simp]:
   monotone itree_wbisim_functional
 Proof
-  rw[monotone_def,itree_wbisim_functional,pred_setTheory.SUBSET_DEF] >>
+  rw[monotone_def, itree_wbisim_functional, pred_setTheory.SUBSET_DEF] >>
   cheat
 QED
 
@@ -80,174 +281,7 @@ Proof
   cheat
 QED
 
-Definition compatible_def:
-  compatible b f = (monotone b ∧ monotone f ∧ ∀x. f(b x) ⊆ b(f x))
-End
 
-Definition companion_def:
-  companion b = λX. BIGUNION {f X | compatible b f}
-End
-
-Theorem companion_mono[simp]:
-  monotone b
-⇒ monotone (companion b)
-Proof
-  rw[monotone_def,companion_def,SUBSET_DEF,PULL_EXISTS] >>
-  qexists_tac ‘f’ >>
-  gvs[compatible_def] >>
-  metis_tac[monotone_def,SUBSET_DEF]
-QED
-
-Theorem compatible_companion:
-  monotone b
-⇒ compatible b (companion b)
-Proof
-  rw[compatible_def,companion_def,SUBSET_DEF] >>
-  first_assum drule >>
-  qmatch_goalsub_abbrev_tac ‘_ ∈ b a1 ⇒ _ ∈ b a2’ >>
-  ‘a1 ⊆ a2’ by (rw[Abbr ‘a1’, Abbr ‘a2’,SUBSET_DEF,PULL_EXISTS] >> metis_tac[]) >>
-  metis_tac[monotone_def,SUBSET_DEF]
-QED
-
-Theorem compatible_id:
-  monotone b
-⇒ compatible b I
-Proof
-  rw[compatible_def,monotone_def]
-QED
-
-Theorem compatible_compose:
-  monotone b ⇒
-  compatible b f ∧ compatible b g
-⇒ compatible b (f ∘ g)
-Proof
-  rw[compatible_def,PULL_EXISTS,monotone_def] >>
-  metis_tac[SUBSET_TRANS]
-QED
-
-Theorem companion_idem:
-  monotone b
-⇒ companion b ((companion b) R) = (companion b) R
-Proof
-  rw[SET_EQ_SUBSET] >-
-   (rw[Once companion_def,SUBSET_DEF] >>
-    rw[companion_def,PULL_EXISTS] >>
-    qexists_tac ‘f o companion b’ >>
-    simp[compatible_compose,compatible_companion])
-  >-
-   (rw[SUBSET_DEF] >>
-    rw[Once companion_def,PULL_EXISTS] >>
-    irule_at Any compatible_id >>
-    simp[])
-QED
-
-Theorem companion_coinduct:
-  ∀b R. monotone b ⇒
-        R ⊆ b (companion b R)
-      ⇒ R ⊆ gfp b
-Proof
-  rpt strip_tac >>
-  subgoal ‘companion b R ⊆ gfp b’ >-
-   (match_mp_tac $ MP_CANON gfp_coinduction >>
-    simp[] >>
-    cheat >>
-    drule $ REWRITE_RULE [monotone_def] companion_mono >>
-    strip_tac >>
-    drule_then match_mp_tac SUBSET_TRANS >>
-    match_mp_tac SUBSET_TRANS >>
-    irule_at (Pos hd) $
-             REWRITE_RULE [companion_mono,compatible_def] compatible_companion >>
-    simp[companion_idem]
-   ) >>
-  subgoal ‘R ⊆ companion b R’ >-
-   (rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
-    irule_at Any compatible_id >>
-    simp[]) >>
-  metis_tac[SUBSET_TRANS]
-QED
-
-Theorem companion_coinduct':
-  ∀t t' R.
-    (t,t') ∈ R ∧
-    R ⊆ itree_wbisim_functional (companion itree_wbisim_functional R)
-    ⇒ itree_wbisim t t'
-Proof
-  rpt strip_tac >>
-  assume_tac monotone_itree_functional >>
-  qspecl_then [‘itree_wbisim_functional’,‘R’] strip_assume_tac companion_coinduct >>
-  gvs[itree_functional_corres,SUBSET_DEF,pairTheory.ELIM_UNCURRY] >>
-  metis_tac[FST,SND,PAIR]
-QED
-
-
-
-(* parameterized *)
-Definition semicompatible_def:
-  semicompatible R = ∀X. R X ⊆ companion b X
-End
-
-Theorem param_coind_init:
-  {(xs,ys)} ⊆ companion ∅ ⇒ xs = ys
-Proof
-  strip_tac >>
-  match_mp_tac companion_coinduct' >>
-  fs[] >>
-  first_x_assum $ irule_at Any >>
-  simp[companion_idem] >>
-  rw[Once SUBSET_DEF] >>
-  gvs[companion_def,compatible_def] >>
-  ‘x ∈ f(llist_functional ∅)’
-    by(gvs[monotone_def,SUBSET_DEF] >>
-       first_x_assum $ match_mp_tac o MP_CANON >>
-       first_x_assum $ irule_at $ Pos last >>
-       rw[]) >>
-  gvs[SUBSET_DEF] >>
-  first_assum dxrule >>
-  match_mp_tac $ REWRITE_RULE[monotone_def,SUBSET_DEF]monotone_llist_functional >>
-  rw[PULL_EXISTS] >>
-  metis_tac[]
-QED
-
-Theorem param_coind_done:
-  ∀R S. R ⊆ S ⇒ R ⊆ companion S
-Proof
-  rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
-  irule_at (Pos last) compatible_id >>
-  simp[]
-QED
-
-Theorem param_coind_upto_f:
-  ∀R S f. R ⊆ f(companion S) ∧ semicompatible f ⇒ R ⊆ companion S
-Proof
-  rw[semicompatible_def] >>
-  drule_then match_mp_tac SUBSET_TRANS >>
-  match_mp_tac SUBSET_TRANS >>
-  first_x_assum $ irule_at $ Pos hd >>
-  simp[companion_idem]
-QED
-
-Theorem llist_functional_semicompat:
-  llist_functional R ⊆ companion R
-Proof
-  rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
-  first_x_assum $ irule_at $ Pos hd >>
-  rw[compatible_def]
-QED
-
-Theorem param_coind:
-  ∀R S. R ⊆ llist_functional(companion(R ∪ S)) ⇒ R ⊆ companion S
-Proof
-  cheat
-QED
-
-
-
-
-
-
-
-
-(* example *)
 
 Definition ones_def:
   ones = LUNFOLD (K $ SOME ((),1)) ()
@@ -284,6 +318,26 @@ Proof
         )
   THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm] >> simp[] >>
          metis_tac[ones_thm])
+QED
+
+TODO recover this
+Theorem companion_coinduct':
+
+Proof
+
+QED
+
+Theorem companion_coinduct_itree:
+  ∀t t' R.
+    (t,t') ∈ R ∧
+    R ⊆ itree_wbisim_functional (companion itree_wbisim_functional R)
+    ⇒ itree_wbisim t t'
+Proof
+  rpt strip_tac >>
+  assume_tac monotone_itree_functional >>
+  qspecl_then [‘itree_wbisim_functional’,‘R’] strip_assume_tac companion_coinduct >>
+  gvs[itree_functional_corres, SUBSET_DEF, pairTheory.ELIM_UNCURRY] >>
+  metis_tac[FST, SND, PAIR]
 QED
 
 Theorem ones_eq_ones':
