@@ -5,7 +5,7 @@ open fixedPointTheory;
 open pred_setTheory;
 open pairTheory;
 
-val _ = new_theory "demo";
+val _ = new_theory "upto";
 
 Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
@@ -89,7 +89,8 @@ Definition companion_def:
 End
 
 Theorem companion_mono[simp]:
-  monotone b ⇒ monotone (companion b)
+  monotone b
+⇒ monotone (companion b)
 Proof
   rw[monotone_def,companion_def,SUBSET_DEF,PULL_EXISTS] >>
   qexists_tac ‘f’ >>
@@ -98,77 +99,83 @@ Proof
 QED
 
 Theorem compatible_companion:
-  monotone b ⇒ compatible b (companion b)
+  monotone b
+⇒ compatible b (companion b)
 Proof
   rw[compatible_def,companion_def,SUBSET_DEF] >>
   first_assum drule >>
   qmatch_goalsub_abbrev_tac ‘_ ∈ b a1 ⇒ _ ∈ b a2’ >>
   ‘a1 ⊆ a2’ by (rw[Abbr ‘a1’, Abbr ‘a2’,SUBSET_DEF,PULL_EXISTS] >> metis_tac[]) >>
-  metis_tac[monotone_def,monotone_llist_functional,SUBSET_DEF]
+  metis_tac[monotone_def,SUBSET_DEF]
 QED
 
 Theorem compatible_id:
-  monotone b ⇒ compatible b I
+  monotone b
+⇒ compatible b I
 Proof
   rw[compatible_def,monotone_def]
 QED
 
 Theorem compatible_compose:
-  monotone b ⇒ compatible b f ∧ compatible b g ⇒ compatible b (f ∘ g)
+  monotone b ⇒
+  compatible b f ∧ compatible b g
+⇒ compatible b (f ∘ g)
 Proof
   rw[compatible_def,PULL_EXISTS,monotone_def] >>
   metis_tac[SUBSET_TRANS]
 QED
 
-
-
-
-
-(* TODO *)
 Theorem companion_idem:
-  ((companion b) ∘ (companion b)) R = (companion b) R
+  monotone b
+⇒ companion b ((companion b) R) = (companion b) R
 Proof
-  rw[SET_EQ_SUBSET]
-  THEN1 (rw[Once companion_def,SUBSET_DEF] \\
-         rw[companion_def,PULL_EXISTS] \\
-         qexists_tac ‘f o companion b’ \\
-         simp[compatible_compose,compatible_companion])
-  THEN1 (rw[SUBSET_DEF] \\ rw[Once companion_def,PULL_EXISTS] \\
-         irule_at Any compatible_id \\
-         simp[])
+  rw[SET_EQ_SUBSET] >-
+   (rw[Once companion_def,SUBSET_DEF] >>
+    rw[companion_def,PULL_EXISTS] >>
+    qexists_tac ‘f o companion b’ >>
+    simp[compatible_compose,compatible_companion])
+  >-
+   (rw[SUBSET_DEF] >>
+    rw[Once companion_def,PULL_EXISTS] >>
+    irule_at Any compatible_id >>
+    simp[])
 QED
 
 Theorem companion_coinduct:
-  ∀R.
-    R ⊆ llist_functional(companion R)
-    ⇒ R ⊆ gfp llist_functional
+  ∀b R. monotone b ⇒
+        R ⊆ b (companion b R)
+      ⇒ R ⊆ gfp b
 Proof
-  rpt strip_tac  \\
-  ‘companion R ⊆ gfp llist_functional’
-    by(match_mp_tac $ MP_CANON gfp_coinduction \\
-       simp[] \\
-       drule $ REWRITE_RULE [monotone_def] companion_mono \\
-       strip_tac \\
-       drule_then match_mp_tac SUBSET_TRANS \\
-       match_mp_tac SUBSET_TRANS \\
-       irule_at (Pos hd) $ REWRITE_RULE [companion_mono,compatible_def] compatible_companion \\
-       simp[companion_idem]) \\
-  ‘R ⊆ companion R’
-    by(rw[companion_def,SUBSET_DEF,PULL_EXISTS] \\
-       irule_at Any compatible_id \\
-       simp[]) \\
+  rpt strip_tac >>
+  subgoal ‘companion b R ⊆ gfp b’ >-
+   (match_mp_tac $ MP_CANON gfp_coinduction >>
+    simp[] >>
+    cheat >>
+    drule $ REWRITE_RULE [monotone_def] companion_mono >>
+    strip_tac >>
+    drule_then match_mp_tac SUBSET_TRANS >>
+    match_mp_tac SUBSET_TRANS >>
+    irule_at (Pos hd) $
+             REWRITE_RULE [companion_mono,compatible_def] compatible_companion >>
+    simp[companion_idem]
+   ) >>
+  subgoal ‘R ⊆ companion b R’ >-
+   (rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
+    irule_at Any compatible_id >>
+    simp[]) >>
   metis_tac[SUBSET_TRANS]
 QED
 
 Theorem companion_coinduct':
-  ∀ll1 ll2 R.
-    (ll1,ll2) ∈ R ∧
-    R ⊆ llist_functional(companion R)
-    ⇒ ll1 = ll2
+  ∀t t' R.
+    (t,t') ∈ R ∧
+    R ⊆ itree_wbisim_functional (companion itree_wbisim_functional R)
+    ⇒ itree_wbisim t t'
 Proof
-  rpt strip_tac  \\
-  drule companion_coinduct \\
-  gvs[llist_functional_correct,SUBSET_DEF,pairTheory.ELIM_UNCURRY] \\
+  rpt strip_tac >>
+  assume_tac monotone_itree_functional >>
+  qspecl_then [‘itree_wbisim_functional’,‘R’] strip_assume_tac companion_coinduct >>
+  gvs[itree_functional_corres,SUBSET_DEF,pairTheory.ELIM_UNCURRY] >>
   metis_tac[FST,SND,PAIR]
 QED
 
@@ -182,48 +189,48 @@ End
 Theorem param_coind_init:
   {(xs,ys)} ⊆ companion ∅ ⇒ xs = ys
 Proof
-  strip_tac \\
-  match_mp_tac companion_coinduct' \\
-  fs[] \\
-  first_x_assum $ irule_at Any \\
-  simp[companion_idem] \\
-  rw[Once SUBSET_DEF] \\
-  gvs[companion_def,compatible_def] \\
+  strip_tac >>
+  match_mp_tac companion_coinduct' >>
+  fs[] >>
+  first_x_assum $ irule_at Any >>
+  simp[companion_idem] >>
+  rw[Once SUBSET_DEF] >>
+  gvs[companion_def,compatible_def] >>
   ‘x ∈ f(llist_functional ∅)’
-    by(gvs[monotone_def,SUBSET_DEF] \\
-       first_x_assum $ match_mp_tac o MP_CANON \\
-       first_x_assum $ irule_at $ Pos last \\
-       rw[]) \\
-  gvs[SUBSET_DEF] \\
-  first_assum dxrule \\
-  match_mp_tac $ REWRITE_RULE[monotone_def,SUBSET_DEF]monotone_llist_functional \\
-  rw[PULL_EXISTS] \\
+    by(gvs[monotone_def,SUBSET_DEF] >>
+       first_x_assum $ match_mp_tac o MP_CANON >>
+       first_x_assum $ irule_at $ Pos last >>
+       rw[]) >>
+  gvs[SUBSET_DEF] >>
+  first_assum dxrule >>
+  match_mp_tac $ REWRITE_RULE[monotone_def,SUBSET_DEF]monotone_llist_functional >>
+  rw[PULL_EXISTS] >>
   metis_tac[]
 QED
 
 Theorem param_coind_done:
   ∀R S. R ⊆ S ⇒ R ⊆ companion S
 Proof
-  rw[companion_def,SUBSET_DEF,PULL_EXISTS] \\
-  irule_at (Pos last) compatible_id \\
+  rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
+  irule_at (Pos last) compatible_id >>
   simp[]
 QED
 
 Theorem param_coind_upto_f:
   ∀R S f. R ⊆ f(companion S) ∧ semicompatible f ⇒ R ⊆ companion S
 Proof
-  rw[semicompatible_def] \\
-  drule_then match_mp_tac SUBSET_TRANS \\
-  match_mp_tac SUBSET_TRANS \\
-  first_x_assum $ irule_at $ Pos hd \\
+  rw[semicompatible_def] >>
+  drule_then match_mp_tac SUBSET_TRANS >>
+  match_mp_tac SUBSET_TRANS >>
+  first_x_assum $ irule_at $ Pos hd >>
   simp[companion_idem]
 QED
 
 Theorem llist_functional_semicompat:
   llist_functional R ⊆ companion R
 Proof
-  rw[companion_def,SUBSET_DEF,PULL_EXISTS] \\
-  first_x_assum $ irule_at $ Pos hd \\
+  rw[companion_def,SUBSET_DEF,PULL_EXISTS] >>
+  first_x_assum $ irule_at $ Pos hd >>
   rw[compatible_def]
 QED
 
@@ -255,47 +262,47 @@ End
 Theorem ones_thm:
   ones = 1:::ones
 Proof
-  simp[ones_def] \\ simp[Once LUNFOLD]
+  simp[ones_def] >> simp[Once LUNFOLD]
 QED
 
 Theorem ones'_thm:
   ones' = 1:::1:::ones'
 Proof
-  simp[ones'_def] \\ ntac 2 $ simp[Once LUNFOLD]
+  simp[ones'_def] >> ntac 2 $ simp[Once LUNFOLD]
 QED
 
 Theorem ones_eq_ones':
   ones = ones'
 Proof
-  simp[Once LLIST_BISIMULATION] \\
-  qexists_tac ‘CURRY {(ones,ones'); (ones,1:::ones')}’ \\
+  simp[Once LLIST_BISIMULATION] >>
+  qexists_tac ‘CURRY {(ones,ones'); (ones,1:::ones')}’ >>
   rw[]
-  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] \\
-         simp[] \\
-         disj2_tac \\
+  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] >>
+         simp[] >>
+         disj2_tac >>
          metis_tac[ones_thm,ones'_thm]
         )
-  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm] \\ simp[] \\
+  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm] >> simp[] >>
          metis_tac[ones_thm])
 QED
 
 Theorem ones_eq_ones':
   ones = ones'
 Proof
-  match_mp_tac companion_coinduct' \\
-  qexists_tac ‘{(ones,ones')}’ \\
-  rw[llist_functional] \\
-  PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] \\ simp[] \\
-  simp[companion_def] \\
-  irule_at (Pos last) compatible_cons \\
-  simp[] \\ disj2_tac \\
+  match_mp_tac companion_coinduct' >>
+  qexists_tac ‘{(ones,ones')}’ >>
+  rw[llist_functional] >>
+  PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] >> simp[] >>
+  simp[companion_def] >>
+  irule_at (Pos last) compatible_cons >>
+  simp[] >> disj2_tac >>
   metis_tac[ones_thm,ones'_thm]
 QED
 
 Theorem compatible_cons:
   compatible $ (λR. R ∪ {([||],[||])} ∪ {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R})
 Proof
-  rw[compatible_def,monotone_def,SUBSET_DEF,PULL_EXISTS] \\
+  rw[compatible_def,monotone_def,SUBSET_DEF,PULL_EXISTS] >>
   gvs[llist_functional]
 QED
 
@@ -306,8 +313,8 @@ End
 Theorem semicompatible_cons:
   semicompatible cons_rel
 Proof
-  rw[semicompatible_def,SUBSET_DEF,companion_def,cons_rel_def] \\
-  irule_at (Pos last) compatible_cons \\
+  rw[semicompatible_def,SUBSET_DEF,companion_def,cons_rel_def] >>
+  irule_at (Pos last) compatible_cons >>
   rw[]
 QED
 
@@ -328,20 +335,20 @@ QED
 Theorem semicompatible_id:
   semicompatible I
 Proof
-  rw[semicompatible_def,companion_def,SUBSET_DEF,PULL_EXISTS] \\
-  irule_at (Pos last) compatible_id \\
+  rw[semicompatible_def,companion_def,SUBSET_DEF,PULL_EXISTS] >>
+  irule_at (Pos last) compatible_id >>
   simp[]
 QED
 
 Theorem ones_eq_ones':
   ones = ones'
 Proof
-  match_mp_tac param_coind_init \\
-  match_mp_tac param_coind \\
-  SIMP_TAC std_ss [Once ones'_thm, Once ones_thm,llist_functional_cons] \\
-  SIMP_TAC std_ss [Once ones_thm] \\
-  match_mp_tac param_coind_upto_f \\
-  irule_at Any semicompatible_cons \\
-  SIMP_TAC std_ss [cons_rel_cons] \\
-  match_mp_tac param_coind_done \\ rw[]
+  match_mp_tac param_coind_init >>
+  match_mp_tac param_coind >>
+  SIMP_TAC std_ss [Once ones'_thm, Once ones_thm,llist_functional_cons] >>
+  SIMP_TAC std_ss [Once ones_thm] >>
+  match_mp_tac param_coind_upto_f >>
+  irule_at Any semicompatible_cons >>
+  SIMP_TAC std_ss [cons_rel_cons] >>
+  match_mp_tac param_coind_done >> rw[]
 QED
