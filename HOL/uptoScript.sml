@@ -1,4 +1,5 @@
 open bossLib;
+open arithmeticTheory;
 open relationTheory;
 open fixedPointTheory;
 open pred_setTheory;
@@ -30,10 +31,8 @@ Proof
 QED
 
 Theorem compatible_companion:
-  monotone b
-⇒ compatible b (companion b)
+  monotone b ⇒ compatible b (companion b)
 Proof
-  (* TODO generalize *)
   rw[compatible_def,companion_def,SUBSET_DEF] >>
   first_assum drule >>
   qmatch_goalsub_abbrev_tac ‘_ ∈ b a1 ⇒ _ ∈ b a2’ >>
@@ -106,14 +105,13 @@ Proof
     match_mp_tac SUBSET_TRANS >>
     drule (REWRITE_RULE [companion_mono,compatible_def] compatible_companion) >>
     strip_tac >>
-    (* TODO shortcut using el *)
     first_assum $ irule_at (Pos (el 2)) >>
     irule $ iffLR monotone_def >>
     rw[])
-  >- (* TODO drule then strip_assume when... *)
+  >-
    (drule_then strip_assume_tac compatible_const_gfp >>
     simp[companion_def] >>
-    rw[SUBSET_DEF, PULL_EXISTS] >> (* TODO PULL_EXISTS to toplevel instantiates *)
+    rw[SUBSET_DEF, PULL_EXISTS] >> (* note: PULL_EXISTS to toplevel instantiates *)
     metis_tac[combinTheory.K_DEF])
 QED
 
@@ -193,11 +191,71 @@ Proof
   simp[companion_idem]
 QED
 
-Theorem param_coind:
-  ∀R S. R ⊆ llist_functional(companion(R ∪ S)) ⇒ R ⊆ companion S
+Definition continuous_def:
+  continuous b = ∀P. (b (BIGINTER P) = BIGINTER { b s | s ∈ P })
+End
+
+Theorem continuous_mono:
+  continuous b ⇒ monotone b
 Proof
+  rw[continuous_def, monotone_def] >>
+  ‘X = BIGINTER { X; Y }’ by rw[BIGINTER_INTER, SUBSET_INTER1] >>
+  ‘b (BIGINTER {X; Y}) ⊆ b Y’ suffices_by metis_tac[] >>
+  pop_last_assum $ qspec_then ‘{X; Y}’ strip_assume_tac >>
+  ‘BIGINTER {b s | s ∈ {X; Y}} ⊆ b Y’ suffices_by metis_tac[] >>
+  ‘BIGINTER {b s | s ∈ {X; Y}} = BIGINTER {b X; b Y}’ by cheat >>
+  rw[]
+QED
+
+Theorem continuous_fixpoint:
+  continuous b ⇒ gfp b = BIGINTER (λx. ∃n. x = FUNPOW b n (K T))
+Proof
+  rw[Once SET_EQ_SUBSET] >-
+   (rw[SUBSET_DEF] >>
+    pop_assum mp_tac >>
+    ‘gfp b ⊆ FUNPOW b n (K T)’ suffices_by metis_tac[GSYM SUBSET_DEF] >>
+    Induct_on ‘n’ >- rw[combinTheory.K_DEF, SUBSET_DEF] >>
+    drule continuous_mono >> strip_tac >>
+    rw[arithmeticTheory.FUNPOW_SUC] >>
+    simp[SimpL “$SUBSET”, Once $ GSYM gfp_greatest_fixedpoint] >>
+    fs[monotone_def]) >>
+  irule (cj 2 gfp_greatest_fixedpoint) >>
+  rw[continuous_mono] >>
   cheat
 QED
+
+Theorem companion_eq:
+  ∀b. continuous b
+      ⇒ companion b = (λx. BIGINTER (λs. ∃n. s = FUNPOW b n (K T) ∧ x ⊆ s))
+Proof
+  rw[Once FUN_EQ_THM, SET_EQ_SUBSET] >-
+   (rw[companion_def, SUBSET_DEF, PULL_EXISTS] >>
+    subgoal ‘FUNPOW b n (f (K T)) ⊆ FUNPOW b n (K T)’ >-
+     (rw[combinTheory.K_DEF]
+     )
+    Induct_on ‘n’ >- rw[combinTheory.K_DEF] >>
+    rw[]
+   )
+  >-
+   (ho_match_mp_tac compatible_below_companion >>
+    rw[compatible_def] >-
+     (rw[monotone_def, SUBSET_DEF, PULL_EXISTS]) >>
+    rw[SUBSET_DEF, PULL_EXISTS]
+   )
+QED
+
+Theorem param_coind:
+  monotone b
+  ⇒ y ⊆ b (companion b (x ∪ y)) ⇒ y ⊆ (companion b) x
+Proof
+
+QED
+
+
+
+
+
+
 
 
 
