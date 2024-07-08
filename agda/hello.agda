@@ -202,37 +202,44 @@ lem→proof-by-contradiction {P} lem nnp = ind＋ (λ _ → P) id lemma lem
   contradiction leads to bottom
 -}
 
-data Bad : ℕ → Set where
-  badt : ⊤ → Bad 0
-  badf : ⊥ → Bad 1
+data Bad (E : Set) : ℕ → Set where
+  badt : Bad E 0
+  badf : E → Bad E 1
 
-badind : ∀ {n} → (A : ℕ → Set) → Bad n → (⊤ → A 0) → (⊥ → A 1) → (A n)
-badind {zero} _ (badt x) = λ z _ → z ⋆
-badind {suc zero} _ (badf x) = λ _ z → z x
+badind : ∀{n}{E} → (A : ℕ → Set) → Bad E n → (A 0) → (E → A 1) → (A n)
+badind {zero} _ (badt) = λ z _ → z
+badind {suc zero} _ (badf e) = λ _ z → z e
 badind {suc (suc st)} _ ()
 
-badbot : Bad 1 → ⊥
-badbot p = badind (λ n → recℕ ⊤ (λ n _ → ⊥) n) p (λ _ → ⋆) (λ z → z)
+{- having a (Bad E 1) gives an E -}
+bade : ∀{E} → Bad E 1 → E
+bade {E} p = badind (λ n → recℕ ⊤ (λ n _ → E) n)
+                    p (⋆) (λ z → z)
 
-0≠1 : (0 ＝ 1) → ⊥
-0≠1 eq = badbot (transport Bad eq (badt ⋆))
+0≠1 : (0 ＝ 1) → ⊥ {- this ⊥ could be any type E -}
+0≠1 eq = bade (transport (Bad ⊥) eq (badt))
+
+{- bot is initial in maps, probably requires univalence -}
+-- bot-uniqueness : (∀{E} → A → E)) → A = ⊥
+-- bot-uniqueness = ?
 
 {- for types, use maps -}
-data Test : Set → Set₁ where
-  conA : ⊤ → Test ⊥
-  conB : ⊥ → Test ⊤
+data Test (E : Set) : Set → Set₁ where
+  conA : Test E ⊥
+  conB : E → Test E E
 
-tind : ∀ {t} → (A : Set → Set) → Test t → A ⊥ → (A t)
-tind _ (conA _) at = at
+tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → (A t)
+tind _ (conA) at _ = at
+tind _ (conB _) _ ae = ae
 
-tdest : Test ⊤ → ⊥
-tdest p = bad ⋆
-  where
-    bad : ⊤ → ⊥
-    bad = tind (λ t → (t → ⊥)) p (λ z → z)
+tdest : ∀{E} → Test E ⊤ → E
+tdest {E} p = bad ⋆
+  where {- maps into E -}
+    bad : ⊤ → E
+    bad = tind (λ t → (t → E)) p (rec⊥ E) id
 
 ⊤≠⊥ : (⊥ ＝ ⊤) → ⊥
-⊤≠⊥ p = tdest (transport Test p (conA ⋆))
+⊤≠⊥ p = tdest (transport (Test ⊥) p (conA))
 
 {-
   compile-time tests !
