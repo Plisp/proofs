@@ -199,7 +199,8 @@ lem→proof-by-contradiction {P} lem nnp = ind＋ (λ _ → P) id lemma lem
     lemma = λ np → ind⊥ (λ _ → P) (nnp np)
 
 {-
-  contradiction leads to bottom
+  contradiction leads to bottom, since type families are able to
+  distinguish indices by computation
 -}
 
 data Bad (E : Set) : ℕ → Set where
@@ -207,30 +208,41 @@ data Bad (E : Set) : ℕ → Set where
   badf : E → Bad E 1
 
 badind : ∀{n}{E} → (A : ℕ → Set) → Bad E n → (A 0) → (E → A 1) → (A n)
-badind {zero} _ (badt) = λ z _ → z
-badind {suc zero} _ (badf e) = λ _ z → z e
+badind {zero} _ (badt) a0 _ = a0
+badind {suc zero} _ (badf e) _ a1 = a1 e
 badind {suc (suc st)} _ ()
 
-{- having a (Bad E 1) gives an E -}
+{- having a (Bad E 1) gives an E, using pattern matching: bade' (badf x) = x -}
 bade : ∀{E} → Bad E 1 → E
-bade {E} p = badind (λ n → recℕ ⊤ (λ n _ → E) n)
+bade {E} p = badind (λ n → recℕ ⊤ (λ n _ → E) n) -- large elim on n
                     p (⋆) (λ z → z)
 
-0≠1 : (0 ＝ 1) → ⊥ {- this ⊥ could be any type E -}
+{- type families respecting indices -}
+0≠1 : (0 ＝ 1) → ⊥
 0≠1 eq = bade (transport (Bad ⊥) eq (badt))
 
-{- bot is initial in maps, probably requires univalence -}
--- bot-uniqueness : (∀{E} → A → E)) → A = ⊥
--- bot-uniqueness = ?
+{-
+  for types, use maps since you can't directly match on type structure
+  unlike data constructors, but why?? can't we compute closed type equality
+-}
 
-{- for types, use maps -}
+-- data Badt (E : Set) : Set → Set₁ where
+--   badt : Badt E ⊤
+--   badf : E → Badt E ⊥
+
+-- -- cannot unify types; distinguish ⊤ and ⊥. what does type equality mean?
+-- -- univalence is one option but that's an additional axiom (model restriction)
+-- asdc : ∀{E} → Badt E ⊥ → E
+-- asdc p = {!!}
+
 data Test (E : Set) : Set → Set₁ where
   conA : Test E ⊥
-  conB : E → Test E E
+  conB : Test E E
 
+-- Test E is a prop that holds of two t, covering the cases gives A t
 tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → (A t)
 tind _ (conA) at _ = at
-tind _ (conB _) _ ae = ae
+tind _ (conB) _ ae = ae
 
 tdest : ∀{E} → Test E ⊤ → E
 tdest {E} p = bad ⋆
@@ -238,11 +250,16 @@ tdest {E} p = bad ⋆
     bad : ⊤ → E
     bad = tind (λ t → (t → E)) p (rec⊥ E) id
 
+-- we can't directly 'coerce' ⋆ to ⊥ but can do it through a family?
+-- this creates a contradictory Test ⊥ ⊤ element which doesn't match constructors
+-- (in what sense? is it contradictory to assume that all 'data' declarations
+-- that are nominally distinct are unequal?)
 ⊤≠⊥ : (⊥ ＝ ⊤) → ⊥
 ⊤≠⊥ p = tdest (transport (Test ⊥) p (conA))
 
 {-
   compile-time tests !
+  this probably won't impress the c++ programmers
 -}
 
 test-len : 1 + 1 ＝ 2
