@@ -244,11 +244,11 @@ tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → (A t)
 tind _ (conA) at _ = at
 tind _ (conB) _ ae = ae
 
--- ind is defined uniformly in E, we don't know E = ⊤
-tdest : ∀{E} → Test E ⊤ → E
-tdest {E} p = bad ⋆
+-- ind is defined uniformly in E, we don't know E = I so ⊥ is required to elim to E
+tdest : ∀{E}{I} → I → Test E I → E
+tdest {E}{I} i p = bad i
   where {- maps into E -}
-    bad : ⊤ → E
+    bad : I → E
     bad = tind (λ t → (t → E)) p (rec⊥ E) id
 
 -- we can't directly 'coerce' ⋆ to ⊥ but can do it through a family?
@@ -256,7 +256,12 @@ tdest {E} p = bad ⋆
 -- (in what sense? is it contradictory to assume that all 'data' declarations
 -- that are nominally distinct are unequal?)
 ⊤≠⊥ : (⊥ ＝ ⊤) → ⊥
-⊤≠⊥ p = tdest (transport (Test ⊥) p (conA))
+⊤≠⊥ p = tdest ⋆ (transport (Test ⊥) p (conA))
+
+-- ⊤ can actually be any inhabited type, however now it's less obvious that such
+-- an equality should hold definitionally
+inhabited≠⊥ : ∀{I} → I → (⊥ ＝ I) → ⊥
+inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
 
 {-
   compile-time tests !
