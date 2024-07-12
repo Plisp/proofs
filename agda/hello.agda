@@ -73,9 +73,9 @@ infalg-ind la ba (branch nb) = ba (λ n → infalg-ind la ba (nb n))
 -}
 
 data badalg : Set where
-  co : (⊤ → badalg) → badalg
+  co : (𝟙 → badalg) → badalg
 
-badalg-rec : {A : Set} → ((⊤ → A) → A) → (t : badalg) → A
+badalg-rec : {A : Set} → ((𝟙 → A) → A) → (t : badalg) → A
 badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
 
 badalg-contra : ¬ badalg
@@ -136,7 +136,7 @@ uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd 
 uniq× (a , b) = refl (a , b)
 
 uniq⋆ : (a : 𝟙) → ⋆ ＝ a
-uniq⋆ = centrality ⊤ 𝟙-is-singleton
+uniq⋆ = centrality 𝟙 𝟙-is-singleton
 
 {-
   \j the fun way!
@@ -164,7 +164,7 @@ uniq⋆ = centrality ⊤ 𝟙-is-singleton
 
 data WNatB : Bool → Set where
   wleft  : ⊥ → WNatB false
-  wright : ⊤ → WNatB true
+  wright : 𝟙 → WNatB true
 
 WNat : Set
 WNat = W Bool WNatB
@@ -214,7 +214,7 @@ badind {suc (suc st)} _ ()
 
 {- having a (Bad E 1) gives an E, using pattern matching: bade' (badf x) = x -}
 bade : ∀{E} → Bad E 1 → E
-bade {E} p = badind (λ n → recℕ ⊤ (λ n _ → E) n) -- large elim on n
+bade {E} p = badind (λ n → recℕ 𝟙 (λ n _ → E) n) -- large elim on n
                     p (⋆) (λ z → z)
 
 {- type families respecting indices -}
@@ -227,10 +227,10 @@ bade {E} p = badind (λ n → recℕ ⊤ (λ n _ → E) n) -- large elim on n
 -}
 
 -- data Badt (E : Set) : Set → Set₁ where
---   badt : Badt E ⊤
+--   badt : Badt E 𝟙
 --   badf : E → Badt E ⊥
 
--- -- cannot unify types; distinguish ⊤ and ⊥. what does type equality mean?
+-- -- cannot unify types; distinguish 𝟙 and ⊥. what does type equality mean?
 -- -- univalence is one option but that's an additional axiom (model restriction)
 -- asdc : ∀{E} → Badt E ⊥ → E
 -- asdc p = {!!}
@@ -252,48 +252,38 @@ tdest {E}{I} i p = bad i
     bad = tind (λ t → (t → E)) p (rec⊥ E) id
 
 -- we can't directly 'coerce' ⋆ to ⊥ but can do it through a family?
--- this creates a contradictory Test ⊥ ⊤ element which doesn't match constructors
+-- this creates a contradictory Test ⊥ 𝟙 element which doesn't match constructors
 -- (in what sense? is it contradictory to assume that all 'data' declarations
 -- that are nominally distinct are unequal?)
-⊤≠⊥ : (⊥ ＝ ⊤) → ⊥
+⊤≠⊥ : (⊥ ＝ 𝟙) → ⊥
 ⊤≠⊥ p = tdest ⋆ (transport (Test ⊥) p (conA))
 
--- ⊤ can actually be any inhabited type, however now it's less obvious that such
+-- 𝟙 can actually be any inhabited type, however now it's less obvious that such
 -- an equality should hold definitionally
 inhabited≠⊥ : ∀{I} → I → (⊥ ＝ I) → ⊥
 inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
 
 {-
-  top ≠ nat, one has a surjection, one does not
+  𝟙 ≠ ℕ one has a injection into 𝟙, one does not
 -}
 
 surjective : {X Y : Set} → (f : X → Y) → Set
 surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
 
-exists-surj→𝟙 : (Σ f ∶ (⊤ → ⊤) , surjective f)
-exists-surj→𝟙 = (λ x → x) , (λ x → x , refl x)
+injective : {X Y : Set} → (f : X → Y) → Set
+injective {X}{Y} f = ∀ (x y : X) → (f x ＝ f y) → (x ＝ y)
 
-no-surj→ℕ : (Σ f ∶ (⊤ → ℕ) , surjective f) → ⊥
-no-surj→ℕ (f , p) = 0≠1 0-is-1
+exists-inj-𝟙 : (Σ f ∶ (𝟙 → 𝟙) , injective f)
+exists-inj-𝟙 = (λ x → x) , λ _ _ z → z
+
+no-inj-ℕ : (Σ f ∶ (ℕ → 𝟙) , injective f) → ⊥
+no-inj-ℕ (f , p) = 0≠1 (p 0 1 test)
   where
-    p0 : (Σ x ∶ ⊤ , f x ＝ 0)
-    p0 = p 0
+    test : f 0 ＝ f 1
+    test = 𝟙-subsingleton (f 0) (f 1)
 
-    p0-uniq : (⋆ ＝ pr₁ p0)
-    p0-uniq = (pr₂ 𝟙-is-singleton) (pr₁ p0)
-
-    f⋆-0 : f ⋆ ＝ 0
-    f⋆-0 = (ap f p0-uniq) ∙ pr₂ p0
-
-    f⋆-1 : f ⋆ ＝ 1
-    f⋆-1 with (p 1)
-    ...  | (x , p') = ap f (pr₂ 𝟙-is-singleton x) ∙ p'
-
-    0-is-1 : 0 ＝ 1
-    0-is-1 = sym＝ f⋆-0 ∙ f⋆-1
-
-𝟙≠ℕ : (⊤ ＝ ℕ) → ⊥
-𝟙≠ℕ p = no-surj→ℕ (transport (λ t → Σ f ∶ (⊤ → t) , surjective f) p exists-surj→𝟙)
+𝟙≠ℕ : (𝟙 ＝ ℕ) → ⊥
+𝟙≠ℕ p = no-inj-ℕ (transport (λ t → (Σ f ∶ (t → 𝟙) , injective f)) p exists-inj-𝟙)
 
 {-
   compile-time tests !
