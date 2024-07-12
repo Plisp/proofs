@@ -264,6 +264,38 @@ inhabited≠⊥ : ∀{I} → I → (⊥ ＝ I) → ⊥
 inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
 
 {-
+  top ≠ nat, one has a surjection, one does not
+-}
+
+surjective : {X Y : Set} → (f : X → Y) → Set
+surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
+
+exists-surj→𝟙 : (Σ f ∶ (⊤ → ⊤) , surjective f)
+exists-surj→𝟙 = (λ x → x) , (λ x → x , refl x)
+
+no-surj→ℕ : (Σ f ∶ (⊤ → ℕ) , surjective f) → ⊥
+no-surj→ℕ (f , p) = 0≠1 0-is-1
+  where
+    p0 : (Σ x ∶ ⊤ , f x ＝ 0)
+    p0 = p 0
+
+    p0-uniq : (⋆ ＝ pr₁ p0)
+    p0-uniq = (pr₂ 𝟙-is-singleton) (pr₁ p0)
+
+    f⋆-0 : f ⋆ ＝ 0
+    f⋆-0 = (ap f p0-uniq) ∙ pr₂ p0
+
+    f⋆-1 : f ⋆ ＝ 1
+    f⋆-1 with (p 1)
+    ...  | (x , p') = ap f (pr₂ 𝟙-is-singleton x) ∙ p'
+
+    0-is-1 : 0 ＝ 1
+    0-is-1 = sym＝ f⋆-0 ∙ f⋆-1
+
+𝟙≠ℕ : (⊤ ＝ ℕ) → ⊥
+𝟙≠ℕ p = no-surj→ℕ (transport (λ t → Σ f ∶ (⊤ → t) , surjective f) p exists-surj→𝟙)
+
+{-
   compile-time tests !
   this probably won't impress the c++ programmers
 -}
