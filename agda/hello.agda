@@ -210,7 +210,7 @@ data Bad (E : Set) : ℕ → Set where
 badind : ∀{n}{E} → (A : ℕ → Set) → Bad E n → (A 0) → (E → A 1) → (A n)
 badind {zero} _ (badt) a0 _ = a0
 badind {suc zero} _ (badf e) _ a1 = a1 e
-badind {suc (suc st)} _ ()
+--badind {suc (suc st)} _ ()
 
 {- having a (Bad E 1) gives an E, using pattern matching: bade' (badf x) = x -}
 bade : ∀{E} → Bad E 1 → E
@@ -255,35 +255,55 @@ tdest {E}{I} i p = bad i
 -- this creates a contradictory Test ⊥ 𝟙 element which doesn't match constructors
 -- (in what sense? is it contradictory to assume that all 'data' declarations
 -- that are nominally distinct are unequal?)
-⊤≠⊥ : (⊥ ＝ 𝟙) → ⊥
-⊤≠⊥ p = tdest ⋆ (transport (Test ⊥) p (conA))
+𝟘≠𝟙 : 𝟘 ≠ 𝟙
+𝟘≠𝟙 p = tdest ⋆ (transport (Test ⊥) p (conA))
 
 -- 𝟙 can actually be any inhabited type, however now it's less obvious that such
 -- an equality should hold definitionally
-inhabited≠⊥ : ∀{I} → I → (⊥ ＝ I) → ⊥
+inhabited≠⊥ : ∀{I} → I → ⊥ ≠ I
 inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
 
 {-
-  𝟙 ≠ ℕ one has a injection into 𝟙, one does not
+  𝟙 ≠ 𝟚 only one is a subsingleton
 -}
 
-surjective : {X Y : Set} → (f : X → Y) → Set
-surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
+postulate -- proof: same as 0≠1 and idk how to generalise
+  true≠false : true ≠ false
+
+Bool-not-subsingleton : ¬(is-subsingleton Bool)
+Bool-not-subsingleton p = true≠false (p true false)
+
+𝟙≠𝟚 : 𝟙 ≠ Bool
+𝟙≠𝟚 p = Bool-not-subsingleton (transport is-subsingleton p 𝟙-subsingleton)
+
+{-
+  no surjection ℕ → (ℕ → 2)
+-}
 
 injective : {X Y : Set} → (f : X → Y) → Set
 injective {X}{Y} f = ∀ (x y : X) → (f x ＝ f y) → (x ＝ y)
 
-exists-inj-𝟙 : (Σ f ∶ (𝟙 → 𝟙) , injective f)
-exists-inj-𝟙 = (λ x → x) , λ _ _ z → z
+surjective : {X Y : Set} → (f : X → Y) → Set
+surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
 
-no-inj-ℕ : (Σ f ∶ (ℕ → 𝟙) , injective f) → ⊥
-no-inj-ℕ (f , p) = 0≠1 (p 0 1 test)
+not-bool-neq : (b : Bool) → b ≠ (not b)
+not-bool-neq true p = true≠false p
+not-bool-neq false p = true≠false (sym＝ p)
+
+cantor : (f : (ℕ → (ℕ → Bool))) → surjective f → ⊥
+cantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
-    test : f 0 ＝ f 1
-    test = 𝟙-subsingleton (f 0) (f 1)
+    diagonal : ℕ → Bool
+    diagonal n = not (f n n)
 
-𝟙≠ℕ : (𝟙 ＝ ℕ) → ⊥
-𝟙≠ℕ p = no-inj-ℕ (transport (λ t → (Σ f ∶ (t → 𝟙) , injective f)) p exists-inj-𝟙)
+    diagonal-code : (Σ n ∶ ℕ , f n ＝ diagonal)
+    diagonal-code = p diagonal
+
+    diagonal-neq-any-n : ∀ n → f n n ≠ diagonal n
+    diagonal-neq-any-n n = not-bool-neq (f n n)
+
+    diagonal-neq-any-fn : ∀ n → f n ≠ diagonal
+    diagonal-neq-any-fn n p = diagonal-neq-any-n n (ap (λ f → f n) p)
 
 {-
   compile-time tests !
