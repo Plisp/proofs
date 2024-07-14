@@ -7,12 +7,25 @@ open pairTheory;
 
 val _ = new_theory "upto";
 
+open posetTheory;
+
+Theorem subset_poset:
+  poset (UNIV, $SUBSET)
+Proof
+  rw[poset_def, SUBSET_ANTISYM]
+QED
+
+Definition pcompatible_def:
+  pcompatible p b f = (monotonic p b ∧ monotonic p f ∧
+                       ∀x. (x ∈ carrier p) ⇒ relation p (f(b x)) (b(f x)))
+End
+
 Definition compatible_def:
   compatible b f = (monotone b ∧ monotone f ∧ ∀x. f(b x) ⊆ b(f x))
 End
 
 Definition companion_def:
-  companion b = λX. BIGUNION {f X | compatible b f}
+  companion b = λX. BIGUNION {f X | f | compatible b f}
 End
 
 Theorem compatible_below_companion:
@@ -105,7 +118,7 @@ Proof
     match_mp_tac SUBSET_TRANS >>
     drule (REWRITE_RULE [companion_mono,compatible_def] compatible_companion) >>
     strip_tac >>
-    first_assum $ irule_at (Pos (el 2)) >>
+    first_assum $ irule_at Any >> (* Pat ‘’ *)
     irule $ iffLR monotone_def >>
     rw[])
   >-
@@ -191,14 +204,14 @@ Proof
   simp[companion_idem]
 QED
 
-Definition continuous_def:
-  continuous b = ∀P. (b (BIGINTER P) = BIGINTER { b s | s ∈ P })
+Definition wcontinuous_def:
+  wcontinuous b = ∀P. (b (BIGINTER P) = BIGINTER { b s | s ∈ P })
 End
 
 Theorem continuous_mono:
-  continuous b ⇒ monotone b
+  wcontinuous b ⇒ monotone b
 Proof
-  rw[continuous_def, monotone_def] >>
+  rw[wcontinuous_def, monotone_def] >>
   ‘X = BIGINTER { X; Y }’ by rw[BIGINTER_INTER, SUBSET_INTER1] >>
   ‘b (BIGINTER {X; Y}) ⊆ b Y’ suffices_by metis_tac[] >>
   pop_last_assum $ qspec_then ‘{X; Y}’ strip_assume_tac >>
@@ -208,7 +221,7 @@ Proof
 QED
 
 Theorem continuous_fixpoint:
-  continuous b ⇒ gfp b = BIGINTER (λx. ∃n. x = FUNPOW b n (K T))
+  wcontinuous b ⇒ gfp b = BIGINTER (λx. ∃n. x = FUNPOW b n (K T))
 Proof
   rw[Once SET_EQ_SUBSET] >-
    (rw[SUBSET_DEF] >>
@@ -225,7 +238,7 @@ Proof
 QED
 
 Theorem companion_eq:
-  ∀b. continuous b
+  ∀b. wcontinuous b
       ⇒ companion b = (λx. BIGINTER (λs. ∃n. s = FUNPOW b n (K T) ∧ x ⊆ s))
 Proof
   rw[Once FUN_EQ_THM, SET_EQ_SUBSET] >-
@@ -242,6 +255,33 @@ Proof
      (rw[monotone_def, SUBSET_DEF, PULL_EXISTS]) >>
     rw[SUBSET_DEF, PULL_EXISTS]
    )
+QED
+
+Definition connection_join:
+  connection_join b g = λx. BIGUNION { f x | ∀y. f (b y) ⊆ b (g y) }
+End
+
+Definition pointwise_monotone_def:
+  pointwise_monotone higher_functional
+  = (∀f g. (∀x. f x ⊆ g x) ⇒ ∀x. (higher_functional f) x ⊆ (higher_functional g) x)
+End
+
+Theorem connection_join_mono:
+  monotone b
+  ⇒ pointwise_monotone (connection_join b)
+Proof
+  rw[monotone_def, pointwise_monotone_def] >>
+  rw[connection_join, Once SUBSET_DEF, PULL_EXISTS] >>
+  qexists_tac ‘f'’ >> rw[] >>
+  pop_assum $ qspec_then ‘y’ strip_assume_tac >>
+  ‘b (f y) ⊆ b (g y)’ suffices_by metis_tac[SUBSET_TRANS] >>
+  metis_tac[]
+QED
+
+Theorem lemma6_2:
+  (∀x. f x ⊆ (B g) x) = (∀x. f b x ⊆ b g x)
+Proof
+  rw[]
 QED
 
 Theorem param_coind:
@@ -271,6 +311,14 @@ Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
   ({[||],[||]} ∪ {(x:::xs,y:::ys) | x = y ∧ (xs,ys) ∈ R})
 End
+
+Theorem llist_inversion:
+  (x, y) ∈ llist_functional R
+  ⇒ (x = [||] ∧ y = [||]) ∨
+    (∃e xs ys. x = e:::xs ∧ y = e:::ys ∧ (xs,ys) ∈ R)
+Proof
+  rw[llist_functional]
+QED
 
 open itreeTauTheory;
 Definition itree_wbisim_functional:

@@ -286,15 +286,28 @@ Bool-not-subsingleton p = true≠false (p true false)
   no surjection ℕ → (ℕ → 2)
 -}
 
-surjective : {X Y : Set} → (f : X → Y) → Set
-surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
+open import Agda.Primitive
+surjective :{A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → (Σ x ∶ A , f x ＝ y)
+
+surj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
+          → (f : A → B) → surjective f
+          → (g : B → C) → surjective g
+          → surjective (g ∘ f)
+surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c = pr₁ pa , ap g (pr₂ pa) ∙ pr₂ pb
+  where
+    pb : Σ b ∶ B , g b ＝ c
+    pb = pg c
+
+    pa : Σ a ∶ A , f a ＝ pr₁ pb
+    pa = pf (pr₁ pb)
 
 not-bool-neq : (b : Bool) → b ≠ (not b)
 not-bool-neq true p = true≠false p
 not-bool-neq false p = true≠false (sym＝ p)
 
-cantor : (f : (ℕ → (ℕ → Bool))) → surjective f → ⊥
-cantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
+rcantor : (f : (ℕ → (ℕ → Bool))) → surjective f → ⊥
+rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
     diagonal : ℕ → Bool
     diagonal n = not (f n n)
@@ -308,13 +321,45 @@ cantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
     diagonal-neq-any-fn : ∀ n → f n ≠ diagonal
     diagonal-neq-any-fn n p = diagonal-neq-any-n n (ap (λ f → f n) p)
 
+-- no injection the other way
+injective : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
+
+inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
+         → (f : A → B) → injective f
+         → (g : B → C) → injective g
+         → injective (g ∘ f)
+inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
+
+
+
+cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
+cantor = ?
+
 {-
-  how do we talk about function type equality?
+  how do we talk about function equality?
+  well I don't see how to do it uniformly (extensionality is this assumption)
+  but we can prove disequalities by examining points
+
+  this can give type disequalities (𝟙 → 𝟚) ≠ 𝟙
+  so we can talk about big function spaces, but not small (nonempty) ones?
 -}
 
-injective : {X Y : Set} → (f : X → Y) → Set
-injective {X}{Y} f = ∀ (x y : X) → (f x ＝ f y) → (x ＝ y)
+1→0-subsingleton : is-subsingleton (𝟙 → 𝟘)
+1→0-subsingleton f g = rec⊥ (f ＝ g) (f ⋆)
 
+-- next: identify a bigger type of functions which have equality
+ext-fns = Σ f ∶ (𝟙 → 𝟙) , ∀ g → (f ~ g) → f ＝ g
+
+test : is-subsingleton ext-fns
+test (f , pf) (g , pg) = to-Σ＝ (pf g lemma , {!!})
+  where
+    lemma : f ~ g
+    lemma x = 𝟙-subsingleton (f x) (g x)
+
+-- this may very well be unprovable if a model validates it
+-- paradox : (i : Set → (𝟙 → 𝟙)) → injective i → ⊥
+-- paradox = {!!}
 
 {-
   compile-time tests !
