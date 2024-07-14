@@ -65,6 +65,7 @@ pointed-subsingleton→singleton X x s = (x , s x)
 0-type X = (x y : X) → is-subsingleton (x ＝ y)
 is-set = 0-type
 
+-- any continuously* connected space has a trivial loop space
 subsingleton→set : (X : Set ℓ) → is-subsingleton X → is-set X
 subsingleton→set X ss = proof
   where

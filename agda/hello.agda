@@ -222,6 +222,15 @@ bade {E} p = badind (λ n → recℕ 𝟙 (λ n _ → E) n) -- large elim on n
 0≠1 eq = bade (transport (Bad ⊥) eq (badt))
 
 {-
+  a simpler mltt way to do term disequality
+-}
+
+true-and-false : ∀{E} → true ＝ false → E
+true-and-false {E} p = transport (λ t → if t then 𝟙 else E) p ⋆
+
+true≠false = λ p → true-and-false {⊥} p
+
+{-
   for types, use maps since you can't directly match on type structure
   unlike data constructors, but why?? can't we compute closed type equality
 -}
@@ -267,9 +276,6 @@ inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
   𝟙 ≠ 𝟚 only one is a subsingleton
 -}
 
-postulate -- proof: same as 0≠1 and idk how to generalise
-  true≠false : true ≠ false
-
 Bool-not-subsingleton : ¬(is-subsingleton Bool)
 Bool-not-subsingleton p = true≠false (p true false)
 
@@ -279,9 +285,6 @@ Bool-not-subsingleton p = true≠false (p true false)
 {-
   no surjection ℕ → (ℕ → 2)
 -}
-
-injective : {X Y : Set} → (f : X → Y) → Set
-injective {X}{Y} f = ∀ (x y : X) → (f x ＝ f y) → (x ＝ y)
 
 surjective : {X Y : Set} → (f : X → Y) → Set
 surjective {X}{Y} f = ∀ (y : Y) → (Σ x ∶ X , f x ＝ y)
@@ -304,6 +307,14 @@ cantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
 
     diagonal-neq-any-fn : ∀ n → f n ≠ diagonal
     diagonal-neq-any-fn n p = diagonal-neq-any-n n (ap (λ f → f n) p)
+
+{-
+  how do we talk about function type equality?
+-}
+
+injective : {X Y : Set} → (f : X → Y) → Set
+injective {X}{Y} f = ∀ (x y : X) → (f x ＝ f y) → (x ＝ y)
+
 
 {-
   compile-time tests !

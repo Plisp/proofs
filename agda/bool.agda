@@ -30,7 +30,7 @@ _||_ : Bool → Bool → Bool
 true  || b = true
 false || b = b
 
-if_then_else : {A : Set} → Bool → A → A → A
+if_then_else : {A : Set ℓ} → Bool → A → A → A
 if true  then x else y = x
 if false then x else y = y
 
