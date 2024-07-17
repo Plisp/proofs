@@ -78,7 +78,7 @@ surj→epic : {A B C : Set} (f : A → B)
 surj→epic {A}{B}{C} f s g h p y = flip (lemma g y) ∙ p (pr₁ (s y)) ∙ (lemma h y)
   where
     lemma : (g : B → C) → ∀ y → g (f (pr₁ (s y))) ＝ g y
-    lemma g y = ap (λ x → g x) (pr₂ (s y))
+    lemma g y = ap g (pr₂ (s y))
 
 -- requires HIT https://1lab.dev/Data.Set.Surjection.html#epis-are-surjective
 -- not easy to reverse f without LEM

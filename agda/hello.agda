@@ -72,13 +72,13 @@ infalg-ind la ba (branch nb) = ba (λ n → infalg-ind la ba (nb n))
   an empty initial algebra
 -}
 
-data badalg : Set where
-  co : (𝟙 → badalg) → badalg
+data Badalg : Set where
+  co : (𝟙 → Badalg) → Badalg
 
-badalg-rec : {A : Set} → ((𝟙 → A) → A) → (t : badalg) → A
+badalg-rec : {A : Set} → ((𝟙 → A) → A) → Badalg → A
 badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
 
-badalg-contra : ¬ badalg
+badalg-contra : ¬ Badalg
 badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
 
 {-
@@ -207,7 +207,7 @@ data Bad (E : Set) : ℕ → Set where
   badt : Bad E 0
   badf : E → Bad E 1
 
-badind : ∀{n}{E} → (A : ℕ → Set) → Bad E n → (A 0) → (E → A 1) → (A n)
+badind : ∀{n}{E} → (A : ℕ → Set) → Bad E n → A 0 → (E → A 1) → A n
 badind {zero} _ (badt) a0 _ = a0
 badind {suc zero} _ (badf e) _ a1 = a1 e
 --badind {suc (suc st)} _ ()
@@ -249,7 +249,7 @@ data Test (E : Set) : Set → Set₁ where
   conB : Test E E
 
 -- Test E is a prop that holds of two t, covering the cases gives A t
-tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → (A t)
+tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → A t
 tind _ (conA) at _ = at
 tind _ (conB) _ ae = ae
 
@@ -288,25 +288,26 @@ Bool-not-subsingleton p = true≠false (p true false)
 
 open import Agda.Primitive
 surjective :{A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
-surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → (Σ x ∶ A , f x ＝ y)
+surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → fiber f y
 
 surj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
           → (f : A → B) → surjective f
           → (g : B → C) → surjective g
           → surjective (g ∘ f)
-surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c = pr₁ pa , ap g (pr₂ pa) ∙ pr₂ pb
+surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c = fiber-base pa
+                                            , ap g (fiber-id pa) ∙ (fiber-id pb)
   where
-    pb : Σ b ∶ B , g b ＝ c
+    pb : fiber g c
     pb = pg c
 
-    pa : Σ a ∶ A , f a ＝ pr₁ pb
-    pa = pf (pr₁ pb)
+    pa : fiber f (pr₁ pb)
+    pa = pf (fiber-base pb)
 
 not-bool-neq : (b : Bool) → b ≠ (not b)
 not-bool-neq true p = true≠false p
 not-bool-neq false p = true≠false (sym＝ p)
 
-rcantor : (f : (ℕ → (ℕ → Bool))) → surjective f → ⊥
+rcantor : (f : ℕ → (ℕ → Bool)) → surjective f → ⊥
 rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
     diagonal : ℕ → Bool
@@ -325,6 +326,25 @@ rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
 injective : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
 injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
 
+injective' : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+injective' {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (x ≠ y) → (f x ≠ f y)
+
+injective-injective' : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
+                     → injective f → injective' f
+injective-injective' f p x y x≠y fx＝fy = x≠y (p x y fx＝fy)
+
+surj-inj : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
+         → surjective f → Σ g ∶ (B → A) , injective g
+surj-inj {ℓ₁}{ℓ₂} {A}{B} f surj
+  = inj , λ x y p → sym＝ (fiber-id (surj x)) ∙ ap f p ∙ fiber-id (surj y)
+  where
+    inj : B → A
+    inj b = fiber-base (surj b)
+
+surj-inj-retract : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
+                 → (p : surjective f) → f ∘ pr₁ (surj-inj f p) ~ id
+surj-inj-retract f p b = Σ.p2 (p b)
+
 inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
          → (f : A → B) → injective f
          → (g : B → C) → injective g
@@ -333,8 +353,26 @@ inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
 
 
 
-cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
-cantor = ?
+-- cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
+-- cantor = {!!}
+--   where
+--     ℕ＝ : ℕ → ℕ → Bool
+--     ℕ＝ zero    zero    = true
+--     ℕ＝ (suc n) zero    = false
+--     ℕ＝ zero    (suc m) = false
+--     ℕ＝ (suc n) (suc m) = ℕ＝ n m
+
+--     seq : ℕ → (ℕ → Bool)
+--     seq i = λ n → if (ℕ＝ i n) then true else false
+
+--     seq-true : (a : ℕ) → true ＝ (seq a) a
+--     seq-true = {!!}
+
+--     seq-false : {a b : ℕ} → (a ≠ b) → true ≠ (seq b) a
+--     seq-false = {!!}
+
+--     seq-distinct : (a b : ℕ) → a ≠ b → seq a ≠ seq b
+--     seq-distinct a b abn p = seq-false abn (seq-true a ∙ (ap (λ f → f a) p))
 
 {-
   how do we talk about function equality?
@@ -351,11 +389,11 @@ cantor = ?
 -- next: identify a bigger type of functions which have equality
 ext-fns = Σ f ∶ (𝟙 → 𝟙) , ∀ g → (f ~ g) → f ＝ g
 
-test : is-subsingleton ext-fns
-test (f , pf) (g , pg) = to-Σ＝ (pf g lemma , {!!})
-  where
-    lemma : f ~ g
-    lemma x = 𝟙-subsingleton (f x) (g x)
+-- test : is-subsingleton ext-fns
+-- test (f , pf) (g , pg) = to-Σ＝ (pf g lemma , {!!})
+--   where
+--     lemma : f ~ g
+--     lemma x = 𝟙-subsingleton (f x) (g x)
 
 -- this may very well be unprovable if a model validates it
 -- paradox : (i : Set → (𝟙 → 𝟙)) → injective i → ⊥
