@@ -231,46 +231,14 @@ true-and-false {E} p = transport (λ t → if t then 𝟙 else E) p ⋆
 true≠false = λ p → true-and-false {⊥} p
 
 {-
-  for types, use maps since you can't directly match on type structure
-  unlike data constructors, but why?? can't we compute closed type equality
+  for types, use transport
 -}
 
--- data Badt (E : Set) : Set → Set₁ where
---   badt : Badt E 𝟙
---   badf : E → Badt E ⊥
+coerce : {A B : Set ℓ} → (A ＝ B) → A → B
+coerce p = transport id p
 
--- -- cannot unify types; distinguish 𝟙 and ⊥. what does type equality mean?
--- -- univalence is one option but that's an additional axiom (model restriction)
--- asdc : ∀{E} → Badt E ⊥ → E
--- asdc p = {!!}
-
-data Test (E : Set) : Set → Set₁ where
-  conA : Test E ⊥
-  conB : Test E E
-
--- Test E is a prop that holds of two t, covering the cases gives A t
-tind : ∀{E}{t} → (A : Set → Set) → Test E t → A ⊥ → A E → A t
-tind _ (conA) at _ = at
-tind _ (conB) _ ae = ae
-
--- ind is defined uniformly in E, we don't know E = I so ⊥ is required to elim to E
-tdest : ∀{E}{I} → I → Test E I → E
-tdest {E}{I} i p = bad i
-  where {- maps into E -}
-    bad : I → E
-    bad = tind (λ t → (t → E)) p (rec⊥ E) id
-
--- we can't directly 'coerce' ⋆ to ⊥ but can do it through a family?
--- this creates a contradictory Test ⊥ 𝟙 element which doesn't match constructors
--- (in what sense? is it contradictory to assume that all 'data' declarations
--- that are nominally distinct are unequal?)
-𝟘≠𝟙 : 𝟘 ≠ 𝟙
-𝟘≠𝟙 p = tdest ⋆ (transport (Test ⊥) p (conA))
-
--- 𝟙 can actually be any inhabited type, however now it's less obvious that such
--- an equality should hold definitionally
-inhabited≠⊥ : ∀{I} → I → ⊥ ≠ I
-inhabited≠⊥ i p = tdest i (transport (Test ⊥) p (conA))
+inhabited≠⊥ : ∀{I} → I → (I ≠ 𝟘)
+inhabited≠⊥ i p = coerce p i
 
 {-
   𝟙 ≠ 𝟚 only one is a subsingleton
@@ -294,8 +262,8 @@ surj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
           → (f : A → B) → surjective f
           → (g : B → C) → surjective g
           → surjective (g ∘ f)
-surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c = fiber-base pa
-                                            , ap g (fiber-id pa) ∙ (fiber-id pb)
+surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c
+  = fiber-base pa , (ap g (fiber-id pa) ∙ fiber-id pb)
   where
     pb : fiber g c
     pb = pg c
@@ -307,13 +275,14 @@ not-bool-neq : (b : Bool) → b ≠ (not b)
 not-bool-neq true p = true≠false p
 not-bool-neq false p = true≠false (sym＝ p)
 
+-- todo generalize to diagonal lemma in nlab
 rcantor : (f : ℕ → (ℕ → Bool)) → surjective f → ⊥
 rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
     diagonal : ℕ → Bool
     diagonal n = not (f n n)
 
-    diagonal-code : (Σ n ∶ ℕ , f n ＝ diagonal)
+    diagonal-code : fiber f diagonal
     diagonal-code = p diagonal
 
     diagonal-neq-any-n : ∀ n → f n n ≠ diagonal n
@@ -321,6 +290,27 @@ rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
 
     diagonal-neq-any-fn : ∀ n → f n ≠ diagonal
     diagonal-neq-any-fn n p = diagonal-neq-any-n n (ap (λ f → f n) p)
+
+neg-neq : {A : Set ℓ} → A ≠ (¬ A)
+neg-neq {ℓ}{A} p = nnot-a not-a
+  where
+    not-a : A → ⊥
+    not-a a = (coerce p a) a
+
+    nnot-a : ¬ A → ⊥
+    nnot-a na = na (coerce (sym＝ p) na)
+
+rcantor' : (f : ℕ → (ℕ → Set)) → surjective f → ⊥
+rcantor' f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
+  where
+    diagonal : ℕ → Set
+    diagonal n = ¬(f n n)
+
+    diagonal-code : fiber f diagonal
+    diagonal-code = p diagonal
+
+    diagonal-neq-any-n : ∀ n → f n ≠ diagonal
+    diagonal-neq-any-n n p = neg-neq (ap (λ f → f n) p)
 
 -- no injection the other way
 injective : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
@@ -351,28 +341,8 @@ inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
          → injective (g ∘ f)
 inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
 
-
-
--- cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
--- cantor = {!!}
---   where
---     ℕ＝ : ℕ → ℕ → Bool
---     ℕ＝ zero    zero    = true
---     ℕ＝ (suc n) zero    = false
---     ℕ＝ zero    (suc m) = false
---     ℕ＝ (suc n) (suc m) = ℕ＝ n m
-
---     seq : ℕ → (ℕ → Bool)
---     seq i = λ n → if (ℕ＝ i n) then true else false
-
---     seq-true : (a : ℕ) → true ＝ (seq a) a
---     seq-true = {!!}
-
---     seq-false : {a b : ℕ} → (a ≠ b) → true ≠ (seq b) a
---     seq-false = {!!}
-
---     seq-distinct : (a b : ℕ) → a ≠ b → seq a ≠ seq b
---     seq-distinct a b abn p = seq-false abn (seq-true a ∙ (ap (λ f → f a) p))
+cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
+cantor f p = {!!}
 
 {-
   how do we talk about function equality?
