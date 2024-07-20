@@ -131,6 +131,6 @@ A has-decidable-equality = (x y : A) → decidable (x ＝ y)
 is-empty : Set ℓ → Set ℓ
 is-empty X = ¬ X
 
-LEM LEM' : ∀ ℓ → Set (lsuc ℓ)
-LEM ℓ = (X : Set ℓ) → is-prop X → decidable X
-LEM' ℓ = (X : Set ℓ) → is-subsingleton X → is-contr X ＋ is-empty X
+lem lem' : ∀ ℓ → Set (lsuc ℓ)
+lem ℓ = (X : Set ℓ) → is-prop X → decidable X
+lem' ℓ = (X : Set ℓ) → is-subsingleton X → is-contr X ＋ is-empty X

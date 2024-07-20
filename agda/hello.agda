@@ -4,23 +4,28 @@
   random proofs
 -}
 
+open import Agda.Primitive
 open import logic
 open import path
 open import types
 -- open import list
 open import bool
--- open import functor
+open import functor
 open import arith
 -- open import op
 open import homotopy
 open import hlevel
 open import hlevel-ex
--- open import retract
+open import retract
 -- open import retract-ex
 open import equiv
 open import equiv-ex -- unused
 open import joyal
 open import univalence
+
+postulate
+  LEM : (X : Set ℓ) → X ＋ ¬ X
+  FUNEXT : {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
 
 {-
   I love recursion principles
@@ -85,10 +90,6 @@ badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
   isabelle is weird, review if this needs univalence
 -}
 
-postulate
-  funext :
-    {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
-
 isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
 isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
@@ -114,10 +115,10 @@ isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
     hom f p' = g f p'
 
     left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
-    left f = funext (hom f)
+    left f = FUNEXT (hom f)
 
     qmap-is-invertible : invertible qmap
-    qmap-is-invertible = qmap⁻¹ , (left , (λ f → funext (λ p' → l f p')))
+    qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
 
     pq-equiv : (P' → Q) ≃ (P' → Q')
     pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
@@ -183,8 +184,8 @@ wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
   double negation translation
 -}
 
-lem : {P : Set} → ((P ＋ (P → ⊥)) → ⊥) → ⊥
-lem f = f (inr (λ p → f (inl p)))
+nn-lem : {P : Set} → ((P ＋ (P → ⊥)) → ⊥) → ⊥
+nn-lem f = f (inr (λ p → f (inl p)))
 
 proof-by-negation : {P : Set} → P → ((P → ⊥) → ⊥)
 proof-by-negation p f = f p
@@ -225,17 +226,15 @@ bade {E} p = badind (λ n → recℕ 𝟙 (λ n _ → E) n) -- large elim on n
   a simpler mltt way to do term disequality
 -}
 
-true-and-false : ∀{E} → true ＝ false → E
-true-and-false {E} p = transport (λ t → if t then 𝟙 else E) p ⋆
-
-true≠false = λ p → true-and-false {⊥} p
+true≠false : true ≠ false
+true≠false p = transport (λ t → if t then 𝟙 else ⊥) p ⋆
 
 {-
   for types, use transport
 -}
 
 coerce : {A B : Set ℓ} → (A ＝ B) → A → B
-coerce p = transport id p
+coerce = transport id
 
 inhabited≠⊥ : ∀{I} → I → (I ≠ 𝟘)
 inhabited≠⊥ i p = coerce p i
@@ -251,10 +250,9 @@ Bool-not-subsingleton p = true≠false (p true false)
 𝟙≠𝟚 p = Bool-not-subsingleton (transport is-subsingleton p 𝟙-subsingleton)
 
 {-
-  no surjection ℕ → (ℕ → 2)
+  no surjection into the powerset
 -}
 
-open import Agda.Primitive
 surjective :{A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
 surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → fiber f y
 
@@ -271,26 +269,6 @@ surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c
     pa : fiber f (pr₁ pb)
     pa = pf (fiber-base pb)
 
-not-bool-neq : (b : Bool) → b ≠ (not b)
-not-bool-neq true p = true≠false p
-not-bool-neq false p = true≠false (sym＝ p)
-
--- todo generalize to diagonal lemma in nlab
-rcantor : (f : ℕ → (ℕ → Bool)) → surjective f → ⊥
-rcantor f p = diagonal-neq-any-fn (pr₁ diagonal-code) (pr₂ diagonal-code)
-  where
-    diagonal : ℕ → Bool
-    diagonal n = not (f n n)
-
-    diagonal-code : fiber f diagonal
-    diagonal-code = p diagonal
-
-    diagonal-neq-any-n : ∀ n → f n n ≠ diagonal n
-    diagonal-neq-any-n n = not-bool-neq (f n n)
-
-    diagonal-neq-any-fn : ∀ n → f n ≠ diagonal
-    diagonal-neq-any-fn n p = diagonal-neq-any-n n (ap (λ f → f n) p)
-
 neg-neq : {A : Set ℓ} → A ≠ (¬ A)
 neg-neq {ℓ}{A} p = nnot-a not-a
   where
@@ -300,10 +278,10 @@ neg-neq {ℓ}{A} p = nnot-a not-a
     nnot-a : ¬ A → ⊥
     nnot-a na = na (coerce (sym＝ p) na)
 
-rcantor' : (f : ℕ → (ℕ → Set)) → surjective f → ⊥
-rcantor' f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
+rcantor : {A : Set ℓ} → (f : A → (A → Set)) → surjective f → ⊥
+rcantor {ℓ}{A} f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
-    diagonal : ℕ → Set
+    diagonal : A → Set
     diagonal n = ¬(f n n)
 
     diagonal-code : fiber f diagonal
@@ -312,7 +290,35 @@ rcantor' f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
     diagonal-neq-any-n : ∀ n → f n ≠ diagonal
     diagonal-neq-any-n n p = neg-neq (ap (λ f → f n) p)
 
--- no injection the other way
+{-
+  no injection the other way
+-}
+
+not-bool-neq : (b : Bool) → b ≠ (not b)
+not-bool-neq true p = true≠false p
+not-bool-neq false p = true≠false (sym＝ p)
+
+ext-surjective : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
+               → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
+ext-surjective {ℓ}{ℓ₁}{ℓ₂} {A}{B}{C} f = ∀ (g : B → C) → Σ a ∶ A , f a ~ g
+
+surj-ext-surj : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
+              → surjective f → ext-surjective f
+surj-ext-surj f p x = Σ.p1 (p x) , id~ (Σ.p2 (p x))
+
+rcantor' : {A : Set ℓ} (f : A → (A → Bool)) → ext-surjective f → ⊥
+rcantor' {ℓ}{A} f p
+  = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code (pr₁ diagonal-code))
+  where
+    diagonal : A → Bool
+    diagonal n = not (f n n)
+
+    diagonal-code : Σ a ∶ A , f a ~ diagonal
+    diagonal-code = p diagonal
+
+    diagonal-neq-any-n : ∀ n → f n n ≠ diagonal n
+    diagonal-neq-any-n n = not-bool-neq (f n n)
+
 injective : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
 injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
 
@@ -335,14 +341,58 @@ surj-inj-retract : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
                  → (p : surjective f) → f ∘ pr₁ (surj-inj f p) ~ id
 surj-inj-retract f p b = Σ.p2 (p b)
 
+-- injection is weaker
 inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
          → (f : A → B) → injective f
          → (g : B → C) → injective g
          → injective (g ∘ f)
 inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
 
-cantor : (f : (ℕ → Bool) → ℕ) → injective f → ⊥
-cantor f p = {!!}
+has-ext-section : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂}
+                → (Z → (X → Y)) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
+has-ext-section {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} r
+  = Σ s ∶ ((X → Y) → Z) , ∀ f → (r (s f)) ~ f
+
+ext-retraction-surj : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
+                    → (r : A → (B → C)) → has-ext-section r
+                    → ext-surjective r
+ext-retraction-surj r (s , p) = λ f → (s f , p f)
+
+bool-normal : (b : Bool) → (true ＝ b) ＋ (false ＝ b)
+bool-normal true = inl (refl true)
+bool-normal false = inr (refl false)
+
+cantor : {A : Set ℓ} → (f : (A → Bool) → A) → injective f → ⊥
+cantor {ℓ}{A} s p = rcantor' r (ext-retraction-surj r (s , pf))
+  where
+    r : A → (A → Bool)
+    r a x with LEM (Σ g ∶ (A → Bool) , s g ＝ a × g x ＝ true)
+    ... | inl _ = true
+    ... | inr _ = false
+
+    pf : (f : A → Bool) → r (s f) ~ f
+    pf f x with LEM (Σ (λ g → s g ＝ s f × g x ＝ true)) | bool-normal (f x)
+    ...    | inr _ | inr eq = eq
+    ...    | inl _ | inl eq = eq
+    ...    | inr elim | inl eq = rec⊥ _ (elim (f , refl _ , sym＝ eq))
+    ...    | inl (g , (sgf , gxt)) | inr eq = sym＝ gxt ∙ ap (λ f → f x) lemma
+                                     where
+                                       lemma : g ＝ f
+                                       lemma = p g f sgf
+
+    -- -- match only substitutes bound instances, so annoying smh
+    -- f x | LEM (Σ (λ g → s g ＝ s f × g x ＝ true))
+    -- ...    | true   | inl (g , p) = refl true
+    -- ...    | false  | inr elim    = refl false
+    -- ...    | true   | inr elim    = rec⊥ _ (elim (f , refl _ , {!!}))
+    -- ...    | false  | inl (g , (sgf , gxt)) = rec⊥ _ {!!}
+    --                      where
+    --                        lemma : g x ＝ f x
+    --                        lemma = ap (λ f → f x) (p g f sgf)
+
+    --                        contra : f x ＝ true
+    --                        contra = sym＝ lemma ∙ gxt
+
 
 {-
   how do we talk about function equality?
