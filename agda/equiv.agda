@@ -7,6 +7,7 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import function
 open import homotopy
 open import hlevel
 open import retract
@@ -15,18 +16,6 @@ open import retract-ex using (transport-is-section;Σ-retract)
 {-
   Voevodsky's equivalence
 -}
-
--- space: witnesses x' × f x' = y
-fiber : {X :  Set ℓ} {Y : Set ℓ₁} (f : X → Y) → Y → Set (ℓ ⊔ ℓ₁)
-fiber {ℓ}{ℓ₁} {X}{Y} f y = Σ x ∶ X , f x ＝ y
-
-fiber-base : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
-           → fiber f y → X
-fiber-base (x , p) = x
-
-fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
-         → (w : fiber f y) → f (fiber-base w) ＝ y
-fiber-id (x , p) = p
 
 -- the fibre (preimage) of all y : Y under f is unique (size 1)
 -- the proof is also unique, via the characterisation of Σ identity
