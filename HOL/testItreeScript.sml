@@ -372,6 +372,12 @@ Proof
   Cases_on ‘ffi’ >> simp[]
 QED
 
+
+
+
+
+
+
 (*/ lifted versions
    not sure how to do seq? I guess internal lemmas are fine
 *)
