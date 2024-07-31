@@ -38,7 +38,7 @@ fun parse_pancake_nosimp q =
     EVAL “(parse_funs_to_ast ^code)”
 end
 
-(* TODO add_user_printer docs, sml-mode *)
+(* XXX add_user_printer docs, sml-mode *)
 (* fun omitprinter _ _ sys ppfns gs d t = *)
 (* let open term_pp_utils term_pp_types smpp *)
 (*   val (f , args) = strip_comb t *)
@@ -52,7 +52,7 @@ end
 
 (* val _ = temp_add_user_printer("omitprinter", “While _ x : 32 prog”, omitprinter); *)
 
-(* TODO data structure (internal) correctness
+(* XXX data structure (internal) correctness
    need correctness condition to be 'local' to some memory, write-invariant
    do this by proving 2 theorems:
    push (stack bounds (hol data) state) = stack newdata (same state)
@@ -74,10 +74,6 @@ end
 (*   rw[lookup_code_def, shape_of_def] >> *)
 (*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
 (* QED *)
-
-
-
-
 
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
@@ -160,6 +156,13 @@ Proof
   srw_tac[][wordsTheory.WORD_LESS_OR_EQ] >> fs[wordsTheory.word_lt_n2w]
 QED
 
+Theorem word_add_neq:
+  k ≠ 0w ∧ w2n (k : α word) < dimword (:α) ⇒ a + k ≠ a
+Proof
+  rw[]
+QED
+
+(* TODO 64? *)
 Definition mem_has_word_def:
   mem_has_word mem addr = ∃w. mem (byte_align addr) = Word (w : word32)
 End
@@ -167,7 +170,7 @@ End
 (* wfrites, disjoint_writes
   wordf ≡ disjointness, has Words
 
-  TODO: prevent proliferation of write_bytearray (via disjointness)
+  prevent proliferation of write_bytearray (via disjointness)
   reads of disjoint_writes should compute if within a single region
   writes within boundaries (not necessarily current) preserve wf
 
@@ -200,9 +203,17 @@ Proof
   rw[combinTheory.APPLY_UPDATE_THM]
 QED
 
+Theorem test:
+  (w + 1 < dimword(:32)) ⇒
+  n2w w <₊ n2w (w + 1) : word32
+Proof
+  rw[wordsTheory.word_lo_n2w]
+QED
+
 Theorem disjoint_write_byte:
   (∀a. a ∈ s.memaddrs) ∧
-  (∀a. a < n2w q + n2w (LENGTH r) ⇒ mem_has_word s.memory a)
+  (∀a. a < n2w (q + LENGTH r) ⇒ mem_has_word s.memory a) ∧
+  (q + (LENGTH r) < dimword (:32))
   ∧
   range_disjoint (start, len) (q, LENGTH r) ∧
   start ≤ pos ∧ pos < len + start
@@ -217,26 +228,33 @@ Proof
     qpat_x_assum ‘pos < _ + _’ kall_tac >>
     qpat_x_assum ‘_ ≤ _’ kall_tac >>
     qpat_x_assum ‘_ + _ < _’ kall_tac >>
-    pop_assum mp_tac >> pop_assum mp_tac >>
+    pop_assum mp_tac >> pop_assum mp_tac >> pop_assum mp_tac >>
     qid_spec_tac ‘q’ >>
     Induct_on ‘r’ >>
     rw[write_bytearray_def] >>
     rw[mem_store_byte_def] >>
+    subgoal ‘mem_has_word s.memory (n2w q)’ >-
+     (first_x_assum match_mp_tac >>
+      EVAL_TAC >>
+      cheat
+     ) >>
     ‘mem_has_word
      (write_bytearray (n2w q + 1w) r s.memory s.memaddrs s.be)
-     (n2w q)’ by cheat >>
+     (n2w q)’ by rw[write_bytearray_preserve_words] >>
     fs[mem_has_word_def] >>
     simp[mem_load_byte_def, SimpL “$=”] >>
-    ‘byte_align (n2w q) ≠ byte_align (n2w pos) : word32’ by cheat >>
-    simp[cj 2 combinTheory.UPDATE_APPLY] >>
-    last_x_assum $ qspec_then ‘q + 1’ strip_assume_tac >> gvs[] >>
     ‘n2w q + 1w = n2w (q + 1) : word32’
       by metis_tac[arithmeticTheory.SUC_ONE_ADD, arithmeticTheory.ADD_COMM,
                    wordsTheory.n2w_SUC] >>
     ‘n2w (LENGTH r) + n2w (q + 1) = n2w q + n2w (SUC (LENGTH r)) : word32’
       by metis_tac[wordsTheory.WORD_ADD_ASSOC, wordsTheory.WORD_ADD_COMM,
                    wordsTheory.n2w_SUC] >>
-    gvs[mem_load_byte_def]) >-
+    last_x_assum $ qspec_then ‘q + 1’ strip_assume_tac >>
+    gvs[arithmeticTheory.SUC_ONE_ADD] >>
+    Cases_on ‘byte_align (n2w q) ≠ byte_align (n2w pos) : word32’ >-
+     (gvs[combinTheory.UPDATE_APPLY, mem_load_byte_def]) >>
+    ‘good_dimindex (:32)’ by EVAL_TAC >>
+    gvs[miscTheory.get_byte_set_byte_diff, mem_load_byte_def]) >-
    (cheat
    )
 QED
@@ -250,22 +268,21 @@ Theorem wordf_test:
   wordf [(3,[x]);(1,[c])]
 Proof
   rw[Once wordf_cases] >-
-   (rw[writes_disjoint_def]) >>
+   (rw[writes_disjoint_def, range_disjoint_def]) >>
   rw[Once wordf_cases] >>
   rw[Once wordf_cases]
 QED
 
 Definition bwrites_def:
   bwrites ([] : write list) s = s.memory ∧
-  bwrites ((off,l)::as) s
-  = write_bytearray (s.base_addr + (n2w off)) l (bwrites as s) s.memaddrs s.be
+  bwrites ((a,l)::as) s
+  = write_bytearray (n2w a) l (bwrites as s) s.memaddrs s.be
 End
 
 Theorem bwrites_test:
-  (write_bytearray
-  (s.base_addr + (3w : word32)) [x]
-  (write_bytearray (s.base_addr + 1w) [c] s.memory
-                   s.memaddrs s.be) s.memaddrs s.be)
+  (write_bytearray (3w : word32) [x]
+                   (write_bytearray 1w [c] s.memory s.memaddrs s.be)
+                   s.memaddrs s.be)
   =
   bwrites [(3,[x]);(1,[c])] s
 Proof
@@ -284,30 +301,44 @@ Proof
   rw[find_range, FIND_thm]
 QED
 
-Theorem join_bwrites:
-  write_bytearray (s.base_addr + off) bs (bwrites [] s) s.memaddrs s.be
-Proof
-QED
-
 Definition range_at:
-  range_at (start,len) pos (b : word8) (s : ('a, 'b) bstate)
+  range_at (start,len) pos (b : word8) s
   = (start ≤ pos ∧ (pos < start + len) ∧
-     mem_load_byte s.memory s.memaddrs s.be (n2w pos) = SOME b)
+     mem_load_byte s.memory s.memaddrs s.be (n2w pos : word32) = SOME b)
 End
 
 Definition ranged_pred:
-  ranged_pred P start len =
-  (∀(w : write) (s : ('a, 'b) bstate).
-     P s ∧ range_disjoint (start, len) (FST w, LENGTH (SND w))
-     ⇒ P (s with memory := (bwrites [w] s)))
+  ranged_pred P st start len =
+  (∀q l.
+     (∀a. a < n2w (q + LENGTH l) ⇒ mem_has_word st.memory a) ∧
+     (q + LENGTH l) < dimword (:32) ∧
+     P st ∧ range_disjoint (start, len) (q, LENGTH l)
+     ⇒ P (st with memory := (bwrites [(q,l)] st)))
 End
 
 Theorem at_ranged:
-  ranged_pred (range_at (start, len) pos b) start len
+  (∀a. a ∈ st.memaddrs) ⇒
+  ranged_pred (range_at (start, len) pos b) st start len
 Proof
-  rw[ranged_pred, range_at] >>
-  Cases_on ‘w’ >> fs[bwrites_def] >>
-  rw[disjoint_write_byte]
+  rw[ranged_pred, range_at, bwrites_def] >>
+  irule EQ_TRANS >>
+  first_x_assum $ irule_at Any >>
+  match_mp_tac disjoint_write_byte >>
+  gvs[]
+QED
+
+Theorem conj_ranged:
+  ranged_pred P st start len ∧ ranged_pred Q st start len
+  ⇒ ranged_pred (λst. P st ∧ Q st) st start len
+Proof
+  rw[ranged_pred]
+QED
+
+Theorem disj_ranged:
+  (ranged_pred P st start len ∧ ranged_pred Q st start len)
+  ⇒ ranged_pred (λst. P st ∨ Q st) st start len
+Proof
+  rw[ranged_pred] >> metis_tac[]
 QED
 
 (*
@@ -401,12 +432,6 @@ Theorem baseaddr_ref[simp]:
                         := s.locals |+ (name,ValWord (s.base_addr + k)))))
 Proof
   fs[eval_def, wordLangTheory.word_op_def, dec_lifted]
-QED
-
-Theorem word_add_neq:
-  k ≠ 0w ∧ w2n (k : α word) < dimword (:α) ⇒ a + k ≠ a
-Proof
-  rw[]
 QED
 
 (* PURE_ONCE_REWRITE_TAC[ *)
