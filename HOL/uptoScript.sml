@@ -3,17 +3,25 @@ open relationTheory;
 open fixedPointTheory;
 open pred_setTheory;
 open pairTheory;
+open posetTheory;
 
 val _ = new_theory "upto";
 
-open posetTheory;
-
-(* TODO specialize *)
-
-Theorem subset_poset:
-  poset (UNIV, $SUBSET)
+(* TODO put in fixedpointtheory *)
+Theorem monotone_comp:
+  monotone f /\ monotone g ==> monotone (f o g)
 Proof
-  rw[poset_def, SUBSET_ANTISYM]
+  rw[monotone_def]
+QED
+
+Theorem poset_lift:
+  poset (s,r) ⇒ poset (pointwise_lift s (s,r))
+Proof
+  rw[poset_def, pointwise_lift_def, function_def] >-
+   (qexists_tac ‘λ_. x’ >> rw[]) >-
+   (cheat (* not true, can differ outside carrier. need type? *)
+   ) >-
+   (metis_tac[])
 QED
 
 (* general *)
@@ -23,7 +31,7 @@ Definition compatible_def:
 End
 
 Theorem compatible_self:
-  poset (s,r) /\ function s s b ∧ monotonic (s,r) b
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b
   ==> compatible (s,r) b b
 Proof
   rw[poset_def, compatible_def, function_def, IN_DEF]
@@ -37,7 +45,7 @@ Proof
 QED
 
 Theorem compatible_const_gfp:
-  poset (s,r) /\ function s s b /\ monotonic (s,r) b ∧
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
   po_gfp (s,r) b fp
   ==> compatible (s,r) b (K fp)
 Proof
@@ -85,21 +93,26 @@ Proof
 QED
 
 Theorem compatible_companion:
-  poset (s,r) ∧ function s s b ∧ monotonic (s,r) b ∧
-  function s s t ∧ companion (s,r) b t
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
+  function s s t /\ companion (s,r) b t
   ==> compatible (s,r) b t
 Proof
   rw[compatible_def] >- (metis_tac[companion_mono]) >>
   gvs[companion_def, lub_def, PULL_EXISTS, IN_DEF] >>
+  first_assum $ qspec_then ‘b x’ strip_assume_tac >>
+  pop_assum irule >>
+  rw[] >- (fs[function_def]) >>
+  ‘r (b (f x)) (b (t x))’ by gvs[monotonic_def, function_def] >>
+  fs[poset_def, compatible_def, IN_DEF] >>
   first_x_assum $ qspec_then ‘x’ strip_assume_tac >>
-  pop_assum match_mp_tac >>
-  fs[function_def] >>
-  cheat
+  last_assum match_mp_tac >>
+  pop_assum $ irule_at Any >>
+  gvs[function_def, monotonic_def]
 QED
 
 Theorem compatible_compose:
-  poset (s,r) ∧ function s s b ∧ monotonic (s,r) b ∧
-  function s s f ∧ function s s g ∧
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
+  function s s f /\ function s s g /\
   compatible (s,r) b f /\ compatible (s,r) b g
   ==> compatible (s,r) b (f o g)
 Proof
@@ -108,8 +121,8 @@ Proof
 QED
 
 Theorem companion_gt:
-  poset (s,r) ∧ function s s b ∧ monotonic (s,r) b ∧
-  function s s t ∧ companion (s,r) b t ∧ s x
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
+  function s s t /\ companion (s,r) b t /\ s x
   ==> r x (t x)
 Proof
   rpt strip_tac >>
@@ -119,12 +132,12 @@ Proof
 QED
 
 Theorem companion_idem:
-  poset (s,r) ∧ function s s b ∧ monotonic (s,r) b ∧
-  function s s t ∧ companion (s,r) b t ∧ s x
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
+  function s s t /\ companion (s,r) b t /\ s x
   ==> t (t x) = t x
 Proof
   rpt strip_tac >>
-  ‘r (t (t x)) (t x) ∧ r (t x) (t (t x))’ suffices_by fs[poset_def, function_def] >>
+  ‘r (t (t x)) (t x) /\ r (t x) (t (t x))’ suffices_by fs[poset_def, function_def] >>
   CONJ_TAC >-
    (‘compatible (s,r) b (t o t)’ by gvs[compatible_compose, compatible_companion] >>
     ho_match_mp_tac compatible_below_companion >>
@@ -134,17 +147,10 @@ Proof
 QED
 
 Theorem monotonic_comp:
-  monotonic (s,r) f ∧ monotonic (s,r) g ∧ function s s g
-  ⇒ monotonic (s,r) (f ∘ g)
+  monotonic (s,r) f /\ monotonic (s,r) g /\ function s s g
+  ==> monotonic (s,r) (f o g)
 Proof
   rw[monotonic_def, function_def]
-QED
-
-(* TODO put in fixedpointtheory *)
-Theorem monotone_comp:
-  monotone f /\ monotone g ==> monotone (f o g)
-Proof
-  rw[monotone_def]
 QED
 
 Theorem companion_bot_gfp:
@@ -345,6 +351,14 @@ QED
 
 
 (* example *)
+
+(* TODO specialize *)
+
+Theorem subset_poset:
+  poset (UNIV, $SUBSET)
+Proof
+  rw[poset_def, SUBSET_ANTISYM]
+QED
 
 open llistTheory;
 Definition llist_functional:
