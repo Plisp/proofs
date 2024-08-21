@@ -9,7 +9,7 @@ open import logic
 open import path
 open import function
 open import types
--- open import list
+open import list
 open import bool
 open import functor
 open import arith
@@ -341,9 +341,9 @@ rcantor {ℓ}{A} s p = cantor' r (ext-retraction-surj r (s , pf))
 ext-fns = Σ f ∶ (𝟙 → 𝟙) , ∀ g → (f ~ g) → f ＝ g
 
 
+
 {-
-  compile-time tests !
-  this probably won't impress the c++ programmers
+  compile-time nonsense
 -}
 
 test-len : 1 + 1 ＝ 2
@@ -358,3 +358,36 @@ equal (suc x) (suc y) = equal x y
 -- bad definition, cannot compute on open term n
 -- p : ∀ n → (equal n n) ＝ true
 -- p n = refl true
+
+Ctx = Vec ℕ
+
+lookup : {n : ℕ} → Ctx n → Fin n → ℕ
+lookup Γ n = Γ !! n
+
+data Expr (n : ℕ) : Set where
+  pls : Expr n → Expr n → Expr n
+  var : Fin n → Expr n
+
+norm : {n : ℕ} → Expr n → Expr n
+norm (pls a b) = pls (norm b) (norm a)
+norm (var n) = var n
+
+norm-test : norm (pls (var fz) (var (fs (fz {2})))) ＝ (pls (var (fs fz)) (var fz))
+norm-test = refl _
+
+eval : {n : ℕ} → Ctx n → Expr n → ℕ
+eval Γ (pls a b) = eval Γ a + eval Γ b
+eval Γ (var n) = lookup Γ n
+
+silly-lemma : {a b c d : ℕ} → (a ＝ b) → (c ＝ d) → (a + c ＝ d + b)
+silly-lemma {a}{b}{c}{d} p q = transport (λ x → a + c ＝ x + c) p (refl (a + c))
+                             ∙ transport (λ x → b + c ＝ b + x) q (refl (b + c))
+                             ∙ commutes-+ b d
+
+norm-pres : {n : ℕ} → (Γ : Ctx n) → (e : Expr n) → eval Γ e ＝ eval Γ (norm e)
+norm-pres Γ (pls a b) = silly-lemma (norm-pres Γ a) (norm-pres Γ b)
+norm-pres Γ (var x) = refl _
+
+test-commut : (x y z : ℕ) → (x + y) + z ＝ z + (y + x)
+test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
+                              (pls (pls (var fz) (var (fs fz))) (var (fs (fs fz))))
