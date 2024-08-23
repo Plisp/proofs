@@ -38,6 +38,8 @@ ap : {A : Set ℓ} {B : Set ℓ₁} {x y : A}
 --                                  x y p
 ap f (refl x) = refl (f x)
 
+-- families respect equality, A x transports to an 'equal' A y
+-- if equivalences generate a base, equality is the discrete topology
 apd : {X : Set ℓ} {A : X → Set ℓ₁} (f : (x : X) → A x)
     → {x y : X} (p : x ＝ y) → transport A p (f x) ＝ f y
 -- apd {ℓ}{ℓ₁} {X}{A} f {x}{y} p = ȷ (λ x y p → transport A p (f x) ＝ f y)

@@ -391,3 +391,10 @@ norm-pres Γ (var x) = refl _
 test-commut : (x y z : ℕ) → (x + y) + z ＝ z + (y + x)
 test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
                               (pls (pls (var fz) (var (fs fz))) (var (fs (fs fz))))
+
+{-
+  setoids
+-}
+
+-- subst in a setoid is equivalent to subst of a family over a quotient
+-- A -> [A] -> Set
