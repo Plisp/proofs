@@ -396,5 +396,57 @@ test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
   setoids
 -}
 
--- subst in a setoid is equivalent to subst of a family over a quotient
--- A -> [A] -> Set
+data Z3 : Set where
+  z0 : Z3
+  z1 : Z3
+  z2 : Z3
+
+-- is more structure needed? this should be sufficient to compute
+-- strangely, we don't need surjectivity. TODO try with rationals
+
+t-quot : ℕ → Z3
+t-quot 0 = z0
+t-quot 1 = z1
+t-quot 2 = z2
+t-quot (suc (suc (suc n))) = t-quot n
+
+-- can the lattice be automatically derived? 2/3 -> 6
+n-point-type : ℕ → Set
+n-point-type zero    = 𝟙
+n-point-type (suc n) = 𝟙 ＋ n-point-type n
+
+n-quot : (n : ℕ) → n-point-type n
+n-quot zero    = ⋆
+n-quot (suc n) = inr (n-quot n)
+
+-- rewrites
+f-respects-quot : {Q : Set ℓ} {A : Set ℓ₁} {C : Set ℓ₂} (q : A → Q)
+                → (f : A → C) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
+f-respects-quot q f = ∀{a b} → (q a ＝ q b) → (f a ＝ f b)
+
+qap : {Q : Set ℓ} {A : Set ℓ₁} {C : Set ℓ₂} (q : A → Q)
+    → (f : A → C) → f-respects-quot q f
+    → {x y : A} → (q x ＝ q y) → (f x ＝ f y)
+qap q f p = p
+
+qsubst : {Q : Set ℓ} {A : Set ℓ₁} (q : A → Q)
+       → (P : A → Set ℓ₂) → f-respects-quot q P
+       → {x y : A} → (q x ＝ q y) → (P x → P y)
+qsubst q P p eq = transport id (qap q P p eq)
+
+-- ugly
+coequalizer : {I A : Set} → (f g : I → A) → Set₁
+coequalizer {I}{A} f g = Σ Q ∶ Set ,
+                         Σ q ∶ (A → Q) ,
+                           ∀ {C : Set} → (m : A → C)
+                                       → (m ∘ f) ＝ (m ∘ g)
+                                       → is-contr (Σ i ∶ (Q → C) , i ∘ q ＝ m)
+
+epi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
+epi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C) → (g ∘ f) ＝ (h ∘ f) → g ＝ h
+
+coequalizer-epi : {I A : Set} → (a b : I → A) ((_ , q , p) : coequalizer a b)
+                → epi q
+coequalizer-epi a b (Q , q , p) g h gq＝hq = {!!}
+  -- where
+  --   lemma : is-contr (Σ i ∶ (Q → C) , i ∘ q ＝ q ∘ a)
