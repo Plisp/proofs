@@ -7,6 +7,7 @@
 open import Agda.Primitive
 open import logic
 open import path
+open import function
 open import homotopy
 open import retract
 open import equiv

@@ -11,7 +11,6 @@ open import function
 open import homotopy
 open import hlevel
 open import retract
-open import retract-ex using (transport-is-section;Σ-retract)
 
 {-
   Voevodsky's equivalence
@@ -30,8 +29,8 @@ equiv-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} → (e : is-equivalence 
          → (y : Y) → f (fiber-base (center _ (e y))) ＝ y
 equiv-id equivalence y = fiber-id (center _ (equivalence y))
 
-id-is-equivalence : (X : Set ℓ) → is-equivalence id
-id-is-equivalence = singleton-types-are-singletons
+id-is-equivalence : {X : Set ℓ} → is-equivalence (id {_}{X})
+id-is-equivalence = singleton-types-are-singletons _
 
 -- comp-is-equivalence : {X : Set ℓ}{Y : Set ℓ₁}{Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
 --               → is-equivalence f → is-equivalence g → is-equivalence (g ∘ f)
@@ -63,7 +62,7 @@ equiv-is-section f e = inverse f e , inverses-are-sections f e
 inverse-centrality : {X : Set ℓ} {Y : Set ℓ₁}
                      (f : X → Y) (e : is-equivalence f) (y : Y) (t : fiber f y)
                    → (inverse f e y , inverses-are-sections f e y) ＝ t
-inverse-centrality f e y = centrality (fiber f y) (e y)
+inverse-centrality f e y = centrality (e y)
 
 inverses-are-retractions : {X : Set ℓ} {Y : Set ℓ₁}
                            (f : X → Y) (e : is-equivalence f)
@@ -71,7 +70,7 @@ inverses-are-retractions : {X : Set ℓ} {Y : Set ℓ₁}
 inverses-are-retractions f e x = ap pr₁ r
   where
     q : ∀ fb → (center _ (e (f x))) ＝ fb
-    q = centrality _ (e (f x))
+    q = centrality (e (f x))
     -- inverse is just the base of the single fiber
     r : center (fiber f (f x)) (e (f x)) ＝ (x , refl (f x))
     r = q (x , refl (f x))
@@ -107,7 +106,7 @@ invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
         (Σ x ∶ X , g (f x) ＝ g y₀) ◁⟨ Σ-retract hom-iso ⟩
         (Σ x ∶ X , x ＝ g y₀)       ◀ -- these are just ∙ (sym＝) gf which cancel
 
-    proof : Σ c ∶ (fiber f y₀) , is-center _ c
+    proof : Σ c ∶ (fiber f y₀) , is-center {ℓ ⊔ ℓ₁}{_} c
     proof = retract-of-singleton fiber-is-singleton-Σ-retract
               (singleton-types-are-singletons _ (g y₀))
 
@@ -147,7 +146,7 @@ X ≃ Y = Σ f ∶ (X → Y) , is-equivalence f
 infix 5 _≃_
 
 refl≃ : (X : Set ℓ) → X ≃ X
-refl≃ X = id , id-is-equivalence X
+refl≃ X = id , id-is-equivalence
 
 sym≃ : {X : Set ℓ} {Y : Set ℓ₁} → X ≃ Y → Y ≃ X
 sym≃ (f , e) = inverse f e , inverse-is-equivalence e

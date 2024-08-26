@@ -58,23 +58,3 @@ commut~ f H x = simplify (nat~ f id H {f x} {x} (H x))
 
     simplify : H (f x) ∙ ap id (H x) ＝ ap f (H x) ∙ (H x) → _
     simplify p = lemma3 ∙ whisker (lemma1 ∙ p) ∙ lemma4
-
-{-
-  invertible maps exist between homotopy equivalent spaces
--}
-
-invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
-invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
-
-id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
-id-invertible {ℓ}{X} = id , refl , refl
-
-inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
-                   → ((g , _) : invertible f) → invertible g
-inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
-
-invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
-             → invertible f' → invertible f → invertible (f' ∘ f)
--- middle terms cancel
-invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
-  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z

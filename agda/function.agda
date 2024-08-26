@@ -18,18 +18,87 @@ fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
          → (w : fiber f y) → f (fiber-base w) ＝ y
 fiber-id (x , p) = p
 
-surjective :{A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+surjective :{A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → fiber f y
 
-injective : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+injective : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
 
-injective' : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B) → Set (ℓ₁ ⊔ ℓ₂)
+-- weaker
+injective' : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 injective' {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (x ≠ y) → (f x ≠ f y)
 
-injective-injective' : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
+injective-injective' : {A : Set ℓ} {B : Set ℓ₂} → (f : A → B)
                      → injective f → injective' f
 injective-injective' f p x y x≠y fx＝fy = x≠y (p x y fx＝fy)
+
+{-
+  mono and epi up to homotopy
+-}
+
+wmon : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
+wmon {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : C → A)
+                       → (f ∘ g) ~ (f ∘ h) → g ~ h
+
+wepi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
+wepi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
+                       → (g ∘ f) ~ (h ∘ f) → g ~ h
+
+{-
+  retracts, also split mono and epi
+-}
+
+-- r ∘ s ＝ id , embedding then quotient , s ; r ＝ id
+has-retraction : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
+has-retraction {ℓ}{ℓ₁} {X}{Y} s = Σ r ∶ (Y → X) , r ∘ s ~ id
+
+-- right inverse
+has-section : {X : Set ℓ} {Y : Set ℓ₁} → (Y → X) → Set (ℓ ⊔ ℓ₁)
+has-section {ℓ}{ℓ₁} {X}{Y} r = Σ s ∶ (X → Y) , r ∘ s ~ id
+
+-- X type is a retract of Y
+_◁_ : Set ℓ → Set ℓ₁ → Set (ℓ ⊔ ℓ₁)
+X ◁ Y = Σ f ∶ (Y → X) , has-section f
+
+retraction : {X : Set ℓ} {Y : Set ℓ₁} → X ◁ Y → (Y → X)
+retraction (r , s , η) = r
+
+section : {X : Set ℓ} {Y : Set ℓ₁} → X ◁ Y → (X → Y)
+section (r , s , η) = s
+
+is-retract : {X : Set ℓ} {Y : Set ℓ₁} → (p : X ◁ Y)
+           → retraction p ∘ section p ~ id
+is-retract (r , s , η) = η
+
+refl◁ : (X : Set ℓ) → X ◁ X
+refl◁ X = id , id , refl
+
+_◁∙_ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} → X ◁ Y → Y ◁ Z → X ◁ Z
+(r , s , η) ◁∙ (r' , s' , η') = r ∘ r' , s' ∘ s , λ x → ap r (η' (s x)) ∙ η x
+
+_◁⟨_⟩_ : (X : Set ℓ) {Y : Set ℓ₁} {Z : Set ℓ₂} → X ◁ Y → Y ◁ Z → X ◁ Z
+X ◁⟨ x◁y ⟩ y◁z = x◁y ◁∙ y◁z
+infixr 2 _◁⟨_⟩_
+
+_◀ : (X : Set ℓ) → X ◁ X
+X ◀ = refl◁ X
+infix 3 _◀
+
+invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
+invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
+
+id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
+id-invertible {ℓ}{X} = id , refl , refl
+
+inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
+                   → ((g , _) : invertible f) → invertible g
+inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
+
+invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
+             → invertible f' → invertible f → invertible (f' ∘ f)
+-- middle terms cancel
+invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
+  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
 
 {-
   theorems

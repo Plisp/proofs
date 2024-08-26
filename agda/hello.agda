@@ -13,14 +13,13 @@ open import list
 open import bool
 open import functor
 open import arith
--- open import op
+open import op
 open import homotopy
 open import hlevel
 open import hlevel-ex
 open import retract
--- open import retract-ex
 open import equiv
-open import equiv-ex -- unused
+open import equiv-ex
 open import joyal
 open import univalence
 
@@ -91,41 +90,41 @@ badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
   isabelle is weird, review if this needs univalence
 -}
 
-isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
-              → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
-isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
-  = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
-  where
-    qmap : (P' → Q) → (P' → Q')
-    qmap pq p' = subst id (q＝ p') (pq p')
-    qmap⁻¹ : (P' → Q') → (P' → Q)
-    qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
+-- isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
+--               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
+-- isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
+--   = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
+--   where
+--     qmap : (P' → Q) → (P' → Q')
+--     qmap pq p' = subst id (q＝ p') (pq p')
+--     qmap⁻¹ : (P' → Q') → (P' → Q)
+--     qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
 
-    l : (f : P' → Q') (p : P')
-      → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
-    l f p = let qq = (q＝ p) in
-              (transport∙ (sym＝ qq) _ _)
-            ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
+--     l : (f : P' → Q') (p : P')
+--       → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
+--     l f p = let qq = (q＝ p) in
+--               (transport∙ (sym＝ qq) _ _)
+--             ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
 
-    g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
-    g f p = let qq = (q＝ p) in
-              (transport∙ qq (sym＝ qq) (f p))
-            ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
+--     g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
+--     g f p = let qq = (q＝ p) in
+--               (transport∙ qq (sym＝ qq) (f p))
+--             ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
 
-    hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
-    hom f p' = g f p'
+--     hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
+--     hom f p' = g f p'
 
-    left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
-    left f = FUNEXT (hom f)
+--     left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
+--     left f = FUNEXT (hom f)
 
-    qmap-is-invertible : invertible qmap
-    qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
+--     qmap-is-invertible : invertible qmap
+--     qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
 
-    pq-equiv : (P' → Q) ≃ (P' → Q')
-    pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
+--     pq-equiv : (P' → Q) ≃ (P' → Q')
+--     pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
 
-    p-cong : (P' → Q) ＝ (P' → Q')
-    p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
+--     p-cong : (P' → Q) ＝ (P' → Q')
+--     p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
 
 {-
   uniqueness: intro on elim thing = thing
@@ -138,7 +137,7 @@ uniq× : {A : Set ℓ} {B : Set ℓ₁} → (p : A × B) → p ＝ (fst p , snd 
 uniq× (a , b) = refl (a , b)
 
 uniq⋆ : (a : 𝟙) → ⋆ ＝ a
-uniq⋆ = centrality 𝟙 𝟙-is-singleton
+uniq⋆ = centrality 𝟙-is-singleton
 
 {-
   \j the fun way!
@@ -435,18 +434,19 @@ qsubst : {Q : Set ℓ} {A : Set ℓ₁} (q : A → Q)
 qsubst q P p eq = transport id (qap q P p eq)
 
 -- ugly
-coequalizer : {I A : Set} → (f g : I → A) → Set₁
-coequalizer {I}{A} f g = Σ Q ∶ Set ,
-                         Σ q ∶ (A → Q) ,
-                           ∀ {C : Set} → (m : A → C)
-                                       → (m ∘ f) ＝ (m ∘ g)
-                                       → is-contr (Σ i ∶ (Q → C) , i ∘ q ＝ m)
+coequalizer : {I : Set ℓ} {A : Set ℓ₁} → (f g : I → A) → Set (lsuc (ℓ ⊔ ℓ₁))
+coequalizer {ℓ}{ℓ₁}{I}{A} f g = Σ Q ∶ Set (ℓ ⊔ ℓ₁) ,
+                                Σ q ∶ (A → Q) ,
+                                q ∘ f ＝ q ∘ g ×
+                                ∀ {C : Set} → (m : A → C)
+                                            → (m ∘ f) ＝ (m ∘ g)
+                                            → is-contr (Σ i ∶ (Q → C) , m ＝ i ∘ q)
 
 epi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
-epi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C) → (g ∘ f) ＝ (h ∘ f) → g ＝ h
+epi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
+                      → (g ∘ f) ＝ (h ∘ f) → g ＝ h
 
 coequalizer-epi : {I A : Set} → (a b : I → A) ((_ , q , p) : coequalizer a b)
                 → epi q
-coequalizer-epi a b (Q , q , p) g h gq＝hq = {!!}
-  -- where
-  --   lemma : is-contr (Σ i ∶ (Q → C) , i ∘ q ＝ q ∘ a)
+coequalizer-epi a b (Q , q , eq , p) {C} g h gq＝hq
+  = ?

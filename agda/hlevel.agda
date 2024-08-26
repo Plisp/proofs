@@ -6,24 +6,24 @@
 
 open import Agda.Primitive
 open import logic
-open import types using (ℕ;zero;suc)
+open import types
 open import path
 
 {-
   -2-type (contractible)
 -}
 
-is-center : (X : Set ℓ) → X → Set ℓ
-is-center X c = (x : X) → c ＝ x
+is-center : {X : Set ℓ} → X → Set ℓ
+is-center {ℓ}{X} c = (x : X) → c ＝ x
 
 is-contr : Set ℓ → Set ℓ
-is-contr X = Σ c ∶ X , is-center X c
+is-contr X = Σ c ∶ X , is-center c
 
 center : (X : Set ℓ) → is-contr X → X
 center X (c , p) = c
 
-centrality : (X : Set ℓ) (i : is-contr X) → (x : X) → center X i ＝ x
-centrality X (c , p) = p
+centrality : {X : Set ℓ} (i : is-contr X) → (x : X) → center X i ＝ x
+centrality (c , p) = p
 
 singleton-type : {X : Set ℓ} → X → Set ℓ
 singleton-type {ℓ} {X} x = Σ c ∶ X , c ＝ x

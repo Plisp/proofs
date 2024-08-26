@@ -5,7 +5,7 @@
 -}
 
 open import logic
-open import types using (ℕ;zero;suc)
+open import types
 open import path
 open import op
 open import hlevel

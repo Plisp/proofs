@@ -8,8 +8,8 @@ open import Agda.Primitive
 open import logic
 open import path
 open import homotopy
-open import functor using (f×;f＋;NatΣ)
-open import retract-ex using (transport-is-section;transport-is-retraction)
+open import functor
+open import retract
 open import equiv
 
 transport-is-equiv : {X : Set ℓ} (A : X → Set ℓ₁) {x y : X} (p : x ＝ y)
