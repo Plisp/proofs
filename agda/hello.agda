@@ -449,4 +449,10 @@ epi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
 coequalizer-epi : {I A : Set} → (a b : I → A) ((_ , q , p) : coequalizer a b)
                 → epi q
 coequalizer-epi a b (Q , q , eq , p) {C} g h gq＝hq
-  = ?
+  = sym＝ (pr₁ (from-Σ＝ (centrality uniq (g , refl _)))) ∙ lemma
+  where
+    uniq : is-contr (Σ i ∶ (Q → C) , g ∘ q ＝ i ∘ q)
+    uniq = p (g ∘ q) (ap (λ x → g ∘ x) eq)
+
+    lemma : pr₁ (center _ uniq) ＝ h
+    lemma = pr₁ (from-Σ＝ (centrality uniq (h , gq＝hq)))

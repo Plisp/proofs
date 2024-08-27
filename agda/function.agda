@@ -24,28 +24,26 @@ surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → fiber f y
 injective : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
 
--- weaker
 injective' : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 injective' {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (x ≠ y) → (f x ≠ f y)
 
-injective-injective' : {A : Set ℓ} {B : Set ℓ₂} → (f : A → B)
-                     → injective f → injective' f
-injective-injective' f p x y x≠y fx＝fy = x≠y (p x y fx＝fy)
+invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
+invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
 
 {-
   mono and epi up to homotopy
 -}
 
-wmon : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
-wmon {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : C → A)
-                       → (f ∘ g) ~ (f ∘ h) → g ~ h
+wmono : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
+wmono {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : C → A)
+                        → (f ∘ g) ~ (f ∘ h) → g ~ h
 
 wepi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
 wepi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
                        → (g ∘ f) ~ (h ∘ f) → g ~ h
 
 {-
-  retracts, also split mono and epi
+  retracts, split mono and epi
 -}
 
 -- r ∘ s ＝ id , embedding then quotient , s ; r ＝ id
@@ -84,22 +82,6 @@ _◀ : (X : Set ℓ) → X ◁ X
 X ◀ = refl◁ X
 infix 3 _◀
 
-invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
-invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
-
-id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
-id-invertible {ℓ}{X} = id , refl , refl
-
-inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
-                   → ((g , _) : invertible f) → invertible g
-inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
-
-invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
-             → invertible f' → invertible f → invertible (f' ∘ f)
--- middle terms cancel
-invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
-  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
-
 {-
   theorems
 -}
@@ -129,12 +111,77 @@ surj-inj-retract : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
                  → (p : surjective f) → f ∘ pr₁ (surj-inj f p) ~ id
 surj-inj-retract f p b = Σ.p2 (p b)
 
--- injection is weaker
+-- injection is weaker, injective' the contrapositive is even weaker
+
+injective-injective' : {A : Set ℓ} {B : Set ℓ₂} → (f : A → B)
+                     → injective f → injective' f
+injective-injective' f p x y x≠y fx＝fy = x≠y (p x y fx＝fy)
+
 inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
          → (f : A → B) → injective f
          → (g : B → C) → injective g
          → injective (g ∘ f)
 inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
+
+id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
+id-invertible {ℓ}{X} = id , refl , refl
+
+inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
+                   → ((g , _) : invertible f) → invertible g
+inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
+
+invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
+             → invertible f' → invertible f → invertible (f' ∘ f)
+-- middle terms cancel
+invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
+  g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
+
+-- lack of cumulativity??
+
+wmono-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+          → wmono f → injective f
+wmono-inj {ℓ}{ℓ₁}{A}{B} f p x y fx＝fy = lemma (λ _ → fx＝fy) (inr ⋆)
+  where
+    lemma : ((A × B ＋ 𝟙) → f x ＝ f y) → (A × B ＋ 𝟙) → x ＝ y
+    lemma = p (λ _ → x) (λ _ → y)
+
+inj-wmono : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+          → injective f → wmono f
+inj-wmono {ℓ}{ℓ₁}{A}{B} f p g h fg~fh x = p (g x) (h x) (fg~fh x)
+
+-- almost certainly the converse doesn't hold, epi is too little info for a fiber
+surj-wepi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+          → surjective f → wepi f
+surj-wepi {ℓ}{ℓ₁}{A}{B} f p g h gf~hf x
+  = sym＝ (ap g (pr₂ lemma)) ∙ gf~hf (pr₁ lemma) ∙ ap h (pr₂ lemma)
+  where
+    lemma : Σ a ∶ A , f a ＝ x
+    lemma = p x
+
+-- more in hello.agda
+
+surj-retraction : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+                → surjective f → has-section f
+surj-retraction f fib = (λ b → fiber-base (fib b)) , λ a → fiber-id (fib a)
+
+retraction-surj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+                → has-section f → surjective f
+retraction-surj f (s , p) b = s b , p b
+
+-- need some sort of choice from the fiber
+-- inj-section : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+--             → injective f → has-retraction f
+-- inj-section f p = {!!} , {!!}
+
+section-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+            → has-retraction f → injective f
+section-inj f (r , p) a1 a2 fa1＝fa2 = sym＝ (p a1) ∙ ap r fa1＝fa2 ∙ p a2
+
+
+
+
+
+
 
 {-
   extensional
