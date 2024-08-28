@@ -17,11 +17,8 @@ is-joyal-equiv f = has-section f × has-retraction f
 
 joyal-equivs-are-invertible : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
                             → is-joyal-equiv f → invertible f
-joyal-equivs-are-invertible f ((s , ps) , (r , pr))
-  = r , pr , λ x → ap f (one-up-to-homotopy x) ∙ ps x
-  where
-    one-up-to-homotopy : r ~ s
-    one-up-to-homotopy x = sym＝ (ap r (ps x)) ∙ pr (s x)
+joyal-equivs-are-invertible f (s , r) -- MUCH simpler than HoTT makes it seem
+  = inj-surj-invertible f (section-inj f r) (retraction-surj f s)
 
 invertibles-are-joyal-equivs : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
                              → invertible f → is-joyal-equiv f

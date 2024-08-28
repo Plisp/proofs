@@ -49,7 +49,6 @@ id-is-equivalence = singleton-types-are-singletons _
 
 -- the easy direction
 
-
 inverses-are-sections : {X : Set ℓ} {Y : Set ℓ₁}
                       → (f : X → Y) (e : is-equivalence f)
                       → f ∘ inverse f e ~ id

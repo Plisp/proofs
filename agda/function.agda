@@ -136,8 +136,7 @@ invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {
 invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
   g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
 
--- lack of cumulativity??
-
+-- XXX lack of cumulativity??
 wmono-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → wmono f → injective f
 wmono-inj {ℓ}{ℓ₁}{A}{B} f p x y fx＝fy = lemma (λ _ → fx＝fy) (inr ⋆)
@@ -158,8 +157,6 @@ surj-wepi {ℓ}{ℓ₁}{A}{B} f p g h gf~hf x
     lemma : Σ a ∶ A , f a ＝ x
     lemma = p x
 
--- more in hello.agda
-
 surj-retraction : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
                 → surjective f → has-section f
 surj-retraction f fib = (λ b → fiber-base (fib b)) , λ a → fiber-id (fib a)
@@ -168,20 +165,45 @@ retraction-surj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
                 → has-section f → surjective f
 retraction-surj f (s , p) b = s b , p b
 
--- need some sort of choice from the fiber
--- inj-section : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
---             → injective f → has-retraction f
--- inj-section f p = {!!} , {!!}
+inj-no-section : Σ f ∶ (𝟘 → 𝟙) , injective f × ¬ has-retraction f
+inj-no-section = (λ _ → ⋆) , (λ x ()) , λ z → pr₁ z ⋆
 
 section-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
             → has-retraction f → injective f
 section-inj f (r , p) a1 a2 fa1＝fa2 = sym＝ (p a1) ∙ ap r fa1＝fa2 ∙ p a2
 
+-- invertible is very strong
 
+invertible-section : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+                   → invertible f → has-retraction f
+invertible-section f (g , gf , fg) = g , gf
 
+invertible-retraction : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+                      → invertible f → has-section f
+invertible-retraction f (g , gf , fg) = g , fg
 
+-- can we weaken surjectivity to weak epi? probably not
+inj-surj-invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+                    → injective f → surjective f
+                    → invertible f
+inj-surj-invertible f inj fib = (λ b → fiber-base (fib b))
+                              , (λ a → inj _ _ (fiber-id (fib (f a))))
+                              , λ b → fiber-id (fib b)
 
+-- XXX another cumulativity issue, so use ℓ for B as well
+wepi-section-invertible : {A : Set ℓ} {B : Set ℓ} (f : A → B)
+                        → has-retraction f → wepi f
+                        → invertible f
+wepi-section-invertible {ℓ} {A}{B} f (r , p) we = r , p , we _ (id {_}{B}) lemma
+  where
+    lemma : (f ∘ r ∘ f) ~ f
+    lemma a = ap f (p a)
 
+-- what if they are not known to be the same?
+-- sect-retr-invert : {A : Set ℓ} {B : Set ℓ₁} (f g : A → B)
+--                  → has-retraction f → has-section g
+--                  → invertible f
+-- sect-retr-invert f g (r , pf) (s , pg) = {!!} , {!!} , {!!}
 
 {-
   extensional
