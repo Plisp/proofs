@@ -2,8 +2,8 @@
 
 open import Agda.Primitive
 open import logic
+open import bool
 open import path
-
 open import homotopy
 
 -- space: witnesses x' × f x' = y
@@ -194,7 +194,7 @@ inj-surj-invertible f inj fib = (λ b → fiber-base (fib b))
 wepi-section-invertible : {A : Set ℓ} {B : Set ℓ} (f : A → B)
                         → has-retraction f → wepi f
                         → invertible f
-wepi-section-invertible {ℓ} {A}{B} f (r , p) we = r , p , we _ (id {_}{B}) lemma
+wepi-section-invertible {ℓ} {A}{B} f (r , p) ep = r , p , ep _ (id {_}{B}) lemma
   where
     lemma : (f ∘ r ∘ f) ~ f
     lemma a = ap f (p a)

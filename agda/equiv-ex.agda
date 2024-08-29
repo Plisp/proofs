@@ -18,6 +18,19 @@ transport-is-equiv A p = invertibles-are-equivalences (transport A p)
                            (transport A (sym＝ p) ,
                            transport-is-section A p , transport-is-retraction A p)
 
+bool-𝟚-equivt : Bool ≃ 𝟚
+bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
+                        (λ { true → refl true ; false → refl false}) ,
+                        (λ { (inl ⋆) → refl _ ; (inr ⋆) → refl _ }))
+  where
+    bool-to-𝟚 : Bool → 𝟚
+    bool-to-𝟚 true  = inl ⋆
+    bool-to-𝟚 false = inr ⋆
+
+    𝟚-to-bool : 𝟚 → Bool
+    𝟚-to-bool (inl _) = true
+    𝟚-to-bool (inr _) = false
+
 {-
   products
 -}

@@ -6,6 +6,13 @@
 
 open import logic
 
+𝟚 = 𝟙 ＋ 𝟙
+
+𝟚-ind : (A : 𝟚 → Set ℓ) → A (inl ⋆) → A (inr ⋆) → ((b : 𝟚) → A b)
+𝟚-ind A a₀ a₁ = ind＋ A
+                (ind⊤ (λ (x : 𝟙) → (A (inl x))) a₀)
+                (ind⊤ (λ (x : 𝟙) → (A (inr x))) a₁)
+
 {-
   natural numbers
 -}
