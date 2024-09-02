@@ -35,6 +35,9 @@ End
 (* driver modelled on tx_provide path, very similar to rx_provide (- signals)
    two pointers: head chases --> tail, head inclusive not tail
    it may only update tail on queue 2 (hardware), head on queue 1 (OS)
+
+   |... hd -> || ACTIVE REGION || <- tl, exclusive ...|
+   |... ACTIVE || <- tl excl. ...  hd -> || ACTIVE ...|
  *)
 
 Datatype:
@@ -59,12 +62,18 @@ Datatype:
 End
 
 Definition in_queue:
-  in_queue q n = ((q.hd ≤ n ∧ n < q.tl) ∨ (q.tl < q.hd ∧ (n < q.tl ∨ q.hd ≤ n)))
+  in_queue q n = ((q.hd MOD QMAX ≤ n ∧ n < q.tl MOD QMAX) ∨
+                  (q.tl MOD QMAX < q.hd MOD QMAX ∧
+                   (n < q.tl MOD QMAX ∨ q.hd ≤ n MOD QMAX)))
 End
 
 (* ALL active entries in the queue must be initialized *)
-Definition qwf:
-  qwf q = (q.hd < QMAX ∧ q.tl < QMAX ∧ ∀n. in_queue q n ⇒ n ∈ FDOM q.ps)
+Definition q1wf:
+  q1wf q = (q.hd ≤ q.tl ∧ q.tl - q.hd + 1 ≤ QMAX ∧ ∀n. in_queue q n ⇒ n ∈ FDOM q.ps)
+End
+
+Definition q2wf:
+  q2wf q = (q.hd < QMAX ∧ q.tl < QMAX ∧ ∀n. in_queue q n ⇒ n ∈ FDOM q.ps)
 End
 
 (* in future, store queue locations in the state,
@@ -72,9 +81,6 @@ End
 
    note: some transitions apply to invalid states. However we never reach
    invalid states from valid ones
-
-   |... hd -> || ACTIVE REGION || <- tl, exclusive ...|
-   |... ACTIVE || <- tl excl. ...  hd -> || ACTIVE ...|
  *)
 Inductive eth:
   (eth (q1,q2) (SOME (Head1, Addr q1.hd)) (q1,q2)) ∧
@@ -87,8 +93,9 @@ Inductive eth:
   ((¬in_queue q2 n) ⇒ eth (q1,q2) (SOME (Slot2 n p, Unit))
                           (q1, q2 with ps := q2.ps |+ (n,p)))
   ∧
-  (qwf (q1 with hd := n)
-   ⇒ eth (q1,q2) (SOME (Sethd1 n, Unit)) (q1 with hd := n, q2)) ∧
-  (qwf (q2 with hd := n)
-   ⇒ eth (q1,q2) (SOME (Setl2 n, Unit)) (q1, q2 with hd := n))
+  (in_queue q1 n
+   ⇒ eth (q1,q2) (SOME (Sethd1 n, Unit)) (q1 with hd := n, q2))
+  ∧
+  ((¬in_queue q2 n) ∧ ∀i. in_queue (q2 with tl := n) i ⇒ i ∈ FDOM q.ps
+   ⇒ eth (q1,q2) (SOME (Setl2 n, Unit)) (q1, q2 with tl := n))
 End
