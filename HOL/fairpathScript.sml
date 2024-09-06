@@ -1,6 +1,6 @@
-open bossLib;
 open itreeTauTheory;
 open relationTheory;
+open listTheory;
 open pathTheory;
 open arithmeticTheory;
 open finite_mapTheory;
@@ -35,19 +35,24 @@ CoInductive safe:
 End
 
 Datatype:
-  prog = Comm 'ffi | Branch ('answer list -> bool) (prog list) (prog list)
+  prog = Comm ('answer list -> 'ffi)
+       | Branch ('answer list -> bool) (prog list) (prog list)
 End
 
-Definition comp:
-  comp locals l =
-  case l of
-    [] => Ret ()
-  | (Comm ffi)::cs => Vis ffi (λa. comp (locals ++ [a]) cs)
-  | (Branch c t f)::_ => if c locals
-                         then comp locals t
-                         else comp locals f
+Definition pcomp'_def:
+  pcomp' locals [] = Ret () ∧
+  pcomp' locals (Comm ffi :: cs) = Vis (ffi locals)
+                                       (λa. pcomp' (locals ++ [a]) cs) ∧
+  pcomp' locals (Branch c t f :: cs) = itree_bind (if c locals
+                                                   then pcomp' locals t
+                                                   else pcomp' locals f)
+                                                  (λ_. pcomp' locals cs)
 Termination
   cheat
+End
+
+Definition pcomp_def:
+  pcomp prog = pcomp' [] prog
 End
 
 Inductive psafe:
@@ -60,40 +65,27 @@ Inductive psafe:
        psafe m (as ++ [e]) (ss ++ [s;s']))
 End
 
-(* XXX failure in translation to tupled format *)
-(* Definition gen_hyp: *)
-(*   gen_hyp m prog locals = *)
-(*   case prog of *)
-(*     [] => (λs t. ∃r. t = Ret r) *)
-(*   | (Comm ffi :: cs) *)
-(*     => (λs t. ∃sts hist x. *)
-(*          ((psafe m (ZIP (hist,locals)) sts ∧ *)
-(*            s = LAST sts ∧ *)
-(*            t = comp (locals ++ [x]) cs) ∨ *)
-(*           (gen_hyp m cs (locals ++ [x]) s t))) *)
-(*   | (Branch c tb fb :: _) *)
-(*     => (λs t. T) (* hyp m s t ∨ *) *)
-(* End *)
-
-Definition gen_hyp:
-  gen_hyp m prog locals assms s t =
-  case prog of
-    [] => (∃r. t = Ret r)
-  | (Comm ffi :: cs)
-    => (∃x. (∃sts hist.
-              psafe m (ZIP (hist,locals)) sts ∧
-              s = LAST sts ∧
-              t = comp (locals ++ [x]) cs) ∨
-            gen_hyp m cs (locals ++ [x]) assms s t)
-  | (Branch c tb fb :: _)
-    => (gen_hyp m tb locals (assms |+ (s,(λlocs. c locs = T))) s t ∨
-        gen_hyp m fb locals (assms |+ (s,(λlocs. c locs = F))) s t)
+Definition gen_hyp':
+  gen_hyp' m [] locals n assms s t = (∃r. t = Ret r)
+  ∧
+  gen_hyp' m (Comm ffi :: cs) locals n assms s t =
+  (∃x. (∃sts hist.
+         EVERY (λA. A locals) assms ∧
+         psafe m (ZIP (hist,locals)) sts ∧
+         s = LAST sts ∧
+         t = pcomp' (locals ++ [x]) (Comm ffi :: cs)) ∨
+       gen_hyp' m cs (locals ++ [x]) (SUC n) assms s t)
+  ∧
+  gen_hyp' m (Branch c tb fb :: cs) locals n assms s t =
+  (gen_hyp' m tb locals n ((λlocs.  c (TAKE n locs)) :: assms) s t ∨
+   gen_hyp' m fb locals n ((λlocs. ¬c (TAKE n locs)) :: assms) s t ∨
+   gen_hyp' m cs locals n assms s t)
 Termination
   cheat
 End
 
-Definition curry_hyp:
-  curry_hyp hyp trans = (λm s t. m = trans ∧ hyp trans s t)
+Definition gen_hyp:
+  gen_hyp trans prog = (λm s t. m = trans ∧ gen_hyp' trans prog [] 0 [] s t)
 End
 
 (* example *)
@@ -121,20 +113,23 @@ Inductive trans:
   trans (q1, p::q2) NONE (q1, q2)
 End
 
-Datatype:
-  prog = Comm ffi | Branch (answer list -> bool) (prog list) (prog list)
+Definition rxdriver_code_def:
+  rxdriver_code = [Comm (K Qsize1)
+                   ;Comm (K Qsize2)
+                   ;Branch (λl. case l of [x;y] => get_no x = 0 ∨ get_no y ≥ 5)
+                           []
+                           [Comm (K Recv) ;
+                            Comm (λl. case l of [x;y;z] => Send (get_no z))]]
 End
 
-Definition rxdriver_code:
-  rxdriver = [Comm Qsize1
-              ;Comm Qsize2
-              ;Branch (λl. case l of [x;y] => get_no x = 0 ∨ get_no y ≥ 5)
-                      []
-                      [Comm Recv ; Comm (Send 0)]]
-End
-
-
-
+(* gen_hyp' m rxdriver locals n assms s t *)
+Theorem gen_hyp':
+  gen_hyp trans rxdriver_code trans s t = ARB
+Proof
+  rw[gen_hyp,gen_hyp',rxdriver_code_def] >>
+  rw[pcomp_def, pcomp'_def, itree_bind_thm] >>
+  cheat
+QED
 
 Definition rxdriver_def:
   rxdriver = Vis Qsize1
@@ -148,19 +143,30 @@ Definition rxdriver_def:
 End
 
 Theorem rxdriver:
-  rxdriver = Vis Qsize1 (λx. Vis Qsize2 (λy.
-             if get_no x = 0 ∨ get_no y ≥ 5 then Tau rxdriver
-             else Vis Recv (λz. Vis (Send (get_no z)) (λ_. Ret ()))))
+  rxdriver = pcomp rxdriver_code
 Proof
-  rw[SimpL “$=”, rxdriver_def] >>
-  gvs[Once itree_iter_thm, itree_bind_thm, FUN_EQ_THM] >>
-  strip_tac >> strip_tac >>
-  Cases_on ‘get_no x ≤ 0 ∨ get_no y >= 5’
-  >- (simp[rxdriver_def]) >>
-  gvs[Once itree_iter_thm, itree_bind_thm, FUN_EQ_THM]
+  rw[pcomp_def, pcomp'_def, rxdriver_def, rxdriver_code_def] >>
+  rw[FUN_EQ_THM] >>
+  Cases_on ‘get_no a = 0 ∨ get_no a' ≥ 5’ >> gvs[]
 QED
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(* TODO UNTESTED *)
 
 Theorem increasing_q1:
   weak_tau trans s s' ⇒ LENGTH (FST s) ≤ LENGTH (FST s')
