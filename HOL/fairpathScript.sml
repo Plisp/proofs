@@ -37,6 +37,8 @@ End
 Datatype:
   prog = Comm ('answer list -> 'ffi)
        | Branch ('answer list -> bool) (prog list) (prog list)
+       | While ('loopst -> bool) (prog list) ('answer list -> 'loopst)
+       | Ret ('answer list -> 'return)
 End
 
 Definition pcomp'_def:
@@ -47,6 +49,12 @@ Definition pcomp'_def:
                                                    then pcomp' locals t
                                                    else pcomp' locals f)
                                                   (λ_. pcomp' locals cs)
+  pcomp' locals (While c b :: cs) =
+  itree_bind (itree_iter (λ_. if (c locals)
+                              then (pcomp' locals b)
+                              else Ret (INR ()))
+                         ())
+             (λ_. pcomp' locals cs)
 Termination
   cheat
 End
@@ -73,7 +81,7 @@ Definition gen_hyp':
          EVERY (λA. A locals) assms ∧
          psafe m (ZIP (hist,locals)) sts ∧
          s = LAST sts ∧
-         t = pcomp' (locals ++ [x]) (Comm ffi :: cs)) ∨
+         t = pcomp' (locals) (Comm ffi :: cs)) ∨
        gen_hyp' m cs (locals ++ [x]) (SUC n) assms s t)
   ∧
   gen_hyp' m (Branch c tb fb :: cs) locals n assms s t =
@@ -149,10 +157,6 @@ Proof
   rw[FUN_EQ_THM] >>
   Cases_on ‘get_no a = 0 ∨ get_no a' ≥ 5’ >> gvs[]
 QED
-
-
-
-
 
 
 
