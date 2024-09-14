@@ -8,6 +8,7 @@
  Cond_rewr.stack_limit := 8
  *)
 
+open preamble;
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
 open panSemTheory; (* eval_def, byte stuff *)
 open panLangTheory; (* size_of_shape_def *)
@@ -28,7 +29,7 @@ fun parse_pancake q =
   let
     val code = quote_to_strings q |> String.concatWith "\n" |> fromMLstring
   in
-    rhs $ concl $ SRULE[] $ EVAL “THE (parse_funs_to_ast ^code)”
+    rhs $ concl $ SRULE[] $ EVALn 1500 “(parse_funs_to_ast ^code)”
 end
 
 fun parse_pancake_nosimp q =
@@ -37,6 +38,13 @@ fun parse_pancake_nosimp q =
   in
     EVAL “(parse_funs_to_ast ^code)”
 end
+
+val muxrx_ast = parse_pancake ‘
+fun net_enqueue_free(1 queue_handle, 2 buffer) {
+    var test = < 1 , 2 >;
+    return test.0;
+}
+’;
 
 (* XXX add_user_printer docs, sml-mode *)
 (* fun omitprinter _ _ sys ppfns gs d t = *)
