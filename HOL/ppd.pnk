@@ -1,0 +1,271 @@
+fun net_enqueue_free(1 queue_handle, 2 buffer) {
+    var queue = lds 1 queue_handle; var tail = 0; !ldw tail, queue; var queue = lds 1 queue_handle; var head = 0; !ldw head, queue + 8; var size = lds 1 queue_handle + 2 * 8; var full = (tail + 1 - head) == size;
+    if (full) {
+        return -1;
+    }
+    var size = lds 1 queue_handle + 2 * 8;
+    var queue = lds 1 queue_handle; var tail = 0; !ldw tail, queue;
+    var idx = tail & (size - 1);
+    var free = lds 1 queue_handle;
+    var buff = free + 3 * 8 + idx * (2 * 8);
+    !stw buff, (buffer.0);
+    !stw buff + 8, (buffer.1);
+    @THREAD_MEMORY_RELEASE(0,0,0,0);
+    tail = tail + 1;
+    var queue = lds 1 queue_handle; !stw queue, tail;
+    return 0;
+}
+fun net_enqueue_active(1 queue_handle, 2 buffer) {
+    var queue = lds 1 queue_handle + 8; var tail = 0; !ldw tail, queue; var queue = lds 1 queue_handle + 8; var head = 0; !ldw head, queue + 8; var size = lds 1 queue_handle + 2 * 8; var full = (tail + 1 - head) == size;
+    if (full) {
+        return -1;
+    }
+    var size = lds 1 queue_handle + 2 * 8;
+    var queue = lds 1 queue_handle + 8; var tail = 0; !ldw tail, queue;
+    var idx = tail & (size - 1);
+    var active = lds 1 queue_handle + 8;
+    var buff = active + 3 * 8 + idx * (2 * 8);
+    !stw buff, (buffer.0);
+    !stw buff + 8, (buffer.1);
+    @THREAD_MEMORY_RELEASE(0,0,0,0);
+    tail = tail + 1;
+    var queue = lds 1 queue_handle + 8; !stw queue, tail;
+    return 0;
+}
+fun net_dequeue_free(1 queue_handle, 1 buffer_addr) {
+    var queue = lds 1 queue_handle; var tail = 0; !ldw tail, queue; var queue = lds 1 queue_handle; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+    if (empty) {
+        return -1;
+    }
+    var size = lds 1 queue_handle + 2 * 8;
+    var queue = lds 1 queue_handle; var head = 0; !ldw head, queue + 8;
+    var idx = head & (size - 1);
+    var free = lds 1 queue_handle;
+    var buff = free + 3 * 8 + idx * (2 * 8);
+    var buf_v = 0;
+    !ldw buf_v, buff;
+    !stw buffer_addr, buf_v;
+    !ldw buf_v, buff + 8;
+    !stw buffer_addr + 8, buf_v;
+    @THREAD_MEMORY_RELEASE(0,0,0,0);
+    head = head + 1;
+    var queue = lds 1 queue_handle; !stw queue + 8, head;
+    return 0;
+}
+fun net_dequeue_active(1 queue_handle, 1 buffer_addr) {
+    var queue = lds 1 queue_handle + 8; var tail = 0; !ldw tail, queue; var queue = lds 1 queue_handle + 8; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+    if (empty) {
+        return -1;
+    }
+    var size = lds 1 queue_handle + 2 * 8;
+    var queue = lds 1 queue_handle + 8; var head = 0; !ldw head, queue + 8;
+    var idx = head & (size - 1);
+    var active = lds 1 queue_handle + 8;
+    var buff = active + 3 * 8 + idx * (2 * 8);
+    var buf_v = 0;
+    !ldw buf_v, buff;
+    !stw buffer_addr, buf_v;
+    !ldw buf_v, buff + 8;
+    !stw buffer_addr + 8, buf_v;
+    @THREAD_MEMORY_RELEASE(0,0,0,0);
+    head = head + 1;
+    var queue = lds 1 queue_handle + 8; !stw queue + 8, head;
+    return 0;
+}
+fun main () {
+    rx_provide();
+    tx_provide();
+    return 0;
+}
+fun rx_return() {
+    var packets_transferred = false;
+    var hw_ring_rx = @base + 9 * 8;
+    var rx_queue = @base + 3 * 8;
+    while (true) {
+        var tail = lds 1 hw_ring_rx; var head = lds 1 hw_ring_rx + 8; var value = tail - head; var mod = value & (256 - 1); var empty = (mod == 0);
+        if (empty) {
+            break;
+        }
+        var hw_head = lds 1 hw_ring_rx + 8;
+        var addr = hw_ring_rx + (2 * 8) + 256 * (2 * 8); var descr = lds 1 addr;
+        var dscr_addr = descr + hw_head * 8;
+        var descriptor = 0;
+        !ld32 descriptor, dscr_addr;
+        var stat = (descriptor >> 16) & MASK_16;
+        if (stat & (1 << 15)) {
+            break;
+        }
+        var buffer_addr = hw_ring_rx + 16 + hw_head * (2 * 8);
+        stw buffer_addr + 8, descriptor & MASK_16;
+        stw hw_ring_rx + 8, hw_head + 1;
+        var buffer = lds {1,1} buffer_addr;
+        var 1 err = net_enqueue_active(rx_queue, buffer);
+        @assert(0,!err,0,0);
+        packets_transferred = true;
+    }
+    var queue = lds 1 rx_queue + 8; var signalled = 0; !ld8 signalled, queue + 2 * 8; var signal = (!signalled);
+    if (packets_transferred && signal) {
+        var queue = lds 1 rx_queue + 8; var signal = 1; st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+        @microkit_notify(0,2,0,0);
+    }
+    return 0;
+}
+fun rx_provide() {
+    var reprocess = true;
+    var hw_ring_rx = @base + 9 * 8;
+    var rx_queue = @base + 3 * 8;
+    var addrs = @base; var eth = lds 1 addrs;
+    while (reprocess) {
+        while (true) {
+            var tail = lds 1 hw_ring_rx; var head = lds 1 hw_ring_rx + 8; var value = tail - head; var mod = value & (256 - 1); var full = (mod == 0);
+            var queue = lds 1 rx_queue; var tail = 0; !ldw tail, queue; var queue = lds 1 rx_queue; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+            if (full || empty) {
+                break;
+            }
+            var buffer_addr = @base + 8360 + 512;
+            var 1 err = net_dequeue_free(rx_queue, buffer_addr);
+            @assert(0,!err,0,0);
+            var stat = (1 << 15);
+            var hw_tail = lds 1 hw_ring_rx;
+            if ((hw_tail + 1) == 256) {
+                stat = (stat | (1 << 13)) & MASK_16;
+            }
+            var hw_buff_addr = hw_ring_rx + 16 + hw_tail * (2 * 8);
+            var buffer = lds {1,1} buffer_addr;
+            !stw hw_buff_addr, buffer.0;
+            !stw hw_buff_addr + 8, buffer.1;
+            var io_or_offset = buffer.0;
+            var mod_tail = hw_tail & (256 - 1);
+            var addr = hw_ring_rx + (2 * 8) + 256 * (2 * 8); var descr = lds 1 addr; var dst_addr = descr + mod_tail * 8; var descriptor = (stat << 16) | 0; !st32 dst_addr, descriptor; !st32 dst_addr + 4, io_or_offset;
+            stw hw_ring_rx, hw_tail + 1;
+            !st32 (eth + 16), RDAR_RDAR;
+        }
+        var tail = lds 1 hw_ring_rx; var head = lds 1 hw_ring_rx + 8; var value = tail - head; var mod = value & (256 - 1); var full = (mod == 0);
+        if (!full) {
+            var queue = lds 1 rx_queue; var signal = 0; !st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+        } else {
+            var queue = lds 1 rx_queue; var signal = 1; st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+        }
+        reprocess = false;
+        var queue = lds 1 rx_queue; var tail = 0; !ldw tail, queue; var queue = lds 1 rx_queue; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+        var tail = lds 1 hw_ring_rx; var head = lds 1 hw_ring_rx + 8; var value = tail - head; var mod = value & (256 - 1); var full = (mod == 0);
+        if ((!empty) && (!full)) {
+            var queue = lds 1 rx_queue; var signal = 1; st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+            reprocess = true;
+        }
+    }
+    return 0;
+}
+fun tx_provide() {
+    var reprocess = true;
+    var hw_ring_tx = @base + 9 * 8 + (3 * 8 + 256 * (2 * 8));
+    var tx_queue = @base + 6 * 8;
+    var addrs = @base; var eth = lds 1 addrs;
+    while (reprocess) {
+        while (true) {
+            var tail = lds 1 hw_ring_tx; var head = lds 1 hw_ring_tx + 8; var value = tail - head; var mod = value & (256 - 1); var full = (mod == 0);
+            var queue = lds 1 tx_queue + 8; var tail = 0; !ldw tail, queue; var queue = lds 1 tx_queue + 8; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+            if (full || empty) {
+                break;
+            }
+            var buffer_addr = @base + 8360 + 512;
+            var 1 err = net_dequeue_active(tx_queue, buffer_addr);
+            @assert(0,!err,0,0);
+            var stat = (1 << 15) | (1 << 10) | (1 << 11);
+            var hw_tail = lds 1 hw_ring_tx;
+            if ((hw_tail + 1) == 256) {
+                stat = (stat | (1 << 13)) & MASK_16;
+            }
+            var hw_buff_addr = hw_ring_tx + 16 + hw_tail * (2 * 8);
+            var buffer = lds {1,1} buffer_addr;
+            !stw hw_buff_addr, buffer.0;
+            !stw hw_buff_addr + 8, buffer.1;
+            var io_or_offset = buffer.0;
+            var mod_tail = hw_tail & (256 - 1);
+            var addr = hw_ring_tx + (2 * 8) + 256 * (2 * 8); var descr = lds 1 addr; var dst_addr = descr + mod_tail * 8; var descriptor = (stat << 16) | buffer.1; !st32 dst_addr, descriptor; !st32 dst_addr + 4, io_or_offset;
+            stw hw_ring_tx, hw_tail + 1;
+            !st32 (eth + 20), TDAR_TDAR;
+        }
+        var queue = lds 1 tx_queue + 8; var signal = 0; !st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+        reprocess = false;
+        var tail = lds 1 hw_ring_tx; var head = lds 1 hw_ring_tx + 8; var value = tail - head; var mod = value & (256 - 1); var full = (mod == 0);
+        var queue = lds 1 tx_queue + 8; var tail = 0; !ldw tail, queue; var queue = lds 1 tx_queue + 8; var head = 0; !ldw head, queue + 8; var empty = (tail - head) == 0;
+        if ((!full) && (!empty)) {
+            var queue = lds 1 tx_queue + 8; var signal = 1; st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+            reprocess = true;
+        }
+    }
+    return 0;
+}
+fun tx_return() {
+    var enqueued = false;
+    var hw_ring_tx = @base + 9 * 8 + (3 * 8 + 256 * (2 * 8));
+    var tx_queue = @base + 6 * 8;
+    while (true) {
+        var tail = lds 1 hw_ring_tx; var head = lds 1 hw_ring_tx + 8; var value = tail - head; var mod = value & (256 - 1); var empty = (mod == 0);
+        if (empty) {
+            break;
+        }
+        var hw_head = lds 1 hw_ring_tx + 8;
+        var addr = hw_ring_tx + (2 * 8) + 256 * (2 * 8); var descr = lds 1 addr;
+        var dscr_addr = descr + hw_head * 8;
+        var descriptor = 0;
+        !ld32 descriptor, dscr_addr;
+        var stat = (descriptor >> 16) & MASK_16;
+        if (stat & (1 << 15)) {
+            break;
+        }
+        var buff = hw_ring_tx + 16 + hw_head * (2 * 8);
+        stw buff + 8, 0;
+        stw hw_ring_tx + 8, hw_head + 1;
+        var buffer = lds {1,1} buff;
+        var 1 err = net_enqueue_free(tx_queue, buffer);
+        @assert(0,!err,0,0);
+        enqueued = true;
+    }
+    var queue = lds 1 tx_queue; var signalled = 0; !ld8 signalled, queue + 2 * 8; var signal = (!signalled);
+    if (enqueued && signal) {
+        var queue = lds 1 tx_queue; var signal = 1; st8 queue + 2 * 8, signal; @THREAD_MEMORY_RELEASE(0,0,0,0);
+        @microkit_notify(0,1,0,0);
+    }
+    return 0;
+}
+fun handle_irq() {
+    var addrs = @base; var eth = lds 1 addrs;
+    var eir = 0; !ld32 eir, (eth + 4);
+    var e = eir & IRQ_MASK;
+    !st32 (eth + 4), e;
+    while (e & IRQ_MASK) {
+        if (e & (1 << 27)) {
+            tx_return();
+        }
+        if (e & (1 << 25)) {
+            rx_return();
+            rx_provide();
+        }
+        if (e & (1 << 22)) {
+            skip;
+        }
+        var eir = 0; !ld32 eir, (eth + 4);
+        e = eir & IRQ_MASK;
+        !st32 (eth + 4), e;
+    }
+    return 0;
+}
+export fun notified(1 channel) {
+    if (channel == 0) {
+        handle_irq();
+        @microkit_irq_ack_delayed(0,channel,0,0);
+        return 0;
+    }
+    if (channel == 2) {
+        rx_provide();
+        return 0;
+    }
+    if (channel == 1) {
+        tx_provide();
+        return 0;
+    }
+    @print_int(0,0,0,channel);
+    return -1;
+}

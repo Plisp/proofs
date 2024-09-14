@@ -1,3 +1,295 @@
+/**
+ * from util.pnk
+ */
+
+#define WORD_SIZE 8
+
+#define microkit_notify(channel)        \
+    @microkit_notify(0,channel,0,0);    \
+
+#define microkit_irq_ack_delayed(channel)       \
+    @microkit_irq_ack_delayed(0,channel,0,0);   \
+
+#define THREAD_MEMORY_RELEASE()         \
+    @THREAD_MEMORY_RELEASE(0,0,0,0);    \
+
+// Returns a % b, asuming b = x^n for some x and n
+#define pnk_modulo(result, a, b) \
+    var result = a & (b - 1);    \
+
+#define assert(assert_val)              \
+    @assert(0,assert_val,0,0);          \
+
+/**
+ * from queue_helper.pnk
+ */
+
+#define NET_BUFF_DESC_SIZE (2 * WORD_SIZE)
+
+#define get_size(size, queue_handle)                \
+    var size = lds 1 queue_handle + 2 * WORD_SIZE;  \
+
+#define get_tail(tail, queue)   \
+    var tail = 0;               \
+    !ldw tail, queue;           \
+
+#define set_tail(tail, queue)   \
+    !stw queue, tail;           \
+
+#define get_head(head, queue)       \
+    var head = 0;                   \
+    !ldw head, queue + WORD_SIZE;   \
+
+#define set_head(head, queue)       \
+    !stw queue + WORD_SIZE, head;   \
+
+#define get_consumer_signalled(signalled, queue)\
+    var signalled = 0;                          \
+    !ld8 signalled, queue + 2 * WORD_SIZE;      \
+
+#define clear_consumer_signalled(queue) \
+    var signal = 0;                     \
+    !st8 queue + 2 * WORD_SIZE, signal; \
+
+#define set_consumer_signalled(queue)   \
+    var signal = 1;                     \
+    st8 queue + 2 * WORD_SIZE, signal;  \
+
+#define get_buffer_desc_addr(desc, index, queue)                    \
+    var desc = queue + 3 * WORD_SIZE + index * NET_BUFF_DESC_SIZE;  \
+
+#define get_free_queue(free, queue_handle)  \
+    var free = lds 1 queue_handle;          \
+
+#define get_active_queue(active, queue_handle)      \
+    var active = lds 1 queue_handle + WORD_SIZE;    \
+
+#define get_free_head(head, queue_handle)   \
+    get_free_queue(queue, queue_handle)     \
+    get_head(head, queue)
+
+#define set_free_head(head, queue_handle)   \
+    get_free_queue(queue, queue_handle)     \
+    set_head(head, queue)
+
+#define get_free_tail(tail, queue_handle)   \
+    get_free_queue(queue, queue_handle)     \
+    get_tail(tail, queue)
+
+#define set_free_tail(tail, queue_handle)   \
+    get_free_queue(queue, queue_handle)     \
+    set_tail(tail, queue)
+
+#define get_active_head(head, queue_handle) \
+    get_active_queue(queue, queue_handle)   \
+    get_head(head, queue)
+
+#define set_active_head(head, queue_handle) \
+    get_active_queue(queue, queue_handle)   \
+    set_head(head, queue)
+
+#define get_active_tail(tail, queue_handle) \
+    get_active_queue(queue, queue_handle)   \
+    get_tail(tail, queue)
+
+#define set_active_tail(tail, queue_handle) \
+    get_active_queue(queue, queue_handle)   \
+    set_tail(tail, queue)
+
+/**
+ * from queue.pnk
+ */
+
+#define net_queue_empty_free(empty, queue_handle)   \
+    get_free_tail(tail, queue_handle)               \
+    get_free_head(head, queue_handle)               \
+    var empty = (tail - head) == 0;                 \
+
+#define net_queue_empty_active(empty, queue_handle) \
+    get_active_tail(tail, queue_handle)             \
+    get_active_head(head, queue_handle)             \
+    var empty = (tail - head) == 0;                 \
+
+#define net_queue_full_free(full, queue_handle)     \
+    get_free_tail(tail, queue_handle)               \
+    get_free_head(head, queue_handle)               \
+    get_size(size, queue_handle)                    \
+    var full = (tail + 1 - head) == size;           \
+
+#define net_queue_full_active(full, queue_handle)   \
+    get_active_tail(tail, queue_handle)             \
+    get_active_head(head, queue_handle)             \
+    get_size(size, queue_handle)                    \
+    var full = (tail + 1 - head) == size;           \
+
+fun net_enqueue_free(1 queue_handle, 2 buffer) {
+    net_queue_full_free(full, queue_handle)
+    if (full) {
+        return -1;
+    }
+
+    get_size(size, queue_handle)
+    get_free_tail(tail, queue_handle)
+    pnk_modulo(idx, tail, size)
+
+    get_free_queue(free, queue_handle)
+    get_buffer_desc_addr(buff, idx, free)
+
+    !stw buff, (buffer.0);
+    !stw buff + WORD_SIZE, (buffer.1);
+
+    THREAD_MEMORY_RELEASE()
+
+    tail = tail + 1;
+    set_free_tail(tail, queue_handle)
+    return 0;
+}
+
+fun net_enqueue_active(1 queue_handle, 2 buffer) {
+    net_queue_full_active(full, queue_handle)
+    if (full) {
+        return -1;
+    }
+
+    get_size(size, queue_handle)
+    get_active_tail(tail, queue_handle)
+    pnk_modulo(idx, tail, size)
+
+    get_active_queue(active, queue_handle)
+    get_buffer_desc_addr(buff, idx, active)
+
+    !stw buff, (buffer.0);
+    !stw buff + WORD_SIZE, (buffer.1);
+
+    THREAD_MEMORY_RELEASE()
+
+    tail = tail + 1;
+    set_active_tail(tail, queue_handle)
+    return 0;
+}
+
+fun net_dequeue_free(1 queue_handle, 1 buffer_addr) {
+    net_queue_empty_free(empty, queue_handle)
+    if (empty) {
+        return -1;
+    }
+
+    get_size(size, queue_handle)
+    get_free_head(head, queue_handle)
+    pnk_modulo(idx, head, size)
+
+    get_free_queue(free, queue_handle)
+    get_buffer_desc_addr(buff, idx, free)
+
+    var buf_v = 0;
+    !ldw buf_v, buff;
+    !stw buffer_addr, buf_v;
+    !ldw buf_v, buff + WORD_SIZE;
+    !stw buffer_addr + WORD_SIZE, buf_v;
+    THREAD_MEMORY_RELEASE()
+
+    head = head + 1;
+    set_free_head(head, queue_handle)
+    return 0;
+}
+
+fun net_dequeue_active(1 queue_handle, 1 buffer_addr) {
+    net_queue_empty_active(empty, queue_handle)
+    if (empty) {
+        return -1;
+    }
+
+    get_size(size, queue_handle)
+    get_active_head(head, queue_handle)
+    pnk_modulo(idx, head, size)
+
+    get_active_queue(active, queue_handle)
+    get_buffer_desc_addr(buff, idx, active)
+
+    var buf_v = 0;
+    !ldw buf_v, buff;
+    !stw buffer_addr, buf_v;
+    !ldw buf_v, buff + WORD_SIZE;
+    !stw buffer_addr + WORD_SIZE, buf_v;
+    THREAD_MEMORY_RELEASE()
+
+    head = head + 1;
+    set_active_head(head, queue_handle)
+    return 0;
+}
+
+/**
+ * Indicate to producer of the free queue that consumer requires signalling.
+ *
+ * @param queue queue handle of free queue that requires signalling upon enqueuing.
+ */
+#define net_request_signal_free(queue_handle)   \
+    get_free_queue(queue, queue_handle)         \
+    clear_consumer_signalled(queue)             \
+    THREAD_MEMORY_RELEASE()                     \
+
+#define net_request_signal_active(queue_handle)     \
+    get_active_queue(queue, queue_handle)           \
+    clear_consumer_signalled(queue)                 \
+    THREAD_MEMORY_RELEASE()                         \
+
+#define net_cancel_signal_free(queue_handle)    \
+    get_free_queue(queue, queue_handle)         \
+    set_consumer_signalled(queue)               \
+    THREAD_MEMORY_RELEASE()                     \
+
+#define net_cancel_signal_active(queue_handle)      \
+    get_active_queue(queue, queue_handle)           \
+    set_consumer_signalled(queue)                   \
+    THREAD_MEMORY_RELEASE()                         \
+
+#define net_require_signal_free(signal, queue_handle)       \
+    get_free_queue(queue, queue_handle)                     \
+    get_consumer_signalled(signalled, queue)                \
+    var signal = (!signalled);
+
+#define net_require_signal_active(signal, queue_handle)     \
+    get_active_queue(queue, queue_handle)                   \
+    get_consumer_signalled(signalled, queue)                \
+    var signal = (!signalled);
+
+/**
+ * from ethernet_helper.pnk
+ */
+
+#define NETIRQ_TXF      (1 << 27) /* Transmit Frame Interrupt        */
+#define NETIRQ_RXF      (1 << 25) /* Receive Frame Interrupt         */
+#define NETIRQ_EBERR    (1 << 22) /* Ethernet bus error              */
+
+#define WRAP            (1 << 13)
+#define RXD_EMPTY       (1 << 15)
+#define TXD_READY       (1 << 15)
+#define TXD_ADDCRC      (1 << 10)
+#define TXD_LAST        (1 << 11)
+
+#define ETH_FUNC_BASE                   @base + 8360
+#define EIR_OFFSET                      4
+
+#define RDAR_OFFSET                     16
+#define TDAR_OFFSET                     20
+
+#define get_eth_eir(eir, eth)           \
+    var eir = 0;                        \
+    !ld32 eir, (eth + EIR_OFFSET);      \
+
+#define set_eth_eir(eir, eth)           \
+    !st32 (eth + EIR_OFFSET), eir;      \
+
+#define set_eth_rdar(rdar, eth)         \
+    !st32 (eth + RDAR_OFFSET), rdar;    \
+
+#define set_eth_tdar(tdar, eth)         \
+    !st32 (eth + TDAR_OFFSET), tdar;    \
+
+#define get_eth_regs(eth_regs)  \
+    var addrs = @base;          \
+    var eth_regs = lds 1 addrs; \
+
 /* Pancake heap layout
 
               pancake heap 1024*9 bytes
@@ -49,26 +341,11 @@
 
 #define MAX_PACKET_SIZE     1536
 
-#define get_eth_regs(eth_regs)  \
-    var addrs = @base;          \
-    var eth_regs = lds 1 addrs; \
-
 #define get_rx_queue(rx_queue)              \
     var rx_queue = @base + 3 * WORD_SIZE;   \
 
 #define get_tx_queue(tx_queue)              \
     var tx_queue = @base + 6 * WORD_SIZE;   \
-
-////// helper functions for hw_ring_buffer
-/* HW ring buffer data type */
-/*
-typedef struct {
-    uint64_t tail; // index to insert at
-    uint64_t head; // index to remove from
-    net_buff_desc_t descr_mdata[MAX_COUNT]; // associated meta data array
-    volatile struct descriptor *descr; // buffer descripter array
-} hw_ring_t;
-*/
 
 #define HW_RING_SIZE (3 * WORD_SIZE + MAX_COUNT * NET_BUFF_DESC_SIZE)
 
@@ -105,17 +382,8 @@ typedef struct {
     pnk_modulo(mod, value, ring_size)               \
     var result = (mod == 0);                        \
 
-/*
-// HW ring descriptor (shared with device)
-struct descriptor {
-    uint16_t len;
-    uint16_t stat;
-    uint32_t addr;
-};
-*/
-#define DESCRIPTOR_SIZE            WORD_SIZE
+#define DESCRIPTOR_SIZE WORD_SIZE
 
-///// ^^ helper function finished
 #define get_hw_ring_rx(hw_ring_rx)          \
     var hw_ring_rx = @base + 9 * WORD_SIZE; \
 
@@ -138,7 +406,7 @@ fun main () {
 /*
  * `rx_return()`: Transfer "active buffer" from device to `virt_rx`
  * 1. check if `hw_ring_rx` is not empty; if not then exit
- * 2. get a buffer from `head` slot of `hw_ring_rx`, make sure its status is non-empty; if not then exit
+ * 2. get a buffer from `head` slot of `hw_ring_rx`, make sure its status is non-empty
  * 3. increment `hw_ring_rx` head, enqueue the buffer to `rx_active`
  * 4. if `rx_active` requires signalling, cancel the signal and notify `virt_rx` via microkit
  */
@@ -221,7 +489,7 @@ fun rx_provide() {
             !stw hw_buff_addr + WORD_SIZE, buffer.1;
 
             var io_or_offset = buffer.0;
-            var mod_tail = pnk_modulo(mod_tail, hw_tail, RX_COUNT);
+            pnk_modulo(mod_tail, hw_tail, RX_COUNT)
             update_ring_slot(hw_ring_rx, mod_tail, io_or_offset, 0, stat)
 
             hw_ring_set_tail(hw_tail + 1, hw_ring_rx)
@@ -287,7 +555,7 @@ fun tx_provide() {
             !stw hw_buff_addr + WORD_SIZE, buffer.1;
 
             var io_or_offset = buffer.0;
-            var mod_tail = pnk_modulo(mod_tail, hw_tail, TX_COUNT);
+            pnk_modulo(mod_tail, hw_tail, TX_COUNT)
             update_ring_slot(hw_ring_tx, mod_tail, io_or_offset, buffer.1, stat)
 
             hw_ring_set_tail(hw_tail + 1, hw_ring_tx)
@@ -348,7 +616,6 @@ fun tx_return() {
         enqueued = true;
     }
 
-
     net_require_signal_free(signal, tx_queue)
     if (enqueued && signal) {
         net_cancel_signal_free(tx_queue)
@@ -374,7 +641,6 @@ fun handle_irq() {
         }
         if (e & NETIRQ_EBERR) {
             skip;
-            // TODO: sddf_dprintf("ETH|ERROR: System bus/uDMA\n");
         }
         get_eth_eir(eir, eth)
         e = eir & IRQ_MASK;
@@ -386,10 +652,6 @@ fun handle_irq() {
 export fun notified(1 channel) {
     if (channel == IRQ_CH) {
         handle_irq();
-        /*
-         * Delay calling into the kernel to ack the IRQ until the next loop
-         * in the microkit event handler loop.
-         */
         microkit_irq_ack_delayed(channel)
         return 0;
     }
@@ -404,8 +666,6 @@ export fun notified(1 channel) {
         return 0;
     }
 
-    // TODO:
-    // sddf_dprintf("ETH|LOG: received notification on unexpected channel: %u\n", ch);
     @print_int(0,0,0,channel);
     return -1;
 }
