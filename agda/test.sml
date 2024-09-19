@@ -37,6 +37,11 @@ in
       | disp _ (Eql (a,b)) = dispe a ^ " = " ^ dispe b
 end;
 
+val vcount = ref 0;
+type goalstate = { assms : form list , goals : form list };
+
+fun is_schema s = (String.sub (s,0) = #"?")
+
 print (disp " " (Disj (Exi ("a",Eql (App ("f",[Id "a"]), Id "c")),
                       (All ("a",Imp (Prop ("P",[Id "a", Id "c"]),
                                      Conj (Prop ("Q",[Id "a"]), Prop ("R",[])))))))

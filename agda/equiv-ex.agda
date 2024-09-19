@@ -6,6 +6,8 @@
 
 open import Agda.Primitive
 open import logic
+open import bool
+open import types
 open import path
 open import homotopy
 open import functor
