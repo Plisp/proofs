@@ -217,6 +217,11 @@ Proof
    (Cases_on ‘a’ >> fs[])
 QED
 
+Definition itree_mrec_def:
+  itree_mrec rh seed =
+  itree_iter (mrec_iter_body rh) (rh seed)
+End
+
 (* mrec iterates sequentially on its seed *)
 Theorem itree_mrec_bind:
   iter (mrec_iter_body rh) (t >>= k) =
@@ -268,7 +273,7 @@ Theorem seq_thm:
                          else (Ret (res, s'))))
 Proof
   rw[itree_mrec_def] >>
-  rw[h_prog_def, h_prog_rule_seq_def] >>
+  rw[h_prog_def, h_prog_seq_def] >>
   rw[itree_mrec_bind] >>
   AP_TERM_TAC >>
   rw[FUN_EQ_THM] >>
@@ -299,15 +304,15 @@ Definition revert_binding_def:
         res_var s'.locals (name,FLOOKUP old_s.locals name)))
 End
 
-Theorem h_prog_rule_dec_alt:
-  h_prog_rule_dec vname e p s =
+Theorem h_prog_dec_alt:
+  h_prog_dec vname e p s =
   case eval (reclock s) e of
     NONE => Ret (SOME Error,s)
   | SOME value =>
       Vis (INL (p,s with locals := s.locals |+ (vname,value)))
           (revert_binding vname s)
 Proof
-  rw[h_prog_rule_dec_def, revert_binding_def]
+  rw[h_prog_dec_def, revert_binding_def]
 QED
 
 (* f, f' type vars instantiated differently smh *)
@@ -331,7 +336,7 @@ Theorem dec_thm:
       >>= (revert_binding name s))
 Proof
   rw[itree_mrec_def] >>
-  rw[h_prog_def, h_prog_rule_dec_def] >>
+  rw[h_prog_def, h_prog_dec_def] >>
   rw[GSYM revert_binding_def] >>
   irule itree_mrec_bind_ret >>
   rw[revert_binding_def] >>
@@ -414,7 +419,7 @@ Theorem dec_lifted:
                             (p, s with locals := s.locals |+ (name,THE res))))
 Proof
   rw[] >-
-   (rw[itree_mrec_def, h_prog_def, h_prog_rule_dec_def]) >-
+   (rw[itree_mrec_def, h_prog_def, h_prog_dec_def]) >-
    (Cases_on ‘eval (reclock s) e’ >> fs[] >>
     drule dec_thm >> rw[to_ffi_revert_bind])
 QED

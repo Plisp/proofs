@@ -29,7 +29,7 @@ fun parse_pancake q =
   let
     val code = quote_to_strings q |> String.concatWith "\n" |> fromMLstring
   in
-    rhs $ concl $ SRULE[] $ EVALn 1500 “(parse_funs_to_ast ^code)”
+    rhs $ concl $ SRULE[] $ EVAL “(parse_funs_to_ast ^code)”
 end
 
 fun parse_pancake_nosimp q =
@@ -39,12 +39,48 @@ fun parse_pancake_nosimp q =
     EVAL “(parse_funs_to_ast ^code)”
 end
 
-val muxrx_ast = parse_pancake ‘
-fun net_enqueue_free(1 queue_handle, 2 buffer) {
-    var test = < 1 , 2 >;
-    return test.0;
+val ast = parse_pancake ‘
+fun net_enqueue_free() {
+    var desc = 0;
+    !stw desc, 255;
 }
 ’;
+
+Definition itree_evaluate_def:
+  itree_evaluate p s =
+  to_stree (itree_mrec h_prog (p,s))
+End
+
+Definition extract:
+  extract (INL p) = p
+End
+
+(* P Abs ==> (abs->concrete-pred? P) (abs->concrete abs) *)
+Theorem test:
+  (0w : word64) ∈ s.sh_memaddrs ⇒
+  itree_evaluate
+  (Seq (Annot «location» «(2:4 3:13)»)
+       (Dec «desc» (Const 0w)
+            (Seq (Annot «location» «(3:5 3:13)»)
+                 (ShMemStore OpW (Var «desc») (Const 255w)))))
+  s ≈ ARB
+Proof
+  rw[extract, itree_evaluate_def] >>
+  rw[seq_thm] >>
+  rw[Once itree_mrec_def, h_prog_def] >>
+  ‘eval (reclock s) (Const 0w) = SOME (ValWord 0w)’ by rw[] >>
+  drule dec_thm >> strip_tac >>
+  pop_assum $ qspecl_then [‘(Seq (Annot «location» «(3:5 3:13)»)
+                   (ShMemStore OpW (Var «desc») (Const 255w)))’,
+                           ‘«desc»’]
+            strip_assume_tac >>
+  rw[dec_thm] >> pop_assum kall_tac >> pop_assum kall_tac >>
+  rw[seq_thm] >>
+  rw[Once itree_mrec_def, h_prog_def] >>
+  rw[Once itree_mrec_def, h_prog_def, nb_op_def, h_prog_sh_mem_store_def] >>
+  gvs[align_thm, align_def] >>
+  rw[word_to_bytes_aux_compute, word_to_bytes_def] >>
+QED
 
 (* XXX add_user_printer docs, sml-mode *)
 (* fun omitprinter _ _ sys ppfns gs d t = *)
@@ -73,10 +109,10 @@ fun net_enqueue_free(1 queue_handle, 2 buffer) {
 (*   = ARB *)
 (* Proof *)
 (*   rw[itree_evaluate_alt] >> *)
-(*   rw[itree_mrec_alt, h_prog_def, h_prog_rule_dec_def] >> *)
+(*   rw[itree_mrec_alt, h_prog_def, h_prog_dec_def] >> *)
 (*   rw[eval_def] >> *)
 (*   rw[h_prog_def] >> *)
-(*   rw[h_prog_rule_call_def] >> *)
+(*   rw[h_prog_call_def] >> *)
 (*   rw[eval_def] >> *)
 (*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
 (*   rw[lookup_code_def, shape_of_def] >> *)
@@ -89,9 +125,10 @@ Theorem pan_eval_simps[simp]:
   ∧ eval s BaseAddr = SOME (ValWord s.base_addr)
   ∧ eval s (Label fname) = OPTION_IGNORE_BIND (FLOOKUP s.code fname)
                                               (SOME (ValLabel fname))
+  ∧ eval s (BytesInWord :32 exp) = SOME (ValWord 4w)
 Proof
   rw[eval_def] >>
-  Cases_on ‘FLOOKUP s.code fname’ >> rw[]
+  Cases_on ‘FLOOKUP s.code fname’ >> rw[bytes_in_word_def]
 QED
 
 Theorem itree_wbisim_refl[simp] = itree_wbisim_refl;
@@ -114,8 +151,8 @@ Theorem shape_of_simp[simp] = shape_of_def;
 Theorem h_prog_skip[simp] = cj 1 h_prog_def;
 
 val assign_tac = gvs[Once itree_mrec_def, Once h_prog_def,
-                     h_prog_rule_assign_def, eval_def];
-val strb_tac = rw[Once itree_mrec_def, Once h_prog_def, h_prog_rule_store_byte_def];
+                     h_prog_assign_def, eval_def];
+val strb_tac = rw[Once itree_mrec_def, Once h_prog_def, h_prog_store_byte_def];
 Globals.max_print_depth := 25;
 
 (*/ word nonsense
