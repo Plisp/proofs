@@ -105,6 +105,18 @@ You must use only these proof rules:
      TrueI, conjunct1, conjunct2, mp
 *)
 
+lemma test: "(\<forall>x. \<exists>c. x = c) \<Longrightarrow> \<forall>a b. a = b"
+  apply(rule allI)+
+  apply(rule_tac x=a and P="\<lambda>x. \<exists>c. x = c" in allE)
+   apply(simp)
+  apply(rule_tac x=b and P="\<lambda>x. \<exists>c. x = c" in allE)
+   apply(simp)
+  apply(thin_tac "\<forall>x. \<exists>c. x=c")
+  apply(erule exE)
+  apply(erule exE)
+(*  \<And>a b c ca. \<lbrakk>a = c; b = c'\<rbrakk> \<Longrightarrow> a = b *)
+  sorry
+
 lemma prop_a: "A \<longrightarrow> \<not>\<not>A"
   apply(rule impI)
   apply(rule notI)
