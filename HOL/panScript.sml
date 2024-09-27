@@ -14,6 +14,7 @@ open panSemTheory; (* eval_def, byte stuff *)
 open panLangTheory; (* size_of_shape_def *)
 open arithmeticTheory;
 open listTheory;
+open set_sepTheory;
 
 local
   val f =
@@ -51,36 +52,36 @@ Definition itree_evaluate_def:
   to_stree (itree_mrec h_prog (p,s))
 End
 
-Definition extract:
-  extract (INL p) = p
-End
+(* Definition extract: *)
+(*   extract (INL p) = p *)
+(* End *)
 
-(* P Abs ==> (abs->concrete-pred? P) (abs->concrete abs) *)
-Theorem test:
-  (0w : word64) ∈ s.sh_memaddrs ⇒
-  itree_evaluate
-  (Seq (Annot «location» «(2:4 3:13)»)
-       (Dec «desc» (Const 0w)
-            (Seq (Annot «location» «(3:5 3:13)»)
-                 (ShMemStore OpW (Var «desc») (Const 255w)))))
-  s ≈ ARB
-Proof
-  rw[extract, itree_evaluate_def] >>
-  rw[seq_thm] >>
-  rw[Once itree_mrec_def, h_prog_def] >>
-  ‘eval (reclock s) (Const 0w) = SOME (ValWord 0w)’ by rw[] >>
-  drule dec_thm >> strip_tac >>
-  pop_assum $ qspecl_then [‘(Seq (Annot «location» «(3:5 3:13)»)
-                   (ShMemStore OpW (Var «desc») (Const 255w)))’,
-                           ‘«desc»’]
-            strip_assume_tac >>
-  rw[dec_thm] >> pop_assum kall_tac >> pop_assum kall_tac >>
-  rw[seq_thm] >>
-  rw[Once itree_mrec_def, h_prog_def] >>
-  rw[Once itree_mrec_def, h_prog_def, nb_op_def, h_prog_sh_mem_store_def] >>
-  gvs[align_thm, align_def] >>
-  rw[word_to_bytes_aux_compute, word_to_bytes_def] >>
-QED
+(* (* P Abs ==> (abs->concrete-pred? P) (abs->concrete abs) *) *)
+(* Theorem test: *)
+(*   (0w : word64) ∈ s.sh_memaddrs ⇒ *)
+(*   itree_evaluate *)
+(*   (Seq (Annot «location» «(2:4 3:13)») *)
+(*        (Dec «desc» (Const 0w) *)
+(*             (Seq (Annot «location» «(3:5 3:13)») *)
+(*                  (ShMemStore OpW (Var «desc») (Const 255w))))) *)
+(*   s ≈ ARB *)
+(* Proof *)
+(*   rw[extract, itree_evaluate_def] >> *)
+(*   rw[seq_thm] >> *)
+(*   rw[Once itree_mrec_def, h_prog_def] >> *)
+(*   ‘eval (reclock s) (Const 0w) = SOME (ValWord 0w)’ by rw[] >> *)
+(*   drule dec_thm >> strip_tac >> *)
+(*   pop_assum $ qspecl_then [‘(Seq (Annot «location» «(3:5 3:13)») *)
+(*                    (ShMemStore OpW (Var «desc») (Const 255w)))’, *)
+(*                            ‘«desc»’] *)
+(*             strip_assume_tac >> *)
+(*   rw[dec_thm] >> pop_assum kall_tac >> pop_assum kall_tac >> *)
+(*   rw[seq_thm] >> *)
+(*   rw[Once itree_mrec_def, h_prog_def] >> *)
+(*   rw[Once itree_mrec_def, h_prog_def, nb_op_def, h_prog_sh_mem_store_def] >> *)
+(*   gvs[align_thm, align_def] >> *)
+(*   rw[word_to_bytes_aux_compute, word_to_bytes_def] >> *)
+(* QED *)
 
 (* XXX add_user_printer docs, sml-mode *)
 (* fun omitprinter _ _ sys ppfns gs d t = *)
@@ -96,8 +97,7 @@ QED
 
 (* val _ = temp_add_user_printer("omitprinter", “While _ x : 32 prog”, omitprinter); *)
 
-(* XXX data structure (internal) correctness
-   need correctness condition to be 'local' to some memory, write-invariant
+(* need correctness condition to be 'local' to some memory, write-invariant
    do this by proving 2 theorems:
    push (stack bounds (hol data) state) = stack newdata (same state)
    read_bytearray (outside bounds) (stack bounds (state)) = read_bytearray state
@@ -212,178 +212,61 @@ Definition mem_has_word_def:
   mem_has_word mem addr = ∃w. mem (byte_align addr) = Word (w : word32)
 End
 
-(* wfrites, disjoint_writes
-  wordf ≡ disjointness, has Words
-
-  prevent proliferation of write_bytearray (via disjointness)
-  reads of disjoint_writes should compute if within a single region
-  writes within boundaries (not necessarily current) preserve wf
-
-  making new regions requires quadratic obligations for disjointness
- *)
-
-Type write[pp] = “:(num # word8 list)”;
-Type range[pp] = “:(num # num)”;
-Definition range_disjoint_def:
-  range_disjoint ((s1,l1) : range) ((s2,l2) : range)
-  = ((s1 + l1 < s2) ∨ (s2 + l2 < s1))
+Definition array:
+  array a xs = SEP_ARRAY (λa x. one (a,x)) 1w a xs
 End
 
-Definition writes_disjoint_def:
-  write_disjoint ((s1,l1) : write) ((s2,l2) : write)
-  = range_disjoint (s1, LENGTH l1) (s2, LENGTH l2)
+Definition state_set:
+  state_set s = fun2set (s.memory,s.memaddrs)
 End
 
-Theorem write_bytearray_preserve_words:
-  mem_has_word oldmem w ⇒
-  mem_has_word (write_bytearray loc l oldmem s.memaddrs s.be) w
+Theorem sep_ldb:
+  byte_aligned (addr : word32)
+  ∧ (one (addr, Word w) * p) (fun2set (m,dm))
+  ⇒ mem_load_byte m dm be addr = SOME (get_byte addr w be)
 Proof
-  simp[mem_has_word_def] >>
-  strip_tac >>
-  qid_spec_tac ‘loc’ >> Induct_on ‘l’ >>
-  rw[write_bytearray_def] >>
-  fs[mem_store_byte_def] >>
-  Cases_on ‘write_bytearray (loc+1w) l oldmem s.memaddrs s.be (byte_align loc)’ >>
+  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
+     alignmentTheory.aligned_def,
+     mem_load_byte_def] >>
+  drule read_fun2set >> rw[]
+QED
+
+Theorem sep_strb:
+  byte_aligned (addr : word32)
+  ∧ (one (addr, Word w) * p) (fun2set (m,dm))
+  ⇒ (one (addr, Word (set_byte addr b w be)) * p)
+    (fun2set (THE (mem_store_byte m dm be addr b), dm))
+Proof
+  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
+     alignmentTheory.aligned_def,
+     mem_store_byte_def] >>
+  drule read_fun2set >> rw[] >>
+  metis_tac[write_fun2set, STAR_COMM]
+QED
+
+Theorem SEP_T_ID:
+  s ⊆ t ∧ p s ⇒ (p * SEP_T) t
+Proof
+  rw[STAR_def, SPLIT_def, DISJOINT_DEF, SEP_T_def] >>
+  rw[EQ_IMP_THM] >>
+  (qexistsl_tac [‘s’, ‘t DIFF s’] >>
+   fs[SUBSET_DEF, IN_DIFF, IN_INTER, IN_UNION, NOT_IN_EMPTY, EXTENSION] >>
+   metis_tac[])
+QED
+
+Theorem sep_strb':
+  p (fun2set (m,dm DIFF {addr'}))
+  ∧ byte_aligned (addr' : word32) ∧ (∃w'. m addr' = Word w') ∧ addr' ∈ dm
+  ∧ (p * SEP_T) (fun2set (m,dm))
+  ⇒ (p * SEP_T) (fun2set (THE (mem_store_byte m dm be addr' b), dm))
+Proof
+  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
+     alignmentTheory.aligned_def,
+     mem_store_byte_def] >>
+  irule SEP_T_ID >>
+  qexists_tac ‘(fun2set (m,dm DIFF {addr'}))’ >>
   rw[] >>
-  rw[combinTheory.APPLY_UPDATE_THM]
-QED
-
-Theorem test:
-  (w + 1 < dimword(:32)) ⇒
-  n2w w <₊ n2w (w + 1) : word32
-Proof
-  rw[wordsTheory.word_lo_n2w]
-QED
-
-Theorem disjoint_write_byte:
-  (∀a. a ∈ s.memaddrs) ∧
-  (∀a. a < n2w (q + LENGTH r) ⇒ mem_has_word s.memory a) ∧
-  (q + (LENGTH r) < dimword (:32))
-  ∧
-  range_disjoint (start, len) (q, LENGTH r) ∧
-  start ≤ pos ∧ pos < len + start
-  ⇒
-  mem_load_byte
-  (write_bytearray (n2w q) r s.memory s.memaddrs s.be)
-  s.memaddrs s.be (n2w pos)
-  = mem_load_byte s.memory s.memaddrs s.be (n2w pos)
-Proof
-  rw[range_disjoint_def] >-
-   (‘pos < q’ by rw[] >>
-    qpat_x_assum ‘pos < _ + _’ kall_tac >>
-    qpat_x_assum ‘_ ≤ _’ kall_tac >>
-    qpat_x_assum ‘_ + _ < _’ kall_tac >>
-    pop_assum mp_tac >> pop_assum mp_tac >> pop_assum mp_tac >>
-    qid_spec_tac ‘q’ >>
-    Induct_on ‘r’ >>
-    rw[write_bytearray_def] >>
-    rw[mem_store_byte_def] >>
-    subgoal ‘mem_has_word s.memory (n2w q)’ >-
-     (first_x_assum match_mp_tac >>
-      EVAL_TAC >>
-      cheat
-     ) >>
-    ‘mem_has_word
-     (write_bytearray (n2w q + 1w) r s.memory s.memaddrs s.be)
-     (n2w q)’ by rw[write_bytearray_preserve_words] >>
-    fs[mem_has_word_def] >>
-    simp[mem_load_byte_def, SimpL “$=”] >>
-    ‘n2w q + 1w = n2w (q + 1) : word32’
-      by metis_tac[arithmeticTheory.SUC_ONE_ADD, arithmeticTheory.ADD_COMM,
-                   wordsTheory.n2w_SUC] >>
-    ‘n2w (LENGTH r) + n2w (q + 1) = n2w q + n2w (SUC (LENGTH r)) : word32’
-      by metis_tac[wordsTheory.WORD_ADD_ASSOC, wordsTheory.WORD_ADD_COMM,
-                   wordsTheory.n2w_SUC] >>
-    last_x_assum $ qspec_then ‘q + 1’ strip_assume_tac >>
-    gvs[arithmeticTheory.SUC_ONE_ADD] >>
-    Cases_on ‘byte_align (n2w q) ≠ byte_align (n2w pos) : word32’ >-
-     (gvs[combinTheory.UPDATE_APPLY, mem_load_byte_def]) >>
-    ‘good_dimindex (:32)’ by EVAL_TAC >>
-    gvs[miscTheory.get_byte_set_byte_diff, mem_load_byte_def]) >-
-   (cheat
-   )
-QED
-
-Inductive wordf:
-  (wordf []) ∧
-  (EVERY (write_disjoint a) as ∧ wordf as ⇒ wordf (a::as))
-End
-
-Theorem wordf_test:
-  wordf [(3,[x]);(1,[c])]
-Proof
-  rw[Once wordf_cases] >-
-   (rw[writes_disjoint_def, range_disjoint_def]) >>
-  rw[Once wordf_cases] >>
-  rw[Once wordf_cases]
-QED
-
-Definition bwrites_def:
-  bwrites ([] : write list) s = s.memory ∧
-  bwrites ((a,l)::as) s
-  = write_bytearray (n2w a) l (bwrites as s) s.memaddrs s.be
-End
-
-Theorem bwrites_test:
-  (write_bytearray (3w : word32) [x]
-                   (write_bytearray 1w [c] s.memory s.memaddrs s.be)
-                   s.memaddrs s.be)
-  =
-  bwrites [(3,[x]);(1,[c])] s
-Proof
-  rw[bwrites_def]
-QED
-
-Definition find_range:
-  find_range (off,len) writes
-  = FIND (λ(start : num, l : word8 list).
-            start ≤ off ∧ off + len ≤ start + (LENGTH l)) writes
-End
-
-Theorem find_test:
-  ∃v. find_range (1,1) [(3,[x]);(1,[c])] = SOME v
-Proof
-  rw[find_range, FIND_thm]
-QED
-
-Definition range_at:
-  range_at (start,len) pos (b : word8) s
-  = (start ≤ pos ∧ (pos < start + len) ∧
-     mem_load_byte s.memory s.memaddrs s.be (n2w pos : word32) = SOME b)
-End
-
-Definition ranged_pred:
-  ranged_pred P st start len =
-  (∀q l.
-     (∀a. a < n2w (q + LENGTH l) ⇒ mem_has_word st.memory a) ∧
-     (q + LENGTH l) < dimword (:32) ∧
-     P st ∧ range_disjoint (start, len) (q, LENGTH l)
-     ⇒ P (st with memory := (bwrites [(q,l)] st)))
-End
-
-Theorem at_ranged:
-  (∀a. a ∈ st.memaddrs) ⇒
-  ranged_pred (range_at (start, len) pos b) st start len
-Proof
-  rw[ranged_pred, range_at, bwrites_def] >>
-  irule EQ_TRANS >>
-  first_x_assum $ irule_at Any >>
-  match_mp_tac disjoint_write_byte >>
-  gvs[]
-QED
-
-Theorem conj_ranged:
-  ranged_pred P st start len ∧ ranged_pred Q st start len
-  ⇒ ranged_pred (λst. P st ∧ Q st) st start len
-Proof
-  rw[ranged_pred]
-QED
-
-Theorem disj_ranged:
-  (ranged_pred P st start len ∧ ranged_pred Q st start len)
-  ⇒ ranged_pred (λst. P st ∨ Q st) st start len
-Proof
-  rw[ranged_pred] >> metis_tac[]
+  rw[fun2set_def, SUBSET_DEF, combinTheory.UPDATE_APPLY]
 QED
 
 (*
