@@ -92,7 +92,7 @@ badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
 
 -- isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
 --               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
--- isabelle-cong {ℓ} {P}{P'}{Q}{Q'} univalence p＝ q＝
+-- isabelle-cong {P = P}{P'}{Q}{Q'} univalence p＝ q＝
 --   = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
 --   where
 --     qmap : (P' → Q) → (P' → Q')
@@ -153,7 +153,7 @@ uniq⋆ = centrality 𝟙-is-singleton
    → (C : (x : A) → (x ＝ a) → Set ℓ₁)
    → C a (refl a)
    → (x : A) (p : x ＝ a) → C x p
-ⅉ' {ℓ}{ℓ₁} {A} a C ca x p
+ⅉ' {ℓ}{ℓ₁}{A = A} a C ca x p
   = (ȷ (λ x y (q : x ＝ y) → Π D ∶ ((x : A) → (x ＝ y) → Set ℓ₁) ,
                              (D y (refl y) → D x q))
        (λ x → λ D p → p)
@@ -253,8 +253,8 @@ Bool-not-subsingleton p = true≠false (p true false)
   no surjection into the powerset
 -}
 
-neg-neq : {A : Set ℓ} → A ≠ (¬ A)
-neg-neq {ℓ}{A} p = nnot-a not-a
+neg-neq : {A : Set} → A ≠ (¬ A)
+neg-neq {A} p = nnot-a not-a
   where
     not-a : A → ⊥
     not-a a = (coerce p a) a
@@ -262,8 +262,8 @@ neg-neq {ℓ}{A} p = nnot-a not-a
     nnot-a : ¬ A → ⊥
     nnot-a na = na (coerce (sym＝ p) na)
 
-cantor : {A : Set ℓ} → (f : A → (A → Set)) → surjective f → ⊥
-cantor {ℓ}{A} f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
+cantor : {A : Set} → (f : A → (A → Set)) → surjective f → ⊥
+cantor {A} f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
   where
     diagonal : A → Set
     diagonal n = ¬(f n n)
@@ -282,8 +282,8 @@ not-bool-neq : (b : Bool) → b ≠ (not b)
 not-bool-neq true p = true≠false p
 not-bool-neq false p = true≠false (sym＝ p)
 
-cantor' : {A : Set ℓ} (f : A → (A → Bool)) → ext-surjective f → ⊥
-cantor' {ℓ}{A} f p
+cantor' : {A : Set} (f : A → (A → Bool)) → ext-surjective f → ⊥
+cantor' {A} f p
   = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code (pr₁ diagonal-code))
   where
     diagonal : A → Bool
@@ -299,8 +299,8 @@ bool-normal : (b : Bool) → (true ＝ b) ＋ (false ＝ b)
 bool-normal true = inl (refl true)
 bool-normal false = inr (refl false)
 
-rcantor : {A : Set ℓ} → (f : (A → Bool) → A) → injective f → ⊥
-rcantor {ℓ}{A} s p = cantor' r (ext-retraction-surj r (s , pf))
+rcantor : {A : Set} → (f : (A → Bool) → A) → injective f → ⊥
+rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
   where
     r : A → (A → Bool)
     r a x with LEM (Σ g ∶ (A → Bool) , s g ＝ a × g x ＝ true)
@@ -390,6 +390,57 @@ norm-pres Γ (var x) = refl _
 test-commut : (x y z : ℕ) → (x + y) + z ＝ z + (y + x)
 test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
                               (pls (pls (var fz) (var (fs fz))) (var (fs (fs fz))))
+
+{-
+  every projection map induces a fibration
+-}
+
+fib-proj : {A : Set} → (A → Set) → Σ B ∶ Set , (B → A)
+fib-proj {A} fib = (Σ a ∶ A , fib a) , pr₁
+
+proj-fib : {A : Set} → (Σ B ∶ Set , (B → A)) → (A → Set)
+proj-fib {A} (B , pr) = λ a → Σ b ∶ B , pr b ＝ a
+
+-- apply extensionality, fibers equal
+fib-proj-iso : {A : Set} → (fib : (A → Set)) → (a : A)
+             → proj-fib (fib-proj fib) a → fib a
+fib-proj-iso fib a ((a' , afib) , a'＝a) = transport fib a'＝a afib
+
+fib-proj-equiv : {A : Set} → (fib : (A → Set)) → (a : A)
+               → proj-fib (fib-proj fib) a ≃ fib a
+fib-proj-equiv fib a = iso , invertibles-are-equivalences iso proof
+  where -- Σ b ∶ (Σ a' ∶ A , fib a') , a' ＝ a*
+    iso : proj-fib (fib-proj fib) a → fib a
+    iso = fib-proj-iso fib a
+
+    proof : invertible iso
+    proof = (λ fa → (a , fa) , refl a) , (λ {(_ , refl _) → refl _}) , refl
+
+proj-fib-eq : {is-univalent lzero} → {A : Set}
+            → (proj : (Σ B ∶ Set , (B → A)))
+            → fib-proj (proj-fib proj) ＝ proj
+-- TODO univalence → extensionality, does this compute?
+proj-fib-eq {uv} {A} (B , pr) = to-Σ＝ (eq , FUNEXT (λ b → {!!}))
+  where
+    iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
+    iso (_ , b , _) = b
+
+    iv : invertible iso
+    iv = (λ b → pr b , b , refl _) , (λ {(_ , _ , refl _) → refl _}) , refl
+
+    equiv : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ≃ B
+    equiv = iso , invertibles-are-equivalences iso iv
+
+    eq : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ＝ B
+    eq = ua uv _ _ equiv
+
+fib-pr-equiv : {is-univalent lzero} → {A : Set}
+             → (Σ B ∶ Set , (B → A)) ≃ (A → Set)
+fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
+  where
+    proof : invertible proj-fib
+    proof = fib-proj , proj-fib-eq {uv}
+          , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
 
 {-
   setoids
