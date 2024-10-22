@@ -14,7 +14,7 @@ open import path
 -}
 
 is-center : {X : Set ℓ} → X → Set ℓ
-is-center {ℓ}{X} c = (x : X) → c ＝ x
+is-center {X = X} c = (x : X) → c ＝ x
 
 is-contr : Set ℓ → Set ℓ
 is-contr X = Σ c ∶ X , is-center c
@@ -26,7 +26,7 @@ centrality : {X : Set ℓ} (i : is-contr X) → (x : X) → center X i ＝ x
 centrality (c , p) = p
 
 singleton-type : {X : Set ℓ} → X → Set ℓ
-singleton-type {ℓ} {X} x = Σ c ∶ X , c ＝ x
+singleton-type {X = X} x = Σ c ∶ X , c ＝ x
 
 singleton-type-center : {X : Set ℓ} (x : X) → singleton-type x
 singleton-type-center x = (x , refl x)
@@ -116,7 +116,7 @@ hlevel-suc X (suc n) = λ h → λ x y → hlevel-suc (x ＝ y) n (h x y)
 hlevel-eq : {X : Set ℓ} {n : ℕ}
           → X is-of-hlevel (suc n)
           → (x y : X) → (x ＝ y) is-of-hlevel n
-hlevel-eq {ℓ}{X} {n} p x y = p x y
+hlevel-eq {X = X} {n} p x y = p x y
 
 {-
   decidable

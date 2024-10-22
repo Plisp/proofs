@@ -83,7 +83,7 @@ rec＋ : {A : Set ℓ₁} {B : Set ℓ₂}
      → (C : Set ℓ)
      → (A → C) → (B → C)
      → (A ＋ B) → C
-rec＋ {ℓ₁} {ℓ₂} C = ind＋ (λ _ → C)
+rec＋ C = ind＋ (λ _ → C)
 
 {-
   dependent sum (there exists)
@@ -122,14 +122,14 @@ infix 0 -Σ
 -}
 
 Π : {X : Set ℓ} (A : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
-Π{ℓ}{ℓ₁} {X} A = (x : X) → A x
+Π {X = X} A = (x : X) → A x
 
 -Π : (X : Set ℓ) (Y : X → Set ℓ₁) → Set (ℓ ⊔ ℓ₁)
 -Π X Y = Π Y
 syntax -Π A (λ x → b) = Π x ∶ A , b
 infix 0 -Π
 
-id : {A : Set ℓ} → A → A
+id : {T : Set ℓ} → T → T
 id a = a
 
 _∘_ : {A : Set ℓ} {B : Set ℓ₁} {C : B → Set ℓ₂}

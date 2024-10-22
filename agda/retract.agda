@@ -24,7 +24,7 @@ transport-is-section A p = id~ (transport-sym-p p)
 
 Σ-retract : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂}
           → ((x : X) → A x ◁ B x) → Σ A ◁ Σ B
-Σ-retract {ℓ}{ℓ₁}{ℓ₂} {X} {A} {B} ρ = NatΣ r , NatΣ s , η
+Σ-retract {X = X} {A} {B} ρ = NatΣ r , NatΣ s , η
   where
     r = λ x → retraction (ρ x)
     s = λ x → section (ρ x)
@@ -38,7 +38,7 @@ transport-is-section A p = id~ (transport-sym-p p)
 Σ-reindex-retract : {X : Set ℓ} {Y : Set ℓ₁} {A : X → Set ℓ₂}
                   → (r : Y → X) → has-section r
                   → (Σ x ∶ X , A x) ◁ (Σ y ∶ Y , A (r y))
-Σ-reindex-retract {ℓ}{ℓ₁}{ℓ₂} {X} {Y} {A} r (s , η) = ar , as , aη
+Σ-reindex-retract {X = X} {Y} {A} r (s , η) = ar , as , aη
   where
    ar : Σ (A ∘ r) → Σ A
    ar (y , a) = (r y , a)
@@ -80,12 +80,12 @@ retract-of-singleton (f , g , η) contr = f (center _ contr) , centered
 -- originally devised for the invertible to equiv proof
 rap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} (f : X → Y)
     → has-retraction f → (f x ＝ f y) → (x ＝ y)
-rap {ℓ}{ℓ₁}{X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
+rap {X = X}{Y} {x}{y} f (g , gf) p = sym＝ (gf x) ∙ (ap g p) ∙ gf y
 
 rap-ap : {X : Set ℓ} {Y : Set ℓ₁} {x y : X} {f : X → Y}
        → (r : has-retraction f) (p : x ＝ y)
        → rap f r (ap f p) ＝ p
-rap-ap {ℓ}{ℓ₁}{X}{Y} {x}{y} (g , gf) (refl x)
+rap-ap {X = X}{Y} {x}{y} (g , gf) (refl x)
   = ap (λ e → sym＝ (gf x) ∙ e) (sym＝ (p＝refl∙p (gf x))) ∙ iv∙p＝refl (gf x)
 
 retract-of-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}

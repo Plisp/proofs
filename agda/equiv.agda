@@ -19,7 +19,7 @@ open import retract
 -- the fibre (preimage) of all y : Y under f is unique (size 1)
 -- the proof is also unique, via the characterisation of Σ identity
 is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
-is-equivalence {ℓ}{ℓ₁} {X}{Y} f = Π y ∶ Y , is-contr (fiber f y)
+is-equivalence {X = X}{Y} f = Π y ∶ Y , is-contr (fiber f y)
 
 -- inverses - center is p , Σ x, f x ＝ y
 inverse : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y) → is-equivalence f → (Y → X)
@@ -29,7 +29,7 @@ equiv-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} → (e : is-equivalence 
          → (y : Y) → f (fiber-base (center _ (e y))) ＝ y
 equiv-id equivalence y = fiber-id (center _ (equivalence y))
 
-id-is-equivalence : {X : Set ℓ} → is-equivalence (id {_}{X})
+id-is-equivalence : {X : Set ℓ} → is-equivalence (id {T = X})
 id-is-equivalence = singleton-types-are-singletons _
 
 -- comp-is-equivalence : {X : Set ℓ}{Y : Set ℓ₁}{Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
@@ -87,7 +87,7 @@ equivalences-are-invertible f e = inverse f e ,
 -- the hard direction
 invertibles-are-equivalences : {X : Set ℓ} {Y : Set ℓ₁} (f : X → Y)
                              → invertible f → is-equivalence f
-invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
+invertibles-are-equivalences {X = X}{Y} f (g , gf , fg) y₀ = proof
   where
     -- to show (Σ x ∶ X , f x ＝ y₀) ◁ (Σ x ∶ X , g (f x) ＝ g y₀)
     test : (x : X) → (f x ＝ y₀) ◁ (g (f x) ＝ g y₀)
@@ -105,21 +105,21 @@ invertibles-are-equivalences {ℓ}{ℓ₁} {X}{Y} f (g , gf , fg) y₀ = proof
         (Σ x ∶ X , g (f x) ＝ g y₀) ◁⟨ Σ-retract hom-iso ⟩
         (Σ x ∶ X , x ＝ g y₀)       ◀ -- these are just ∙ (sym＝) gf which cancel
 
-    proof : Σ c ∶ (fiber f y₀) , is-center {ℓ ⊔ ℓ₁}{_} c
+    proof : Σ c ∶ (fiber f y₀) , is-center c
     proof = retract-of-singleton fiber-is-singleton-Σ-retract
               (singleton-types-are-singletons _ (g y₀))
 
 -- corollaries
 inverse-is-equivalence : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} (e : is-equivalence f)
                        → is-equivalence (inverse f e)
-inverse-is-equivalence {ℓ}{ℓ₁}{X}{Y} {f} e
+inverse-is-equivalence {X = X}{Y} {f} e
   = invertibles-are-equivalences (inverse f e)
       (f , inverses-are-sections f e , inverses-are-retractions f e)
 
 abstract
   equivalence-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {g : Y → Z}
                 → is-equivalence g → is-equivalence f → is-equivalence (g ∘ f)
-  equivalence-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f} {g} i j
+  equivalence-∘ {X = X}{Y}{Z} {f} {g} i j
     = invertibles-are-equivalences (g ∘ f)
         (invertible-∘ (equivalences-are-invertible g i)
                       (equivalences-are-invertible f j))

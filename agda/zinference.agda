@@ -96,7 +96,7 @@ surj→epic {A}{B}{C} f s g h p y = flip (lemma g y) ∙ p (pr₁ (s y)) ∙ (le
         → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r)
 ∙-assoc {A} {w}{x}{y}{z} p q r
   = (ȷ (λ w x (p : w ＝ x) → ∀ (q : x ＝ y) (r : y ＝ z) → (p ∙ q) ∙ r ＝ p ∙ (q ∙ r))
-       (λ _ → λ q r → refl{_}{_}{q ∙ r})
+       (λ _ → λ q r → refl{x = q ∙ r})
          w x p) q r
 
 {-

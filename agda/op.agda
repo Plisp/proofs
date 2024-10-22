@@ -36,4 +36,4 @@ identity : {X : Set ℓ} → X → (X → X → X) → Set ℓ
 identity e _·_ = ∀ x → (x · e ＝ x) × (e · x ＝ x)
 
 has-inverse : {X : Set ℓ} → X → (X → X → X) → Set ℓ
-has-inverse{ℓ} {X} e _·_ = ∀ x → Σ y ∶ X , (x · y ＝ e) × (y · x ＝ e)
+has-inverse {X = X} e _·_ = ∀ x → Σ y ∶ X , (x · y ＝ e) × (y · x ＝ e)

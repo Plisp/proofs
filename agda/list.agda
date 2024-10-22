@@ -54,7 +54,7 @@ data Vec (A : Set) : ℕ → Set where
   _∷_ : {n : ℕ} → A → Vec A n → Vec A (suc n)
 
 length : {A : Set} {n : ℕ} → Vec A n → ℕ
-length {_} {n} _ = n
+length {n = n} _ = n
 
 _!!_ : {A : Set} {n : ℕ} → Vec A n → Fin n → A
 (a ∷ as) !! fz   = a

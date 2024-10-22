@@ -8,7 +8,7 @@ open import homotopy
 
 -- space: witnesses x' × f x' = y
 fiber : {X :  Set ℓ} {Y : Set ℓ₁} (f : X → Y) → Y → Set (ℓ ⊔ ℓ₁)
-fiber {ℓ}{ℓ₁} {X}{Y} f y = Σ x ∶ X , f x ＝ y
+fiber {X = X}{Y} f y = Σ x ∶ X , f x ＝ y
 
 fiber-base : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
            → fiber f y → X
@@ -19,16 +19,16 @@ fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
 fiber-id (x , p) = p
 
 surjective :{A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
-surjective {ℓ₁}{ℓ₂} {A}{B} f = ∀ (y : B) → fiber f y
+surjective {A = A}{B} f = ∀ (y : B) → fiber f y
 
 injective : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
-injective {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
+injective {A = A}{B} f = ∀ (x y : A) → (f x ＝ f y) → (x ＝ y)
 
 injective' : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
-injective' {ℓ₁}{ℓ₂}{A}{B} f = ∀ (x y : A) → (x ≠ y) → (f x ≠ f y)
+injective' {A = A}{B} f = ∀ (x y : A) → (x ≠ y) → (f x ≠ f y)
 
 invertible : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (ℓ ⊔ ℓ₁)
-invertible {ℓ}{ℓ₁} {A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
+invertible {A = A}{B} f = Σ g ∶ (B → A) , g ∘ f ~ id × f ∘ g ~ id
 
 {-
   mono and epi up to homotopy
@@ -48,11 +48,11 @@ wepi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
 
 -- r ∘ s ＝ id , embedding then quotient , s ; r ＝ id
 has-retraction : {X : Set ℓ} {Y : Set ℓ₁} → (X → Y) → Set (ℓ ⊔ ℓ₁)
-has-retraction {ℓ}{ℓ₁} {X}{Y} s = Σ r ∶ (Y → X) , r ∘ s ~ id
+has-retraction {X = X}{Y} s = Σ r ∶ (Y → X) , r ∘ s ~ id
 
 -- right inverse
 has-section : {X : Set ℓ} {Y : Set ℓ₁} → (Y → X) → Set (ℓ ⊔ ℓ₁)
-has-section {ℓ}{ℓ₁} {X}{Y} r = Σ s ∶ (X → Y) , r ∘ s ~ id
+has-section {X = X}{Y} r = Σ s ∶ (X → Y) , r ∘ s ~ id
 
 -- X type is a retract of Y
 _◁_ : Set ℓ → Set ℓ₁ → Set (ℓ ⊔ ℓ₁)
@@ -90,7 +90,7 @@ surj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
           → (f : A → B) → surjective f
           → (g : B → C) → surjective g
           → surjective (g ∘ f)
-surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c
+surj-comp {A = A}{B}{C} f pf g pg c
   = fiber-base pa , (ap g (fiber-id pa) ∙ fiber-id pb)
   where
     pb : fiber g c
@@ -101,7 +101,7 @@ surj-comp {ℓ₁}{ℓ₂}{ℓ₃} {A}{B}{C} f pf g pg c
 
 surj-inj : {A : Set ℓ₁} {B : Set ℓ₂} → (f : A → B)
          → surjective f → Σ g ∶ (B → A) , injective g
-surj-inj {ℓ₁}{ℓ₂} {A}{B} f surj
+surj-inj {A = A}{B} f surj
   = inj , λ x y p → sym＝ (fiber-id (surj x)) ∙ ap f p ∙ fiber-id (surj y)
   where
     inj : B → A
@@ -124,34 +124,34 @@ inj-comp : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
 inj-comp f pf g pg = λ x y z → pf x y (pg (f x) (f y) z)
 
 id-invertible : {X : Set ℓ} → invertible (id {ℓ}{X})
-id-invertible {ℓ}{X} = id , refl , refl
+id-invertible {X = X} = id , refl , refl
 
 inverse-invertible : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y}
                    → ((g , _) : invertible f) → invertible g
-inverse-invertible {ℓ}{ℓ₁} {X}{Y} {f} (g , fg , gf) = f , gf , fg
+inverse-invertible {X = X}{Y} {f} (g , fg , gf) = f , gf , fg
 
 invertible-∘ : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂} {f : X → Y} {f' : Y → Z}
              → invertible f' → invertible f → invertible (f' ∘ f)
 -- middle terms cancel
-invertible-∘ {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
+invertible-∘ {X = X}{Y}{Z} {f}{f'} (g' , gf' , fg') (g , gf , fg) =
   g ∘ g' , (λ x → ap g (gf' (f x)) ∙ gf x) , λ z → ap f' (fg (g' z)) ∙ fg' z
 
 -- XXX lack of cumulativity??
 wmono-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → wmono f → injective f
-wmono-inj {ℓ}{ℓ₁}{A}{B} f p x y fx＝fy = lemma (λ _ → fx＝fy) (inr ⋆)
+wmono-inj {A = A}{B} f p x y fx＝fy = lemma (λ _ → fx＝fy) (inr ⋆)
   where
     lemma : ((A × B ＋ 𝟙) → f x ＝ f y) → (A × B ＋ 𝟙) → x ＝ y
     lemma = p (λ _ → x) (λ _ → y)
 
 inj-wmono : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → injective f → wmono f
-inj-wmono {ℓ}{ℓ₁}{A}{B} f p g h fg~fh x = p (g x) (h x) (fg~fh x)
+inj-wmono {A = A}{B} f p g h fg~fh x = p (g x) (h x) (fg~fh x)
 
 -- almost certainly the converse doesn't hold, epi is too little info for a fiber
 surj-wepi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → surjective f → wepi f
-surj-wepi {ℓ}{ℓ₁}{A}{B} f p g h gf~hf x
+surj-wepi {A = A}{B} f p g h gf~hf x
   = sym＝ (ap g (pr₂ lemma)) ∙ gf~hf (pr₁ lemma) ∙ ap h (pr₂ lemma)
   where
     lemma : Σ a ∶ A , f a ＝ x
@@ -194,7 +194,7 @@ inj-surj-invertible f inj fib = (λ b → fiber-base (fib b))
 wepi-section-invertible : {A : Set ℓ} {B : Set ℓ} (f : A → B)
                         → has-retraction f → wepi f
                         → invertible f
-wepi-section-invertible {ℓ} {A}{B} f (r , p) ep = r , p , ep _ (id {_}{B}) lemma
+wepi-section-invertible {A = A}{B} f (r , p) ep = r , p , ep _ (id {T = B}) lemma
   where
     lemma : (f ∘ r ∘ f) ~ f
     lemma a = ap f (p a)
@@ -211,7 +211,7 @@ wepi-section-invertible {ℓ} {A}{B} f (r , p) ep = r , p , ep _ (id {_}{B}) lem
 
 ext-surjective : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
                → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
-ext-surjective {ℓ}{ℓ₁}{ℓ₂} {A}{B}{C} f = ∀ (g : B → C) → Σ a ∶ A , f a ~ g
+ext-surjective {A = A}{B}{C} f = ∀ (g : B → C) → Σ a ∶ A , f a ~ g
 
 surj-ext-surj : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
               → surjective f → ext-surjective f
@@ -219,7 +219,7 @@ surj-ext-surj f p x = Σ.p1 (p x) , id~ (Σ.p2 (p x))
 
 has-ext-section : {X : Set ℓ} {Y : Set ℓ₁} {Z : Set ℓ₂}
                 → (Z → (X → Y)) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
-has-ext-section {ℓ}{ℓ₁}{ℓ₂} {X}{Y}{Z} r
+has-ext-section {X = X}{Y}{Z} r
   = Σ s ∶ ((X → Y) → Z) , ∀ f → (r (s f)) ~ f
 
 ext-retraction-surj : {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}

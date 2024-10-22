@@ -39,7 +39,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 
 ×＝-≃ : {X : Set ℓ} {Y : Set ℓ₁} (z t : X × Y)
       → (z ＝ t) ≃ ((fst z ＝ fst t) × (snd z ＝ snd t))
-×＝-≃ {ℓ} {ℓ₁} {X} {Y} z@(z1 , z2) t@(t1 , t2) = invertible≃ from-×＝ (to-×＝ , η , ε)
+×＝-≃ {X = X} {Y} z@(z1 , z2) t@(t1 , t2) = invertible≃ from-×＝ (to-×＝ , η , ε)
  where
   η : (p : z ＝ t) → to-×＝ (from-×＝ p) ＝ p
   η (refl (a , b)) = refl (refl (a , b))
@@ -50,7 +50,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 ×-cong : {W : Set ℓ} {X : Set ℓ₁} {Y : Set ℓ₂} {Z : Set ℓ₃}
        → W ≃ Y → X ≃ Z
        → (W × X) ≃ (Y × Z)
-×-cong {ℓ}{ℓ₁}{ℓ₂}{ℓ₃} {W}{X}{Y}{Z} (f , ef) (g , eg)
+×-cong {W = W}{X}{Y}{Z} (f , ef) (g , eg)
   = quasi≃ (f× f g , f× (Σ.p1 fi) (Σ.p1 gi) ,
             (λ {(a , b) → to-×＝ (fst (Σ.p2 fi) a , fst (Σ.p2 gi) b)}) ,
             (λ {(a , b) → to-×＝ (snd (Σ.p2 fi) a , snd (Σ.p2 gi) b)}))
@@ -65,7 +65,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 ＋-cong : {W : Set ℓ} {X : Set ℓ₁} {Y : Set ℓ₂} {Z : Set ℓ₃}
        → W ≃ Y → X ≃ Z
        → (W ＋ X) ≃ (Y ＋ Z)
-＋-cong {ℓ}{ℓ₁}{ℓ₂}{ℓ₃} {W}{X}{Y}{Z} (f , ef) (g , eg)
+＋-cong {W = W}{X}{Y}{Z} (f , ef) (g , eg)
   = quasi≃ (f＋ f g , f＋ (Σ.p1 fi) (Σ.p1 gi) ,
             (λ {(inl a) → ap inl (fst (Σ.p2 fi) a) ;
                 (inr b) → ap inr (fst (Σ.p2 gi) b)}) ,
@@ -96,7 +96,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 
 Σ＝-≃ : {X : Set ℓ} {A : X → Set ℓ₁} (σ τ : Σ A)
       → (σ ＝ τ) ≃ (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
-Σ＝-≃ {ℓ} {ℓ₁} {X} {A} σ τ = invertible≃ from-Σ＝ (to-Σ＝ , η , ϵ)
+Σ＝-≃ {X = X} {A} σ τ = invertible≃ from-Σ＝ (to-Σ＝ , η , ϵ)
   where
     η : (q : σ ＝ τ) → to-Σ＝ (from-Σ＝ q) ＝ q
     η (refl σ) = refl _
@@ -107,7 +107,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 
 Σ-cong : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂}
        → ((x : X) → A x ≃ B x) → Σ A ≃ Σ B
-Σ-cong {ℓ} {ℓ₁} {ℓ₂} {X} {A} {B} φ = invertible≃ (NatΣ f) (NatΣ g , η＝ , ϵ＝)
+Σ-cong {X = X} {A} {B} φ = invertible≃ (NatΣ f) (NatΣ g , η＝ , ϵ＝)
   where
     f : (x : X) → A x → B x
     f x = Σ.p1 (φ x)

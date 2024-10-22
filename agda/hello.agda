@@ -223,7 +223,7 @@ bade {E} p = badind (λ n → recℕ 𝟙 (λ n _ → E) n) -- large elim on n
 0≠1 eq = bade (transport (Bad ⊥) eq (badt))
 
 {-
-  a simpler mltt way to do term disequality
+  a simpler mltt way to do term disequality using large elim
 -}
 
 true≠false : true ≠ false
@@ -263,37 +263,31 @@ neg-neq {A} p = nnot-a not-a
     nnot-a na = na (coerce (sym＝ p) na)
 
 cantor : {A : Set} → (f : A → (A → Set)) → surjective f → ⊥
-cantor {A} f p = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code)
+cantor {A} f p = diagonal-neq-any-n (p neg-diagonal)
   where
-    diagonal : A → Set
-    diagonal n = ¬(f n n)
+    neg-diagonal : A → Set
+    neg-diagonal n = ¬(f n n)
 
-    diagonal-code : fiber f diagonal
-    diagonal-code = p diagonal
-
-    diagonal-neq-any-n : ∀ n → f n ≠ diagonal
-    diagonal-neq-any-n n p = neg-neq (ap (λ f → f n) p)
+    diagonal-neq-any-n : ¬ (Σ n ∶ A , f n ＝ neg-diagonal)
+    diagonal-neq-any-n (n , p) = neg-neq (ap (λ f → f n) p)
 
 {-
   no injection the other way
 -}
 
 not-bool-neq : (b : Bool) → b ≠ (not b)
-not-bool-neq true p = true≠false p
-not-bool-neq false p = true≠false (sym＝ p)
+not-bool-neq true ()
+not-bool-neq false ()
 
 cantor' : {A : Set} (f : A → (A → Bool)) → ext-surjective f → ⊥
 cantor' {A} f p
-  = diagonal-neq-any-n (pr₁ diagonal-code) (pr₂ diagonal-code (pr₁ diagonal-code))
+  = diagonal-neq-any-n (p not-diagonal)
   where
-    diagonal : A → Bool
-    diagonal n = not (f n n)
+    not-diagonal : A → Bool
+    not-diagonal n = not (f n n)
 
-    diagonal-code : Σ a ∶ A , f a ~ diagonal
-    diagonal-code = p diagonal
-
-    diagonal-neq-any-n : ∀ n → f n n ≠ diagonal n
-    diagonal-neq-any-n n = not-bool-neq (f n n)
+    diagonal-neq-any-n : ¬ (Σ n ∶ A , f n ~ not-diagonal)
+    diagonal-neq-any-n (n , p) = not-bool-neq (f n n) (p n)
 
 bool-normal : (b : Bool) → (true ＝ b) ＋ (false ＝ b)
 bool-normal true = inl (refl true)
@@ -312,11 +306,8 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
     ...    | inr _ | inr eq = eq
     ...    | inl _ | inl eq = eq
     ...    | inr elim | inl eq = rec⊥ _ (elim (f , refl _ , sym＝ eq))
-    ...    | inl (g , (sgf , gxt)) | inr eq = sym＝ gxt ∙ ap (λ f → f x) lemma
-                                     where
-                                       lemma : g ＝ f
-                                       lemma = p g f sgf
-
+    ...    | inl (g , (sg＝sf , gx＝t)) | inr eq = sym＝ gx＝t
+                                               ∙ ap (λ f → f x) (p g f sg＝sf)
 -- size issues?
 -- cantor' : {A : Set} → (f : (A → Set) → A) → injective f → ⊥
 -- cantor' {A} f inj = {!!}
@@ -443,67 +434,27 @@ fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
           , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
 
 {-
-  setoids
+  coercion
 -}
 
-data Z3 : Set where
-  z0 : Z3
-  z1 : Z3
-  z2 : Z3
+data WProp {ℓ : Level} : Set ℓ → Set (lsuc ℓ) where
+  arr : {A : Set ℓ} → {B : Set ℓ} → WProp A → WProp B → WProp (A → B)
+  --sum : (A : Set ℓ) → (B : Set ℓ) → WProp A → WProp B → WProp (A ＋ B)
+  --prd : (A : Set ℓ) → (B : Set ℓ) → WProp A → WProp B → WProp (A × B)
+  --sgm : (A : Set) → {P : A → Set} → {a : A} → WProp (P a) → WProp (Σ a ∶ A , P a)
 
--- is more structure needed? this should be sufficient to compute
--- strangely, we don't need surjectivity. TODO try with rationals
+wprop-rec : (P : Set) (Q : Set ℓ)
+          → (∀ A B → WProp A → WProp B → Q)
+          → WProp P → Q
+wprop-rec P Q arrCase (arr a b) = arrCase _ _ a b
 
-t-quot : ℕ → Z3
-t-quot 0 = z0
-t-quot 1 = z1
-t-quot 2 = z2
-t-quot (suc (suc (suc n))) = t-quot n
+wprop-rec' : (P : Set → Set) (Q : Set → Set ℓ)
+           → ∀ X → (∀ A B → WProp A → WProp B → Q X)
+           → WProp (P X) → Q X
+wprop-rec' {ℓ} P Q X arrCase w = wprop-rec (P X) (Q X) arrCase w
 
--- can the lattice be automatically derived? 2/3 -> 6
-n-point-type : ℕ → Set
-n-point-type zero    = 𝟙
-n-point-type (suc n) = 𝟙 ＋ n-point-type n
-
-n-quot : (n : ℕ) → n-point-type n
-n-quot zero    = ⋆
-n-quot (suc n) = inr (n-quot n)
-
--- rewrites
-f-respects-quot : {Q : Set ℓ} {A : Set ℓ₁} {C : Set ℓ₂} (q : A → Q)
-                → (f : A → C) → Set (ℓ ⊔ ℓ₁ ⊔ ℓ₂)
-f-respects-quot q f = ∀{a b} → (q a ＝ q b) → (f a ＝ f b)
-
-qap : {Q : Set ℓ} {A : Set ℓ₁} {C : Set ℓ₂} (q : A → Q)
-    → (f : A → C) → f-respects-quot q f
-    → {x y : A} → (q x ＝ q y) → (f x ＝ f y)
-qap q f p = p
-
-qsubst : {Q : Set ℓ} {A : Set ℓ₁} (q : A → Q)
-       → (P : A → Set ℓ₂) → f-respects-quot q P
-       → {x y : A} → (q x ＝ q y) → (P x → P y)
-qsubst q P p eq = transport id (qap q P p eq)
-
--- ugly
-coequalizer : {I : Set ℓ} {A : Set ℓ₁} → (f g : I → A) → Set (lsuc (ℓ ⊔ ℓ₁))
-coequalizer {ℓ}{ℓ₁}{I}{A} f g = Σ Q ∶ Set (ℓ ⊔ ℓ₁) ,
-                                Σ q ∶ (A → Q) ,
-                                q ∘ f ＝ q ∘ g ×
-                                ∀ {C : Set} → (m : A → C)
-                                            → (m ∘ f) ＝ (m ∘ g)
-                                            → is-contr (Σ i ∶ (Q → C) , m ＝ i ∘ q)
-
-epi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B) → Set (lsuc (ℓ ⊔ ℓ₁))
-epi {ℓ}{ℓ₁}{A}{B} f = ∀{C : Set (ℓ ⊔ ℓ₁)} → (g h : B → C)
-                      → (g ∘ f) ＝ (h ∘ f) → g ＝ h
-
-coequalizer-epi : {I A : Set} → (a b : I → A) ((_ , q , p) : coequalizer a b)
-                → epi q
-coequalizer-epi a b (Q , q , eq , p) {C} g h gq＝hq
-  = sym＝ (pr₁ (from-Σ＝ (centrality uniq (g , refl _)))) ∙ lemma
-  where
-    uniq : is-contr (Σ i ∶ (Q → C) , g ∘ q ＝ i ∘ q)
-    uniq = p (g ∘ q) (ap (λ x → g ∘ x) eq)
-
-    lemma : pr₁ (center _ uniq) ＝ h
-    lemma = pr₁ (from-Σ＝ (centrality uniq (h , gq＝hq)))
+-- subst : {A : Set ℓ} (P : A → Set ℓ₁) {x y : A} → (x ＝ y) → (P x → P y)
+csubst : {X : Set} (P : Set → Set) → WProp (P X)
+       → ∀ Y → X ≃ Y
+       → P X → P Y
+csubst {X} P p = wprop-rec' P (λ X → ∀ Y → X ≃ Y → P X → P Y) X {!!} p
