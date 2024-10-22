@@ -2,6 +2,37 @@ theory a1
 imports Main
 begin
 
+lemma montague:
+  "(\<forall>y. \<exists>z. \<forall>x. R x z = (x = y)) \<Longrightarrow>
+  \<not>(\<exists>w. \<forall>x. R x w = (\<forall>u. R x u \<longrightarrow> (\<exists>y. R y u \<and> \<not>(\<exists>z. R z u \<and> R z y))))"
+  apply(safe)
+  apply(erule_tac x=w in allE)
+  apply(case_tac "R w w")
+   apply(erule exE)
+   apply(erule_tac x=w in allE)
+   apply(simp)
+   apply(erule_tac x=z in allE)
+   apply(subgoal_tac "R w z")
+    apply(simp)
+   apply(simp)
+  apply(thin_tac "\<exists>z. \<forall>x. R x z = (x = w)")
+  apply(rule_tac x=w in allE, assumption)
+  apply(simp)
+  apply(subgoal_tac "\<not> R w w")
+   defer apply metis
+  apply(clarify)
+  apply(rule_tac x=w and P="\<lambda>y. R y u \<longrightarrow> (\<exists>z. R z u \<and> R z y)" in allE)
+   apply assumption
+  apply(drule mp, assumption)
+  apply(clarify)
+  apply(erule_tac x=z in allE) (* z-w is non-triangulable, contradicts u *)
+  apply(clarify)
+  apply(erule_tac x=u in allE) back
+  apply(clarify)
+  apply(erule_tac x=y in allE) (* last 2 contradict *)
+  apply(auto)
+  done
+
 section "Q1: \<lambda>-Calculus"
 
 (* a.
