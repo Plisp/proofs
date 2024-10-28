@@ -40,17 +40,17 @@ fun parse_pancake_nosimp q =
     EVAL “(parse_funs_to_ast ^code)”
 end
 
-val ast = parse_pancake ‘
-fun net_enqueue_free() {
-    var desc = 0;
-    !stw desc, 255;
-}
-’;
+(* val ast = parse_pancake ‘ *)
+(* fun net_enqueue_free() { *)
+(*     var desc = 0; *)
+(*     !stw desc, 255; *)
+(* } *)
+(* ’; *)
 
-Definition itree_evaluate_def:
-  itree_evaluate p s =
-  to_stree (itree_mrec h_prog (p,s))
-End
+(* Definition itree_evaluate_def: *)
+(*   itree_evaluate p s = *)
+(*   to_stree (itree_mrec h_prog (p,s)) *)
+(* End *)
 
 (* Definition extract: *)
 (*   extract (INL p) = p *)
@@ -254,6 +254,7 @@ Proof
    metis_tac[])
 QED
 
+(* SEP_T  -> variable, SEP_W/R_TAC *)
 Theorem sep_strb':
   p (fun2set (m,dm DIFF {addr'}))
   ∧ byte_aligned (addr' : word32) ∧ (∃w'. m addr' = Word w') ∧ addr' ∈ dm

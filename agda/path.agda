@@ -227,7 +227,7 @@ transport-fam {A = A}{P}{Q} f {x}{y}
       x y
 
 transport-startpoint : {A : Set ℓ} {a x y : A} → (p : x ＝ y) (q : a ＝ x)
-                   → transport (λ - → a ＝ -) p q ＝ q ∙ p
+                     → transport (λ - → a ＝ -) p q ＝ q ∙ p
 transport-startpoint {A = A} {a}{x}{y} p q
   = ȷ (λ x y p → (q : a ＝ x) → transport (λ - → a ＝ -) p q ＝ q ∙ p)
       (λ x → λ q → sym＝ (p∙refl＝p q))

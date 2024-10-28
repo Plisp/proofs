@@ -327,10 +327,9 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
 1→0-subsingleton : is-subsingleton (𝟙 → 𝟘)
 1→0-subsingleton f g = rec⊥ (f ＝ g) (f ⋆)
 
--- next: identify a bigger type of functions which have equality
-ext-fns = Σ f ∶ (𝟙 → 𝟙) , ∀ g → (f ~ g) → f ＝ g
-
-
+-- no surjection 𝟙→𝟙 ↪ (𝟙→𝟙)→Set, is there one Set ↪ this set?
+small-fns : (f : (𝟙 → 𝟙) → ((𝟙 → 𝟙) → Set)) → surjective f → ⊥
+small-fns f p = cantor f p
 
 {-
   compile-time nonsense
@@ -411,7 +410,7 @@ proj-fib-eq : {is-univalent lzero} → {A : Set}
             → (proj : (Σ B ∶ Set , (B → A)))
             → fib-proj (proj-fib proj) ＝ proj
 -- TODO univalence → extensionality, does this compute?
-proj-fib-eq {uv} {A} (B , pr) = to-Σ＝ (eq , FUNEXT (λ b → {!!}))
+proj-fib-eq {uv} {A} (B , pr) = to-Σ＝ (eq , {!!})
   where
     iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
     iso (_ , b , _) = b
