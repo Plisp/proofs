@@ -14,21 +14,21 @@ Proof
   rw[monotone_def]
 QED
 
-Theorem poset_lift:
-  poset (s,r) ⇒ poset (pointwise_lift s (s,r))
-Proof
-  rw[poset_def, pointwise_lift_def, function_def] >-
-   (qexists_tac ‘λ_. x’ >> rw[]) >-
-   (cheat (* not true, can differ outside carrier. need type? *)
-   ) >-
-   (metis_tac[])
-QED
-
 (* general *)
+Definition endo_def:
+  endo s f = ∀x. if s x then s (f x) else f x = ARB
+End
+
 Definition compatible_def:
   compatible p b f = (monotonic p b /\ monotonic p f /\
                       !x. (x IN carrier p) ==> relation p (f(b x)) (b(f x)))
 End
+
+Theorem endo_restrict:
+  endo s f ⇒ function s s f
+Proof
+  metis_tac[endo_def, function_def]
+QED
 
 Theorem compatible_self:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b
@@ -137,7 +137,8 @@ Theorem companion_idem:
   ==> t (t x) = t x
 Proof
   rpt strip_tac >>
-  ‘r (t (t x)) (t x) /\ r (t x) (t (t x))’ suffices_by fs[poset_def, function_def] >>
+  ‘r (t (t x)) (t x) /\ r (t x) (t (t x))’
+    suffices_by fs[poset_def, function_def] >>
   CONJ_TAC >-
    (‘compatible (s,r) b (t o t)’ by gvs[compatible_compose, compatible_companion] >>
     ho_match_mp_tac compatible_below_companion >>
@@ -154,25 +155,58 @@ Proof
 QED
 
 Theorem companion_bot_gfp:
-  monotone b
-  ==> companion b {} = gfp b
+  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
+  bottom (s,r) bot ∧
+  po_gfp (s,r) b gfix ∧
+  function s s t ∧ companion (s,r) b t
+  ==> t bot = gfix
 Proof
-  rw[SET_EQ_SUBSET] >-
-   (* t⊥ <= tb⊥ <= bt⊥ *)
-   (irule gfp_coinduction >>
-    simp[] >>
-    match_mp_tac SUBSET_TRANS >>
-    drule (REWRITE_RULE [companion_mono,compatible_def] compatible_companion) >>
-    strip_tac >>
-    first_assum $ irule_at Any >> (* Pat ‘’ *)
-    irule $ iffLR monotone_def >>
-    rw[])
-  >-
-   (drule_then strip_assume_tac compatible_const_gfp >>
-    simp[companion_def] >>
-    rw[SUBSET_DEF, PULL_EXISTS] >> (* note: PULL_EXISTS to toplevel instantiates *)
-    metis_tac[combinTheory.K_DEF])
+  rw[poset_def] >>
+  last_assum $ irule >>
+  rw[]
+  >- (fs[function_def, bottom_def])
+  >- (fs[gfp_def])
+  (* t⊥ <= tb⊥ <= bt⊥ *)
+  >- (fs[gfp_def] >>
+      first_assum irule >>
+      conj_tac >- (fs[function_def, bottom_def]) >>
+      last_assum $ match_mp_tac >>
+      qexists_tac ‘t (b bot)’ >> (gvs[bottom_def, function_def]) >>
+      conj_tac
+      >- (subgoal ‘monotonic (s,r) t’ >-
+           (irule companion_mono >> rw[poset_def, function_def] >> metis_tac[]) >>
+          fs[monotonic_def]) >>
+      subgoal ‘compatible (s,r) b t’ >-
+       (irule compatible_companion >>
+        rw[poset_def, function_def] >> metis_tac[]) >>
+      fs[compatible_def, IN_DEF])
+  >- (subgoal ‘compatible (s,r) b (K gfix)’ >-
+       (irule compatible_const_gfp >> fs[poset_def] >> metis_tac[]) >>
+      fs[companion_def, lub_def] >>
+      first_assum $ qspec_then ‘bot’ strip_assume_tac >>
+      first_x_assum irule >>
+      fs[gfp_def, function_def] >>
+      qexists_tac ‘K gfix’ >> rw[])
 QED
+
+(* TODO  *)
+
+Definition endo_lift_def:
+  endo_lift (s,r) = (endo s , (λf g. ∀x. s x ⇒ r (f x) (g x)))
+End
+
+Theorem poset_lift:
+  poset (s,r) ⇒ poset (endo_lift (s,r))
+Proof
+  rw[poset_def, endo_lift_def, endo_def]
+  >- (qexists_tac ‘λx. if s x then x else ARB’ >> rw[])
+  >- (metis_tac[])
+  >- (rw[FUN_EQ_THM] >>
+      Cases_on ‘s x'’ >> metis_tac[])
+  >- metis_tac[]
+QED
+
+
 
 Definition enhance_def:
   enhance b = b o (companion b)
