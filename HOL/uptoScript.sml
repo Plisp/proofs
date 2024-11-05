@@ -14,21 +14,32 @@ Proof
   rw[monotone_def]
 QED
 
+(* TODO put in posetTheory *)
+Theorem po_gfp_coinduct:
+  po_gfp (s,r) b gfix ∧ s x ∧ r x (b x)
+  ⇒ r x gfix
+Proof
+  rw[gfp_def]
+QED
+
 (* general *)
-Definition endo_def:
-  endo s f = ∀x. if s x then s (f x) else f x = ARB
-End
+
+Theorem function_in:
+  function s s t ∧ s x ⇒ s (t x)
+Proof
+  rw[function_def]
+QED
+
+Theorem gfp_in:
+  po_gfp (s,r) b gfix ⇒ s gfix
+Proof
+  rw[gfp_def]
+QED
 
 Definition compatible_def:
   compatible p b f = (monotonic p b /\ monotonic p f /\
                       !x. (x IN carrier p) ==> relation p (f(b x)) (b(f x)))
 End
-
-Theorem endo_restrict:
-  endo s f ⇒ function s s f
-Proof
-  metis_tac[endo_def, function_def]
-QED
 
 Theorem compatible_self:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b
@@ -161,27 +172,23 @@ Theorem companion_bot_gfp:
   function s s t ∧ companion (s,r) b t
   ==> t bot = gfix
 Proof
-  rw[poset_def] >>
-  last_assum $ irule >>
-  rw[]
+  rw[] >>
+  match_mp_tac poset_antisym >>
+  qexistsl_tac [‘s’,‘r’] >> rw[]
   >- (fs[function_def, bottom_def])
   >- (fs[gfp_def])
   (* t⊥ <= tb⊥ <= bt⊥ *)
   >- (fs[gfp_def] >>
       first_assum irule >>
       conj_tac >- (fs[function_def, bottom_def]) >>
-      last_assum $ match_mp_tac >>
-      qexists_tac ‘t (b bot)’ >> (gvs[bottom_def, function_def]) >>
+      match_mp_tac poset_trans >>
+      qexistsl_tac [‘s’,‘t (b bot)’] >> (gvs[bottom_def, function_def]) >>
       conj_tac
-      >- (subgoal ‘monotonic (s,r) t’ >-
-           (irule companion_mono >> rw[poset_def, function_def] >> metis_tac[]) >>
-          fs[monotonic_def]) >>
-      subgoal ‘compatible (s,r) b t’ >-
-       (irule compatible_companion >>
-        rw[poset_def, function_def] >> metis_tac[]) >>
-      fs[compatible_def, IN_DEF])
-  >- (subgoal ‘compatible (s,r) b (K gfix)’ >-
-       (irule compatible_const_gfp >> fs[poset_def] >> metis_tac[]) >>
+      >- (‘monotonic (s,r) t’ suffices_by fs[monotonic_def] >>
+          irule companion_mono >> metis_tac[function_def]) >>
+      ‘compatible (s,r) b t’ suffices_by fs[compatible_def, IN_DEF] >>
+      irule compatible_companion >> metis_tac[function_def])
+  >- (drule_all compatible_const_gfp >> strip_tac >>
       fs[companion_def, lub_def] >>
       first_assum $ qspec_then ‘bot’ strip_assume_tac >>
       first_x_assum irule >>
@@ -189,48 +196,32 @@ Proof
       qexists_tac ‘K gfix’ >> rw[])
 QED
 
-(* TODO  *)
-
-Definition endo_lift_def:
-  endo_lift (s,r) = (endo s , (λf g. ∀x. s x ⇒ r (f x) (g x)))
-End
-
-Theorem poset_lift:
-  poset (s,r) ⇒ poset (endo_lift (s,r))
-Proof
-  rw[poset_def, endo_lift_def, endo_def]
-  >- (qexists_tac ‘λx. if s x then x else ARB’ >> rw[])
-  >- (metis_tac[])
-  >- (rw[FUN_EQ_THM] >>
-      Cases_on ‘s x'’ >> metis_tac[])
-  >- metis_tac[]
-QED
-
-
-
-Definition enhance_def:
-  enhance b = b o (companion b)
-End
-
+(* any post fixpoint is below the greatest fixpoint *)
 Theorem companion_coinduct:
-  monotone b
-  ==> x SUBSET enhance b x
-  ==> x SUBSET gfp b
+  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
+  companion (s,r) b t ∧ function s s t ∧
+  po_gfp (s,r) b gfix ∧
+  s x ∧ r x ((b o t) x)
+  ==> r x gfix
 Proof
-  rw[enhance_def] >>
-  ‘(companion b) x SUBSET gfp b’ suffices_by metis_tac[companion_gt, SUBSET_TRANS] >>
-  irule gfp_coinduction >>
-  simp[] >>
-  drule companion_mono >>
-  strip_tac >>
-  irule SUBSET_TRANS >>
-  qexists_tac ‘(companion b) (b (companion b x))’ >>
-  CONJ_TAC >- (fs[monotone_def, companion_mono]) >>
-  irule SUBSET_TRANS >>
-  qexists_tac ‘b (companion b (companion b x))’ >>
-  CONJ_TAC >-
-   (fs[REWRITE_RULE [companion_mono,compatible_def] compatible_companion]) >>
-  gvs[monotone_def, companion_idem, combinTheory.o_DEF]
+  rw[] >>
+  (* XXX why no instantiate s? *)
+  match_mp_tac poset_trans >>
+  qexistsl_tac [‘s’,‘t x’] >> rw[function_in, gfp_in]
+  >- (fs[gfp_def])
+  >- (metis_tac[companion_gt]) >>
+  match_mp_tac po_gfp_coinduct >> (* here it does *)
+  rw[function_in] >>
+  ‘r (t x) (b (t (t x)))’ suffices_by metis_tac[companion_idem] >>
+  drule_all compatible_companion >> strip_tac >>
+  match_mp_tac poset_trans >>
+  qexistsl_tac [‘s’,‘t (b (t x))’] >>
+  reverse (rw[function_in])
+  >- (fs[function_def, compatible_def, IN_DEF]) >>
+  drule_all companion_mono >> strip_tac >>
+  fs[monotonic_def] >>
+  first_assum match_mp_tac >>
+  rw[function_in]
 QED
 
 Theorem enhanced_gfp:
@@ -251,7 +242,7 @@ Proof
     rw[companion_gt])
 QED
 
-(* parameterized *)
+(* TODO parameterized *)
 Definition semicompatible_def:
   semicompatible b f = !x. f x SUBSET companion b x
 End
@@ -284,57 +275,30 @@ Proof
   simp[companion_idem]
 QED
 
-Definition wcontinuous_def:
-  wcontinuous b = !P. (b (BIGINTER P) = BIGINTER { b s | s IN P })
+(* second order stuff *)
+Definition endo_def:
+  endo s f = ∀x. if s x then s (f x) else f x = ARB
 End
 
-Theorem continuous_mono:
-  wcontinuous b ==> monotone b
+Theorem endo_restrict:
+  endo s f ⇒ function s s f
 Proof
-  rw[wcontinuous_def, monotone_def] >>
-  ‘X = BIGINTER { X; Y }’ by rw[BIGINTER_INTER, SUBSET_INTER1] >>
-  ‘b (BIGINTER {X; Y}) SUBSET b Y’ suffices_by metis_tac[] >>
-  pop_last_assum $ qspec_then ‘{X; Y}’ strip_assume_tac >>
-  ‘BIGINTER {b s | s IN {X; Y}} SUBSET b Y’ suffices_by metis_tac[] >>
-  ‘BIGINTER {b s | s IN {X; Y}} = BIGINTER {b X; b Y}’ by cheat >>
-  rw[]
+  metis_tac[endo_def, function_def]
 QED
 
-Theorem continuous_fixpoint:
-  wcontinuous b ==> gfp b = BIGINTER (λx. ?n. x = FUNPOW b n (K T))
-Proof
-  rw[Once SET_EQ_SUBSET] >-
-   (rw[SUBSET_DEF] >>
-    pop_assum mp_tac >>
-    ‘gfp b SUBSET FUNPOW b n (K T)’ suffices_by metis_tac[GSYM SUBSET_DEF] >>
-    Induct_on ‘n’ >- rw[combinTheory.K_DEF, SUBSET_DEF] >>
-    drule continuous_mono >> strip_tac >>
-    rw[arithmeticTheory.FUNPOW_SUC] >>
-    simp[SimpL “$SUBSET”, Once $ GSYM gfp_greatest_fixedpoint] >>
-    fs[monotone_def]) >>
-  irule (cj 2 gfp_greatest_fixedpoint) >>
-  rw[continuous_mono] >>
-  cheat
-QED
+Definition endo_lift_def:
+  endo_lift (s,r) = (endo s , (λf g. ∀x. s x ⇒ r (f x) (g x)))
+End
 
-Theorem companion_eq:
-  !b. wcontinuous b
-      ==> companion b = (λx. BIGINTER (λs. ?n. s = FUNPOW b n (K T) /\ x SUBSET s))
+Theorem poset_lift:
+  poset (s,r) ⇒ poset (endo_lift (s,r))
 Proof
-  rw[Once FUN_EQ_THM, SET_EQ_SUBSET] >-
-   (rw[companion_def, SUBSET_DEF, PULL_EXISTS] >>
-    subgoal ‘FUNPOW b n (f (K T)) SUBSET FUNPOW b n (K T)’ >-
-     (rw[combinTheory.K_DEF]
-     )
-    Induct_on ‘n’ >- rw[combinTheory.K_DEF] >>
-    rw[]
-   )
-  >-
-   (ho_match_mp_tac compatible_below_companion >>
-    rw[compatible_def] >-
-     (rw[monotone_def, SUBSET_DEF, PULL_EXISTS]) >>
-    rw[SUBSET_DEF, PULL_EXISTS]
-   )
+  rw[poset_def, endo_lift_def, endo_def]
+  >- (qexists_tac ‘λx. if s x then x else ARB’ >> rw[])
+  >- (metis_tac[])
+  >- (rw[FUN_EQ_THM] >>
+      Cases_on ‘s x'’ >> metis_tac[])
+  >- metis_tac[]
 QED
 
 Definition connection_join:
