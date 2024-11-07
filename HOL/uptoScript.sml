@@ -14,7 +14,7 @@ Proof
   rw[monotone_def]
 QED
 
-(* TODO put in posetTheory *)
+(* TODO posetTheory? for irule-ing *)
 Theorem po_gfp_coinduct:
   po_gfp (s,r) b gfix ∧ s x ∧ r x (b x)
   ⇒ r x gfix
@@ -37,22 +37,22 @@ Proof
 QED
 
 Definition compatible_def:
-  compatible p b f = (monotonic p b /\ monotonic p f /\
-                      !x. (x IN carrier p) ==> relation p (f(b x)) (b(f x)))
+  compatible (s,r) b f = (monotonic (s,r) b /\ monotonic (s,r) f /\
+                          !x. s x ==> r (f(b x)) (b(f x)))
 End
 
 Theorem compatible_self:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b
   ==> compatible (s,r) b b
 Proof
-  rw[poset_def, compatible_def, function_def, IN_DEF]
+  rw[poset_def, compatible_def, function_def]
 QED
 
 Theorem compatible_id:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b
   ==> compatible (s,r) b I
 Proof
-  rw[compatible_def, monotonic_def, poset_def, IN_DEF]
+  rw[compatible_def, monotonic_def, poset_def]
 QED
 
 Theorem compatible_const_gfp:
@@ -88,18 +88,11 @@ Proof
   drule_all_then strip_assume_tac compatible_self >>
   rw[monotonic_def] >>
   first_assum $ qspec_then ‘x’ strip_assume_tac >>
-  qpat_x_assum ‘!z. _ /\ compatible _ _ _ /\ _ ==> _’ kall_tac >>
-  first_x_assum $ qspec_then ‘t y’ strip_assume_tac >>
-  pop_assum match_mp_tac >>
-  rw[function_def] >>
+  pop_assum match_mp_tac >> rw[] >>
   (* establish fx < ty *)
   last_x_assum $ qspec_then ‘y’ strip_assume_tac >> pop_assum kall_tac >>
   pop_assum $ qspec_then ‘f’ strip_assume_tac >>
-  gvs[function_def] >>
-  gvs[poset_def, monotonic_def] >>
-  qpat_x_assum ‘!x y z. _ ==> _’ irule >>
-  rw[PULL_EXISTS] >>
-  first_x_assum $ irule_at Any >>
+  fs[poset_def, function_def] >>
   metis_tac[compatible_def, monotonic_def]
 QED
 
@@ -109,15 +102,14 @@ Theorem compatible_companion:
   ==> compatible (s,r) b t
 Proof
   rw[compatible_def] >- (metis_tac[companion_mono]) >>
-  gvs[companion_def, lub_def, PULL_EXISTS, IN_DEF] >>
+  gvs[companion_def, lub_def, PULL_EXISTS] >>
   first_assum $ qspec_then ‘b x’ strip_assume_tac >>
   pop_assum irule >>
-  rw[] >- (fs[function_def]) >>
-  ‘r (b (f x)) (b (t x))’ by gvs[monotonic_def, function_def] >>
-  fs[poset_def, compatible_def, IN_DEF] >>
-  first_x_assum $ qspec_then ‘x’ strip_assume_tac >>
-  last_assum match_mp_tac >>
-  pop_assum $ irule_at Any >>
+  rw[function_in] >>
+  fs[compatible_def] >>
+  drule_then irule poset_trans >>
+  rw[function_in] >>
+  qexists_tac ‘b (f x)’ >>
   gvs[function_def, monotonic_def]
 QED
 
@@ -127,7 +119,7 @@ Theorem compatible_compose:
   compatible (s,r) b f /\ compatible (s,r) b g
   ==> compatible (s,r) b (f o g)
 Proof
-  rw[poset_def, compatible_def, monotonic_def, function_def, IN_DEF] >>
+  rw[poset_def, compatible_def, monotonic_def, function_def] >>
   metis_tac[]
 QED
 
@@ -148,13 +140,11 @@ Theorem companion_idem:
   ==> t (t x) = t x
 Proof
   rpt strip_tac >>
-  ‘r (t (t x)) (t x) /\ r (t x) (t (t x))’
-    suffices_by fs[poset_def, function_def] >>
-  CONJ_TAC >-
-   (‘compatible (s,r) b (t o t)’ by gvs[compatible_compose, compatible_companion] >>
-    ho_match_mp_tac compatible_below_companion >>
-    gvs[function_def] >>
-    metis_tac[]) >-
+  drule_then irule poset_antisym >>
+  rw[function_in] >-
+   (ho_match_mp_tac compatible_below_companion >>
+    fs[function_def] >>
+    metis_tac[compatible_compose, compatible_companion, function_def]) >-
    (metis_tac[companion_gt, function_def])
 QED
 
@@ -173,27 +163,24 @@ Theorem companion_bot_gfp:
   ==> t bot = gfix
 Proof
   rw[] >>
-  match_mp_tac poset_antisym >>
-  qexistsl_tac [‘s’,‘r’] >> rw[]
-  >- (fs[function_def, bottom_def])
+  drule_then irule poset_antisym >> rw[]
+  >- (fs[function_in, bottom_def])
   >- (fs[gfp_def])
   (* t⊥ <= tb⊥ <= bt⊥ *)
-  >- (fs[gfp_def] >>
-      first_assum irule >>
-      conj_tac >- (fs[function_def, bottom_def]) >>
-      match_mp_tac poset_trans >>
-      qexistsl_tac [‘s’,‘t (b bot)’] >> (gvs[bottom_def, function_def]) >>
-      conj_tac
-      >- (‘monotonic (s,r) t’ suffices_by fs[monotonic_def] >>
-          irule companion_mono >> metis_tac[function_def]) >>
-      ‘compatible (s,r) b t’ suffices_by fs[compatible_def, IN_DEF] >>
-      irule compatible_companion >> metis_tac[function_def])
+  >- (match_mp_tac po_gfp_coinduct >>
+      fs[function_in, bottom_def] >>
+      drule_then match_mp_tac poset_trans >>
+      qexists_tac ‘t (b bot)’ >>
+      rw[bottom_def, function_in]
+      >- (irule (iffLR monotonic_def) >> metis_tac[companion_mono, function_def]) >>
+      ‘compatible (s,r) b t’ suffices_by fs[compatible_def] >>
+      irule compatible_companion >> rw[])
   >- (drule_all compatible_const_gfp >> strip_tac >>
       fs[companion_def, lub_def] >>
       first_assum $ qspec_then ‘bot’ strip_assume_tac >>
       first_x_assum irule >>
-      fs[gfp_def, function_def] >>
-      qexists_tac ‘K gfix’ >> rw[])
+      fs[gfp_def] >>
+      qexists_tac ‘K gfix’ >> rw[function_def])
 QED
 
 (* any post fixpoint is below the greatest fixpoint *)
@@ -205,41 +192,39 @@ Theorem companion_coinduct:
   ==> r x gfix
 Proof
   rw[] >>
-  (* XXX why no instantiate s? *)
-  match_mp_tac poset_trans >>
-  qexistsl_tac [‘s’,‘t x’] >> rw[function_in, gfp_in]
+  drule_then match_mp_tac poset_trans >>
+  qexists_tac ‘t x’ >> rw[function_in]
   >- (fs[gfp_def])
-  >- (metis_tac[companion_gt]) >>
-  match_mp_tac po_gfp_coinduct >> (* here it does *)
+  >- (match_mp_tac companion_gt >> rw[]) >>
+  match_mp_tac po_gfp_coinduct >>
   rw[function_in] >>
-  ‘r (t x) (b (t (t x)))’ suffices_by metis_tac[companion_idem] >>
   drule_all compatible_companion >> strip_tac >>
-  match_mp_tac poset_trans >>
-  qexistsl_tac [‘s’,‘t (b (t x))’] >>
+  drule_then match_mp_tac poset_trans >>
+  qexists_tac ‘t (b (t x))’ >>
   reverse (rw[function_in])
-  >- (fs[function_def, compatible_def, IN_DEF]) >>
-  drule_all companion_mono >> strip_tac >>
-  fs[monotonic_def] >>
-  first_assum match_mp_tac >>
-  rw[function_in]
+  >- (metis_tac[companion_idem, function_def, compatible_def]) >>
+  metis_tac[monotonic_def, companion_mono, function_in]
 QED
 
 Theorem enhanced_gfp:
-  monotone b
-  ==> gfp (enhance b) = gfp b
+  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
+  po_gfp (s,r) b gfix ∧
+
+  function s s t ∧ companion (s,r) b t ∧
+  po_gfp (s,r) (b ∘ t) efix
+  ==> efix = gfix
 Proof
-  rw[enhance_def, SET_EQ_SUBSET] >-
-   (drule_then match_mp_tac companion_coinduct >>
-    ‘monotone (enhance b)’
-      by metis_tac[monotone_def, enhance_def, monotone_comp, companion_mono] >>
-    fs[enhance_def] >>
-    metis_tac[cj 1 gfp_greatest_fixedpoint, combinTheory.o_DEF, SET_EQ_SUBSET])
-  >-
-   (irule gfp_coinduction >>
-    rw[monotone_comp, companion_mono] >>
-    simp[SimpL “$SUBSET”, Once $ GSYM gfp_greatest_fixedpoint] >>
-    irule $ iffLR monotone_def >>
-    rw[companion_gt])
+  rw[] >>
+  drule_then irule poset_antisym >> rw[]
+  >- (fs[gfp_def])
+  >- (fs[gfp_def])
+  >- (drule_then match_mp_tac companion_coinduct >>
+      qexistsl_tac [‘t’,‘b’] >>
+      fs[gfp_def, poset_def]) >>
+  irule po_gfp_coinduct >>
+  qexistsl_tac [‘(b ∘ t)’, ‘s’] >>
+  fs[gfp_def] >>
+  metis_tac[monotonic_def, function_def, companion_gt]
 QED
 
 (* TODO parameterized *)
