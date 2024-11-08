@@ -26,6 +26,7 @@ open import univalence
 postulate
   LEM : (X : Set ℓ) → X ＋ ¬ X
   FUNEXT : {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
+  AXIOM-K :  {X : Set ℓ} {x : X} → (p : x ＝ x) → p ＝ refl x
 
 {-
   I love recursion principles
@@ -433,27 +434,32 @@ fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
           , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
 
 {-
-  coercion
+  yoneda
 -}
 
-data WProp {ℓ : Level} : Set ℓ → Set (lsuc ℓ) where
-  arr : {A : Set ℓ} → {B : Set ℓ} → WProp A → WProp B → WProp (A → B)
-  --sum : (A : Set ℓ) → (B : Set ℓ) → WProp A → WProp B → WProp (A ＋ B)
-  --prd : (A : Set ℓ) → (B : Set ℓ) → WProp A → WProp B → WProp (A × B)
-  --sgm : (A : Set) → {P : A → Set} → {a : A} → WProp (P a) → WProp (Σ a ∶ A , P a)
+-- x ＝ y is Hom(x, y)
+Y : {X : Set ℓ} (x : X) → (y : X) → Set ℓ
+Y x = λ y → y ＝ x
 
-wprop-rec : (P : Set) (Q : Set ℓ)
-          → (∀ A B → WProp A → WProp B → Q)
-          → WProp P → Q
-wprop-rec P Q arrCase (arr a b) = arrCase _ _ a b
+Id : {X : Set ℓ} → (x : X) → x ＝ x
+Id = refl
 
-wprop-rec' : (P : Set → Set) (Q : Set → Set ℓ)
-           → ∀ X → (∀ A B → WProp A → WProp B → Q X)
-           → WProp (P X) → Q X
-wprop-rec' {ℓ} P Q X arrCase w = wprop-rec (P X) (Q X) arrCase w
+-- Nat A B = ∀ x → A x → B x
+_≈_ : {X : Set ℓ} {y : X} {A : X → Set ℓ₁}
+    → Nat (Y y) A → Nat (Y y) A → Set (ℓ ⊔ ℓ₁)
+η ≈ θ = ∀ x → ∀ Yxy → η x Yxy ＝ θ x Yxy
 
--- subst : {A : Set ℓ} (P : A → Set ℓ₁) {x y : A} → (x ＝ y) → (P x → P y)
-csubst : {X : Set} (P : Set → Set) → WProp (P X)
-       → ∀ Y → X ≃ Y
-       → P X → P Y
-csubst {X} P p = wprop-rec' P (λ X → ∀ Y → X ≃ Y → P X → P Y) X {!!} p
+yoneda-elem : {X : Set ℓ} {x : X} (A : X → Set ℓ₁)
+            → Nat (Y x) A → A x
+yoneda-elem {x = x} A η = η x (Id x)
+
+-- this is essentially transport
+yoneda-nat : {X : Set ℓ} {y : X} (A : X → Set ℓ₁)
+           → A y → Nat (Y y) A
+yoneda-nat {y = y} A a = λ x (p : Y y x) → transport A (sym＝ p) a
+
+-- holds definitionally
+yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
+             → (η : Nat (Y x) A)
+             → yoneda-nat A (yoneda-elem A η) ≈ η
+yoneda-lemma {A = A} η x (refl .x) = refl (yoneda-elem A η)
