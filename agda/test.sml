@@ -48,16 +48,15 @@ print(disp (Disj(Exi("a", Eql(App("f", [Id "a"]), Id "c")),
 (* utilities for manipulating formulae *)
 
 val vcount = ref 0;
-type goalstate = { assms : form list , goal : form list }
-
 fun freshen v = (vcount := !vcount + 1 ; Id (v ^ Int.toString(!vcount)))
+fun fresch v = (vcount := !vcount + 1 ; Sch ("?" ^ v ^ Int.toString(!vcount)))
 
 local
     fun subste s t (Id id) = if s = id then t else Id id
       | subste s t (Sch id) = if s = id then t else Sch id
-      | subste s t (App(f, es)) = App(f, map (fn e => subste s t e) es)
+      | subste s t (App(f,es)) = App(f, map (fn e => subste s t e) es)
 in
-fun subst s t (Prop(p, es)) = Prop(p, map (fn e => subste s t e) es)
+fun subst s t (Prop(p,es)) = Prop(p, map (fn e => subste s t e) es)
   | subst s t (Conj(a,b)) = Conj(subst s t a, subst s t b)
   | subst s t (Disj(a,b)) = Disj(subst s t a, subst s t b)
   | subst s t (Imp(a,b)) = Imp(subst s t a, subst s t b)
@@ -66,22 +65,26 @@ fun subst s t (Prop(p, es)) = Prop(p, map (fn e => subste s t e) es)
   | subst s t (Eql(a,b)) = Eql(subste s t a, subste s t b)
 end;
 
-fun asm_canon (Conj(a,b)) = asm_canon a @ asm_canon b
-  | asm_canon (Exi(v,p)) = asm_canon(subst v (freshen v) p)
-  | asm_canon p = [p]
+(* annoying to keep track of unifications, so don't split conj *)
+fun asm_canon bans (Prop(p,es)) = (Prop(p,es) , [])
+  | asm_canon bans (Exi(v,p)) = asm_canon(subst v (freshen v) p)
+  | asm_canon bans (All(v,p)) = asm_canon(subst v (fresch v) p)
+  | asm_canon bans p = p
 
+(* unsound to split conj with schemas *)
 fun canon (Conj(a,b)) = canon a @ canon b
   | canon (Imp(a,b)) = map (fn {assms, goal}
-                               => {assms = asm_canon a @ assms, goal = goal})
+                               => {assms = (asm_canon a :: assms),
+                                  goal = goal, bans = []})
                            (canon b)
-  (* TODO unsound to split conj with schemas *)
-  (* | canon (Exi(v,p)) = canon(subst v (freshen("?" ^ v)) p) *)
+  | canon (Exi(v,p)) = canon(subst v (fresch v) p)
   | canon (All(v,p)) = canon(subst v (freshen v) p)
   | canon p = [{ assms = [] , goal = p }]
 
-fun disp_goalst {assms, goal}
+fun disp_goalst {assms, goal, bans}
     = inter "\n" disp assms ^ "\n-------------------------\n" ^
-      disp goal ^ "\n\n"
+      disp goal ^ "\nbans" ^
+      inter "\n" (csv (fn s => s)) bans ^ "\n\n"
 
 val print_goals = print o disp_goalst;
 
@@ -107,7 +110,7 @@ fun unifye (Id v1) (Id v2) = if v1 = v2 then SOME [] else NONE
   | unifye (Id v1) (Sch v2) = SOME [(v2, Id v1)]
   | unifye (Sch v) app = if noccurs v app then SOME [(v, app)] else NONE
   | unifye app (Sch v) = unifye (Sch v) app
-  | unifye (App(f1, e1s)) (App(f2, e2s))
+  | unifye (App(f1,e1s)) (App(f2,e2s))
     = if f1 = f2
       then let val res = map (fn (e1,e2) => unifye e1 e2) (ListPair.zip (e1s,e2s))
            in
@@ -122,7 +125,7 @@ local
     fun join (SOME l1) (SOME l2) = SOME (l1 @ l2)
       | join _ _ = NONE
 in
-fun unify (Prop(p1, e1s)) (Prop(p2, e2s)) = unifye (App (p1,e1s)) (App (p2,e2s))
+fun unify (Prop(p1,e1s)) (Prop(p2,e2s)) = unifye (App (p1,e1s)) (App (p2,e2s))
   | unify (Conj(a1,b1)) (Conj(a2,b2)) = join (unify a1 a2) (unify b1 b2)
   | unify (Disj(a1,b1)) (Disj(a2,b2)) = join (unify a1 a2) (unify b1 b2)
   | unify (Imp(a1,b1)) (Imp(a2,b2)) = join (unify a1 a2) (unify b1 b2)
@@ -151,6 +154,8 @@ fun solve {assms, goal = (Prop (p,es))}
                     | _ => false)
               end)
           assms
+  | solve {assms, goal = (Conj (a,b))}
+    = false
   | solve {assms, goal = (Disj (a,b))}
     = false
       (* let val res = prove (canon a) *)
@@ -167,6 +172,7 @@ fun solve {assms, goal = (Prop (p,es))}
       (* end *)
   | solve {assms, goal = (Exi (v,p))} = false
   | solve _ = false
-and prove form = map solve (map print_goals (canon form) ; (canon form))
+and prove form = (map solve (map print_goals (canon form) ; (canon form))
+                 ; vcount := 0)
 
-val _ = prove (Imp (Prop ("P", []),Prop ("P", [])));
+val _ = prove (Imp (Prop ("P", [Sch "x"]),All("a",Prop ("P", [Id "a"]))));

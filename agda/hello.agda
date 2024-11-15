@@ -437,11 +437,12 @@ fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
   yoneda
 -}
 
--- x ＝ y is Hom(x, y)
-Y : {X : Set ℓ} (x : X) → (y : X) → Set ℓ
-Y x = λ y → y ＝ x
+Hom = _＝_
 
-Id : {X : Set ℓ} → (x : X) → x ＝ x
+Y : {X : Set ℓ} (x : X) → (y : X) → Set ℓ
+Y x = λ y → Hom y x
+
+Id : {X : Set ℓ} → (x : X) → Hom x x
 Id = refl
 
 -- Nat A B = ∀ x → A x → B x
@@ -453,10 +454,10 @@ yoneda-elem : {X : Set ℓ} {x : X} (A : X → Set ℓ₁)
             → Nat (Y x) A → A x
 yoneda-elem {x = x} A η = η x (Id x)
 
--- this is essentially transport
+-- lifting Hom(x,y) to presheaf A → Set (arrows = maps) is transport
 yoneda-nat : {X : Set ℓ} {y : X} (A : X → Set ℓ₁)
-           → A y → Nat (Y y) A
-yoneda-nat {y = y} A a = λ x (p : Y y x) → transport A (sym＝ p) a
+           → A y → Nat (Y y) A           -- A p : A y → A x
+yoneda-nat {y = y} A a = λ x (p : Y y x) → (transport A (sym＝ p)) a
 
 -- holds definitionally
 yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
