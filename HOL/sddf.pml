@@ -1,4 +1,4 @@
-#define QSZ 1 // a bigger queue is not necessary to demonstrate signal issues
+#define QSZ 2 // a bigger queue is not necessary to demonstrate signal issues
 
 //int free_buffers = 0 // tokens for how many OS buffers have yet to be filled
 int got              // got is set by the device when generating a packet
@@ -10,46 +10,46 @@ chan sysq = [QSZ] of {int} // driver -> OS
 chan device_io = [1] of {bool}
 chan driver_signal = [1] of {bool}
 bool need_signal = true // whether the system should signal the driver on i/o
-
-// various states of stuff exiting
+chan device_off = [1] of {bool}
 bool sysexit = false
-bool device_off = false
+bool driver_exit = false
 
 active proctype system() {
     bool sig
     int data
-provide:
-    do
-//    :: atomic { (free_buffers < QSZ) -> free_buffers++ }
-    :: else -> goto wait
-    od
-wait:
+loop:
     do
     :: atomic { device_io?sig
        if
-       :: need_signal -> driver_signal!true
+       :: need_signal && len(driver_signal) == 0 -> driver_signal!true
+       :: else -> skip
        fi }
     :: atomic { sysq?data
     -> printf("system recv: packet %d\n", data);
        processed = data }
     :: atomic { len(sysq) == 0 && !device_io?[_]
     -> if
-       :: !sysexit -> goto provide
+       :: !sysexit -> goto loop
        :: else -> goto exit
        fi }
-    :: d_step { !sysexit && device_off && len(sysq) == 0 && !device_io?[_]
-    -> printf("system: received device exit, cleaning up...\n")
-       sysexit = true }
+    :: atomic { device_off?sig
+    -> if
+       :: len(sysq) == 0 && !device_io?[_]
+       -> printf("system: received device exit, cleaning up...\n")
+          sysexit = true
+       :: else -> skip
+       fi }
     od
 exit:
     // without this additional check, packets can be dropped between
     // 1) OS signalling the driver to exit
     // 2) driver receiving the signal and exiting
     atomic {
-    if
-    :: (len(sysq) != 0) -> goto wait
-    fi
-    printf("system: stop driver\n") }
+    driver_exit -> if
+                   :: sysq?[_] -> goto loop
+                   :: else -> skip
+                   fi
+    printf("system: supervisor stop\n") }
 }
 
 active proctype driver() {
@@ -57,51 +57,54 @@ active proctype driver() {
     int data
 sleep:
     do
-    :: atomic { driver_signal?sig -> goto loop }
-    :: atomic { sysexit -> goto loop }
+    :: atomic { driver_signal?sig -> need_signal = false; goto loop }
+    :: atomic { else
+    -> if
+       :: sysexit -> goto loop
+       :: else -> skip
+       fi }
     od
 loop:
     do
     :: atomic { ring?data
-processing:
     -> printf("driver data %d\n", data)
-       sysq!data;
-       //if
-       //:: (free_buffers > 0) -> sysq!data; free_buffers--
-       //fi
+       sysq!data
        }
     :: atomic { sysexit && !ring?[_] -> goto exit }
-    :: atomic { else
-    -> need_signal = true;
+    :: else // not atomic
+    -> atomic {
+       need_signal = true;
+       /* need to recheck */
+       if
+       :: atomic { ring?[_] -> need_signal = false; goto loop }
+       :: else -> skip
+       fi
        goto sleep }
     od
-    // need to recheck
-    if
-    :: atomic { ring?[_] -> goto loop }
-    fi
 exit:
     printf("driver: system stopped, exiting...\n")
+    driver_exit = true
 }
 
 active proctype device() {
-    int iter = 2 // limit number of iterations for tractability
+    int iter = QSZ+2 // limit number of iterations for tractability
     do
     :: atomic { iter > 0
     -> got = iter + 100; ring!got;
        device_io!true;
        iter-- }
-    :: d_step { skip -> skip }
-    :: atomic { skip -> goto off }
+    :: d_step { 0 == 0 -> skip }
+    :: atomic { 1 == 1 -> goto off }
     od
 off: skip
-    d_step { device_off = 1;
+    d_step { device_off!true;
     printf("device: off\n") }
 }
 
 // sanity check for packets being processed
 ltl s1 { always (_nr_pr == 0 -> len(sysq) ==0) }
 // signal off during processing
-ltl s2 { always (driver@processing -> !driver_signal?[_]) }
+ltl s2 { always (driver@loop -> !driver_signal?[_]) }
 
 // needs weak fairness, check that packets are delivered
 ltl l1 { always (got == 102 -> eventually (processed == 102)) }
