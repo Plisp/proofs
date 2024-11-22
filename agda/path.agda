@@ -237,9 +237,9 @@ transport-startpoint {A = A} {a}{x}{y} p q
   equality in ×
 -}
 
-to-×＝ : {X : Set ℓ} {Y : Set ℓ₁} {z t : X × Y}
-      → (fst z ＝ fst t) × (snd z ＝ snd t) → z ＝ t
-to-×＝ {X = X}{Y} {z1 , z2} {t1 , t2} (refl z1 , refl z2) = refl (z1 , z2)
+×＝ : {X : Set ℓ} {Y : Set ℓ₁} {z t : X × Y}
+   → (fst z ＝ fst t) × (snd z ＝ snd t) → z ＝ t
+×＝ {X = X}{Y} {z1 , z2} {t1 , t2} (refl z1 , refl z2) = refl (z1 , z2)
 
 from-×＝ : {X : Set ℓ} {Y : Set ℓ₁} {z t : X × Y}
         → z ＝ t → (fst z ＝ fst t) × (snd z ＝ snd t)
@@ -249,10 +249,10 @@ from-×＝ {X = X}{Y} {z}{t} (refl (x , y)) = (refl x , refl y)
   equality in Σ
 -}
 
-to-Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
-      → (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
-      → σ ＝ τ
-to-Σ＝ (refl x , refl a) = refl (x , a)
+Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
+   → Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ
+   → σ ＝ τ
+Σ＝ (refl x , refl a) = refl (x , a)
 
 from-Σ＝ : {X : Set ℓ} {A : X → Set ℓ₁} {σ τ : Σ A}
         → σ ＝ τ

@@ -407,31 +407,31 @@ fib-proj-equiv fib a = iso , invertibles-are-equivalences iso proof
     proof : invertible iso
     proof = (λ fa → (a , fa) , refl a) , (λ {(_ , refl _) → refl _}) , refl
 
-proj-fib-eq : {is-univalent lzero} → {A : Set}
-            → (proj : (Σ B ∶ Set , (B → A)))
-            → fib-proj (proj-fib proj) ＝ proj
--- TODO univalence → extensionality, does this compute?
-proj-fib-eq {uv} {A} (B , pr) = to-Σ＝ (eq , {!!})
-  where
-    iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
-    iso (_ , b , _) = b
+-- proj-fib-eq : {is-univalent lzero} → {A : Set}
+--             → (proj : (Σ B ∶ Set , (B → A)))
+--             → fib-proj (proj-fib proj) ＝ proj
+-- -- TODO univalence → extensionality, does this compute?
+-- proj-fib-eq {uv} {A} (B , pr) = Σ＝ (eq , {!!})
+--   where
+--     iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
+--     iso (_ , b , _) = b
 
-    iv : invertible iso
-    iv = (λ b → pr b , b , refl _) , (λ {(_ , _ , refl _) → refl _}) , refl
+--     iv : invertible iso
+--     iv = (λ b → pr b , b , refl _) , (λ {(_ , _ , refl _) → refl _}) , refl
 
-    equiv : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ≃ B
-    equiv = iso , invertibles-are-equivalences iso iv
+--     equiv : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ≃ B
+--     equiv = iso , invertibles-are-equivalences iso iv
 
-    eq : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ＝ B
-    eq = ua uv _ _ equiv
+--     eq : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ＝ B
+--     eq = ua uv _ _ equiv
 
-fib-pr-equiv : {is-univalent lzero} → {A : Set}
-             → (Σ B ∶ Set , (B → A)) ≃ (A → Set)
-fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
-  where
-    proof : invertible proj-fib
-    proof = fib-proj , proj-fib-eq {uv}
-          , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
+-- fib-pr-equiv : {is-univalent lzero} → {A : Set}
+--              → (Σ B ∶ Set , (B → A)) ≃ (A → Set)
+-- fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
+--   where
+--     proof : invertible proj-fib
+--     proof = fib-proj , proj-fib-eq {uv}
+--           , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
 
 {-
   yoneda

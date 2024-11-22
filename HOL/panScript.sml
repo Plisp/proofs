@@ -40,49 +40,6 @@ fun parse_pancake_nosimp q =
     EVAL “(parse_funs_to_ast ^code)”
 end
 
-(* val ast = parse_pancake ‘ *)
-(* fun net_enqueue_free() { *)
-(*     var desc = 0; *)
-(*     !stw desc, 255; *)
-(* } *)
-(* ’; *)
-
-(* Definition itree_evaluate_def: *)
-(*   itree_evaluate p s = *)
-(*   to_stree (itree_mrec h_prog (p,s)) *)
-(* End *)
-
-(* Definition extract: *)
-(*   extract (INL p) = p *)
-(* End *)
-
-(* (* P Abs ==> (abs->concrete-pred? P) (abs->concrete abs) *) *)
-(* Theorem test: *)
-(*   (0w : word64) ∈ s.sh_memaddrs ⇒ *)
-(*   itree_evaluate *)
-(*   (Seq (Annot «location» «(2:4 3:13)») *)
-(*        (Dec «desc» (Const 0w) *)
-(*             (Seq (Annot «location» «(3:5 3:13)») *)
-(*                  (ShMemStore OpW (Var «desc») (Const 255w))))) *)
-(*   s ≈ ARB *)
-(* Proof *)
-(*   rw[extract, itree_evaluate_def] >> *)
-(*   rw[seq_thm] >> *)
-(*   rw[Once itree_mrec_def, h_prog_def] >> *)
-(*   ‘eval (reclock s) (Const 0w) = SOME (ValWord 0w)’ by rw[] >> *)
-(*   drule dec_thm >> strip_tac >> *)
-(*   pop_assum $ qspecl_then [‘(Seq (Annot «location» «(3:5 3:13)») *)
-(*                    (ShMemStore OpW (Var «desc») (Const 255w)))’, *)
-(*                            ‘«desc»’] *)
-(*             strip_assume_tac >> *)
-(*   rw[dec_thm] >> pop_assum kall_tac >> pop_assum kall_tac >> *)
-(*   rw[seq_thm] >> *)
-(*   rw[Once itree_mrec_def, h_prog_def] >> *)
-(*   rw[Once itree_mrec_def, h_prog_def, nb_op_def, h_prog_sh_mem_store_def] >> *)
-(*   gvs[align_thm, align_def] >> *)
-(*   rw[word_to_bytes_aux_compute, word_to_bytes_def] >> *)
-(* QED *)
-
 (* XXX add_user_printer docs, sml-mode *)
 (* fun omitprinter _ _ sys ppfns gs d t = *)
 (* let open term_pp_utils term_pp_types smpp *)
@@ -103,22 +60,6 @@ end
    read_bytearray (outside bounds) (stack bounds (state)) = read_bytearray state
  *)
 
-(* Theorem test: *)
-(*   s.code = (FEMPTY |+ («f», ([(«n», One)], (Return (Var «n»))))) ⇒ *)
-(*   itree_evaluate (Dec «r» (Const 0w) (Call NONE (Label «f») [Var «r»])) s *)
-(*   = ARB *)
-(* Proof *)
-(*   rw[itree_evaluate_alt] >> *)
-(*   rw[itree_mrec_alt, h_prog_def, h_prog_dec_def] >> *)
-(*   rw[eval_def] >> *)
-(*   rw[h_prog_def] >> *)
-(*   rw[h_prog_call_def] >> *)
-(*   rw[eval_def] >> *)
-(*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
-(*   rw[lookup_code_def, shape_of_def] >> *)
-(*   rw[finite_mapTheory.FLOOKUP_UPDATE] >> *)
-(* QED *)
-
 Theorem pan_eval_simps[simp]:
     eval s (Const w) = SOME (ValWord w)
   ∧ eval s (Var v) = FLOOKUP s.locals v
@@ -135,6 +76,10 @@ Theorem itree_wbisim_refl[simp] = itree_wbisim_refl;
 Theorem apply_update_simp[simp] = cj 1 combinTheory.UPDATE_APPLY;
 (* may explode cases if k1 = k2 isn't decidable: luckily we cmp names = strings *)
 Theorem do_flookup_simp[simp] = finite_mapTheory.FLOOKUP_UPDATE;
+Theorem valid_value_simp[simp] = is_valid_value_def;
+Theorem shape_of_simp[simp] = shape_of_def;
+
+(* TODO replace with setSep *)
 Theorem read_bytearray_0[simp] = cj 1 miscTheory.read_bytearray_def;
 Theorem write_bytearray_0[simp] = cj 1 write_bytearray_def;
 Theorem read_bytearray_1:
@@ -145,14 +90,20 @@ Proof
   rw[miscTheory.read_bytearray_def]
 QED
 
-Theorem seq_simp[simp] = seq_thm;
-Theorem valid_value_simp[simp] = is_valid_value_def;
-Theorem shape_of_simp[simp] = shape_of_def;
 Theorem h_prog_skip[simp] = cj 1 h_prog_def;
+Theorem pull_ffi_case[simp]:
+  f (ffi_result_CASE ffi ret final) =
+  ffi_result_CASE ffi (λ x y. f (ret x y)) (f ∘ final)
+Proof
+  Cases_on ‘ffi’ >> simp[]
+QED
 
-val assign_tac = gvs[Once itree_mrec_def, Once h_prog_def,
-                     h_prog_assign_def, eval_def];
-val strb_tac = rw[Once itree_mrec_def, Once h_prog_def, h_prog_store_byte_def];
+(* don't need the one line version now, they are for metatheorems *)
+Theorem to_stree_simps[simp] = panItreeSemTheory.to_stree_simps;
+Theorem mrec_sem_simps[simp] = panItreeSemTheory.mrec_sem_simps;
+
+val assign_tac = gvs[Once h_prog_def, h_prog_assign_def, eval_def];
+val strb_tac = rw[Once h_prog_def, h_prog_store_byte_def];
 Globals.max_print_depth := 25;
 
 (*/ word nonsense
@@ -207,7 +158,6 @@ Proof
   rw[]
 QED
 
-(* TODO 64? *)
 Definition mem_has_word_def:
   mem_has_word mem addr = ∃w. mem (byte_align addr) = Word (w : word32)
 End
@@ -217,7 +167,7 @@ Definition array:
 End
 
 Definition state_set:
-  state_set s = fun2set (s.memory,s.memaddrs)
+  state_set s = fun2set (s.memory, s.memaddrs)
 End
 
 Theorem sep_ldb:
@@ -225,9 +175,7 @@ Theorem sep_ldb:
   ∧ (one (addr, Word w) * p) (fun2set (m,dm))
   ⇒ mem_load_byte m dm be addr = SOME (get_byte addr w be)
 Proof
-  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
-     alignmentTheory.aligned_def,
-     mem_load_byte_def] >>
+  rw[align_thm, mem_load_byte_def] >>
   drule read_fun2set >> rw[]
 QED
 
@@ -237,9 +185,7 @@ Theorem sep_strb:
   ⇒ (one (addr, Word (set_byte addr b w be)) * p)
     (fun2set (THE (mem_store_byte m dm be addr b), dm))
 Proof
-  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
-     alignmentTheory.aligned_def,
-     mem_store_byte_def] >>
+  rw[align_thm, mem_store_byte_def] >>
   drule read_fun2set >> rw[] >>
   metis_tac[write_fun2set, STAR_COMM]
 QED
@@ -261,9 +207,7 @@ Theorem sep_strb':
   ∧ (p * SEP_T) (fun2set (m,dm))
   ⇒ (p * SEP_T) (fun2set (THE (mem_store_byte m dm be addr' b), dm))
 Proof
-  rw[alignmentTheory.byte_aligned_def, alignmentTheory.byte_align_def,
-     alignmentTheory.aligned_def,
-     mem_store_byte_def] >>
+  rw[align_thm, mem_store_byte_def] >>
   irule SEP_T_ID >>
   qexists_tac ‘(fun2set (m,dm DIFF {addr'}))’ >>
   rw[] >>
@@ -348,34 +292,25 @@ Proof
   rw[combinTheory.UPDATE_APPLY]
 QED
 
-Theorem baseaddr_ref[simp]:
-  to_ffi (itree_mrec h_prog ((Dec name BaseAddr p), s))
-  = Tau (to_ffi
-         (itree_mrec h_prog
-                     (p,s with locals
-                        := s.locals |+ (name,ValWord s.base_addr)))) ∧
-  to_ffi (itree_mrec h_prog ((Dec name (Op Add [BaseAddr; Const k]) p), s))
-  = Tau (to_ffi
-         (itree_mrec h_prog
-                     (p,s with locals
-                        := s.locals |+ (name,ValWord (s.base_addr + k)))))
-Proof
-  fs[eval_def, wordLangTheory.word_op_def, dec_lifted]
-QED
+(* Theorem baseaddr_ref[simp]: *)
+(*   to_ffi (itree_mrec h_prog ((Dec name BaseAddr p), s)) *)
+(*   = Tau (to_ffi *)
+(*          (itree_mrec h_prog *)
+(*                      (p,s with locals *)
+(*                         := s.locals |+ (name,ValWord s.base_addr)))) ∧ *)
+(*   to_ffi (itree_mrec h_prog ((Dec name (Op Add [BaseAddr; Const k]) p), s)) *)
+(*   = Tau (to_ffi *)
+(*          (itree_mrec h_prog *)
+(*                      (p,s with locals *)
+(*                         := s.locals |+ (name,ValWord (s.base_addr + k))))) *)
+(* Proof *)
+(*   fs[eval_def, wordLangTheory.word_op_def, dec_lifted] *)
+(* QED *)
 
 (* PURE_ONCE_REWRITE_TAC[ *)
 (*       prove(“(iter (muxtx_body s (w2n h)) 0) = *)
 (*              (iter (muxtx_body s (w2n h)) (w2n (0w : word32)))”, rw[])] >> *)
 (* Globals.max_print_depth := 200; *)
-
-(* Theorem test: *)
-(*   client < w2n h ⇒ *)
-(*   trim_itree tx_ev_pred *)
-(*   (bind (iter (muxtx_body s (w2n h)) client) cleanup) = ARB *)
-(* Proof *)
-(*   simp[Once itree_iter_thm, muxtx_body] >> *)
-(*   simp[Once itree_iter_thm, muxtx_cli_loop] >> *)
-(* QED *)
 
 (* write a tactic?
 goal = (term list, term)
@@ -389,27 +324,35 @@ foo_tac = fn goal => (tactic) goal
  *)
 
 val while_ast = parse_pancake ‘
-fun fn() {
-  var base = @base;
-  #getc(0, 0, @base, 1);
-
+fun fn(1 dec) {
+  var bs = @base;
+  @getc(0, 0, @base, 1);
   var i = 0;
-  while (42 == 42) {
+  while (1) {
     if (i == 0) {
-      #ffi(0, 0, 0, 0);
+      @ffi(0, 0, 0, 0);
       i = 1;
     } else {
-      #test(0, 0, 0, 0);
-      if (ldb base) == 0 {
-        return;
+      @test(0, 0, 0, 0);
+      if (lds 1 bs) == 0 {
+        return 0;
       }
-      strb base, (ldb base) - 1;
+      st bs, (lds 1 bs) - dec;
       i = 0;
     }
   }
 }’;
 
-Definition while_sem_def:
-  while_sem (s:('a,'ffi) panSem$state) =
-  itree_evaluate (SND $ SND $ HD ^while_ast) s
+Definition fun_ast:
+  fun_ast (INL [(_,_,args,src)]) = src
 End
+
+Definition while_sem_def:
+  while_sem (s:('a,'ffi) panItreeSem$bstate) =
+  mrec_sem (h_prog (fun_ast ^while_ast,s))
+End
+
+Theorem test:
+  while_sem s
+Proof
+QED

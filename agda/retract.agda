@@ -48,7 +48,7 @@ transport-is-section A p = id~ (transport-sym-p p)
 
    -- to-Σ does a transport along the first equality which is cancelled
    aη : ((x , a) : Σ A) → (r (s x) , transport A (sym＝ (η x)) a) ＝ (x , a)
-   aη (x , a) = to-Σ＝ (η x , transport-is-retraction A (η x) a)
+   aη (x , a) = Σ＝ (η x , transport-is-retraction A (η x) a)
 
 sections-homotopy-closed : {X : Set ℓ} {Y : Set ℓ₁} (f g : X → Y)
                          → has-retraction f

@@ -26,7 +26,7 @@ to-subtype-＝ : {X : Set ℓ} {A : X → Set ℓ₁}
              → ((x : X) → is-subsingleton (A x))
              → x ＝ y
              → (x , a) ＝ (y , b)
-to-subtype-＝ {ℓ}{ℓ₁} {X}{A} {x}{y}{a}{b} f p = to-Σ＝ (p , f y (transport A p a) b)
+to-subtype-＝ {ℓ}{ℓ₁} {X}{A} {x}{y}{a}{b} f p = Σ＝ (p , f y (transport A p a) b)
 
 Σ-is-subsingleton : {X : Set ℓ} {A : X → Set ℓ₁}
                   → is-subsingleton X
@@ -39,13 +39,13 @@ to-subtype-＝ {ℓ}{ℓ₁} {X}{A} {x}{y}{a}{b} f p = to-Σ＝ (p , f y (transp
                → is-contr Y
                → is-contr (X × Y)
 ×-is-singleton (cx , centrality-x) (cy , centrality-y)
-  = (cx , cy) , λ x → to-×＝ (centrality-x (fst x) , centrality-y (snd x))
+  = (cx , cy) , λ x → ×＝ (centrality-x (fst x) , centrality-y (snd x))
 
 ×-is-subsingleton : {X : Set ℓ} {Y : Set ℓ₁}
                   → is-subsingleton X
                   → is-subsingleton Y
                   → is-subsingleton (X × Y)
-×-is-subsingleton fx fy (x1 , x2) (y1 , y2) = to-×＝ (fx x1 y1 , fy x2 y2)
+×-is-subsingleton fx fy (x1 , x2) (y1 , y2) = ×＝ (fx x1 y1 , fy x2 y2)
 
 {-
   TODO hedberg

@@ -38,13 +38,13 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 -}
 
 ×＝-≃ : {X : Set ℓ} {Y : Set ℓ₁} (z t : X × Y)
-      → (z ＝ t) ≃ ((fst z ＝ fst t) × (snd z ＝ snd t))
-×＝-≃ {X = X} {Y} z@(z1 , z2) t@(t1 , t2) = invertible≃ from-×＝ (to-×＝ , η , ε)
+     → (z ＝ t) ≃ ((fst z ＝ fst t) × (snd z ＝ snd t))
+×＝-≃ {X = X} {Y} z@(z1 , z2) t@(t1 , t2) = invertible≃ from-×＝ (×＝ , η , ε)
  where
-  η : (p : z ＝ t) → to-×＝ (from-×＝ p) ＝ p
+  η : (p : z ＝ t) → ×＝ (from-×＝ p) ＝ p
   η (refl (a , b)) = refl (refl (a , b))
 
-  ε : (q : (fst z ＝ fst t) × (snd z ＝ snd t)) → from-×＝ (to-×＝ q) ＝ q
+  ε : (q : (fst z ＝ fst t) × (snd z ＝ snd t)) → from-×＝ (×＝ q) ＝ q
   ε (refl x , refl y) = refl (refl x , refl y)
 
 ×-cong : {W : Set ℓ} {X : Set ℓ₁} {Y : Set ℓ₂} {Z : Set ℓ₃}
@@ -52,8 +52,8 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
        → (W × X) ≃ (Y × Z)
 ×-cong {W = W}{X}{Y}{Z} (f , ef) (g , eg)
   = quasi≃ (f× f g , f× (Σ.p1 fi) (Σ.p1 gi) ,
-            (λ {(a , b) → to-×＝ (fst (Σ.p2 fi) a , fst (Σ.p2 gi) b)}) ,
-            (λ {(a , b) → to-×＝ (snd (Σ.p2 fi) a , snd (Σ.p2 gi) b)}))
+            (λ {(a , b) → ×＝ (fst (Σ.p2 fi) a , fst (Σ.p2 gi) b)}) ,
+            (λ {(a , b) → ×＝ (snd (Σ.p2 fi) a , snd (Σ.p2 gi) b)}))
   where
     fi = equivalences-are-invertible f ef
     gi = equivalences-are-invertible g eg
@@ -96,13 +96,13 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
 
 Σ＝-≃ : {X : Set ℓ} {A : X → Set ℓ₁} (σ τ : Σ A)
       → (σ ＝ τ) ≃ (Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
-Σ＝-≃ {X = X} {A} σ τ = invertible≃ from-Σ＝ (to-Σ＝ , η , ϵ)
+Σ＝-≃ {X = X} {A} σ τ = invertible≃ from-Σ＝ (Σ＝ , η , ϵ)
   where
-    η : (q : σ ＝ τ) → to-Σ＝ (from-Σ＝ q) ＝ q
+    η : (q : σ ＝ τ) → Σ＝ (from-Σ＝ q) ＝ q
     η (refl σ) = refl _
 
     ϵ : (w : Σ p ∶ pr₁ σ ＝ pr₁ τ , transport A p (pr₂ σ) ＝ pr₂ τ)
-      → from-Σ＝ (to-Σ＝ w) ＝ w
+      → from-Σ＝ (Σ＝ w) ＝ w
     ϵ (refl p , refl q) = refl _
 
 Σ-cong : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂}
@@ -122,7 +122,7 @@ bool-𝟚-equivt = quasi≃ (bool-to-𝟚 , 𝟚-to-bool ,
     ϵ x = inverses-are-sections _ (Σ.p2 (φ x))
 
     η＝ : NatΣ g ∘ NatΣ f ~ id
-    η＝ (x , ax) = to-Σ＝ (refl _ , η x ax)
+    η＝ (x , ax) = Σ＝ (refl _ , η x ax)
 
     ϵ＝ : NatΣ f ∘ NatΣ g ~ id
-    ϵ＝ (x , bx) = to-Σ＝ (refl _ , ϵ x bx)
+    ϵ＝ (x , bx) = Σ＝ (refl _ , ϵ x bx)

@@ -44,6 +44,17 @@ open HolKernel boolLib bossLib BasicProvers; (* recommended by Magnus *)
 open stringLib; (* parsing, text examples etc. *)
 open itreeTauTheory;
 
+(* Theorem test: *)
+(*   (∀x y. V(i(x,i(y,x)))) ∧ *)
+(*   (∀x y z. V(i(i(x,i(y,z)), i(i(x,y),i(x,z))))) ∧ *)
+(*   (∀x y. V(i(i(y,x),i(n(x),n(y))))) ∧ *)
+(*   (∀x y. V(i(x,y)) ∧ V(x) ⇒ V(y)) *)
+(*   ⇒ *)
+(*   V(i(a,i(i(a,b),b))) *)
+(* Proof *)
+(*   metis_tac[] *)
+(* QED *)
+
 (* open monadsyntax; *)
 (* val _ = *)
 (*     monadsyntax.declare_monad ( *)
@@ -68,7 +79,6 @@ Overload "≈" = “itree_wbisim”;
 val or1_tac = disj1_tac
 val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
-val or4_tac = disj2_tac >> disj2_tac >> disj2_tac;
 
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the capital algebra
@@ -89,7 +99,7 @@ Definition echo:
 End
 
 Theorem echo_unfold:
-  echo = Vis Input (λ n. Vis (Output n) (λ x. echo))
+  echo = Vis Input (λ n. Vis (Output n) (λx. echo))
 Proof
   rw[echo,       Once itree_unfold] >>
   rw[FUN_EQ_THM, Once itree_unfold]
