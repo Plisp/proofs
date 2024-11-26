@@ -73,7 +73,7 @@ lemma
     B:=b;
     C:=1;
     WHILE B \<noteq> 0
-    INV { C * A^B = a^b \<and> (B=b \<or> B mod 2 = 0) } DO
+    INV { C * A^B = a^b } DO
       WHILE ((B mod 2) = 0)
       INV { C * A^B = a^b } DO
         A := A*A;
@@ -91,9 +91,8 @@ lemma
   apply(safe)
    apply(subgoal_tac "A * A^(B-Suc 0) = A^B")
     apply(simp add: mult.assoc)
-   apply(metis One_nat_def mod_less_eq_dividend not_one_le_zero power_eq_if)
-  apply(simp)
-  by (metis One_nat_def dvd_imp_mod_0 dvd_minus_mod one_neq_zero)
+  apply(metis One_nat_def mod_less_eq_dividend not_one_le_zero power_eq_if)
+  done
 
 lemma
   "VARS (A::int) (B::nat) (C::int)
