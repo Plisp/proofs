@@ -309,6 +309,7 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
     ...    | inr elim | inl eq = rec⊥ _ (elim (f , refl _ , sym＝ eq))
     ...    | inl (g , (sg＝sf , gx＝t)) | inr eq = sym＝ gx＝t
                                                ∙ ap (λ f → f x) (p g f sg＝sf)
+
 -- size issues?
 -- cantor' : {A : Set} → (f : (A → Set) → A) → injective f → ⊥
 -- cantor' {A} f inj = {!!}
@@ -328,9 +329,45 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
 1→0-subsingleton : is-subsingleton (𝟙 → 𝟘)
 1→0-subsingleton f g = rec⊥ (f ＝ g) (f ⋆)
 
--- no surjection 𝟙→𝟙 ↪ (𝟙→𝟙)→Set, is there one Set ↪ this set?
-small-fns : (f : (𝟙 → 𝟙) → ((𝟙 → 𝟙) → Set)) → surjective f → ⊥
-small-fns f p = cantor f p
+neg-nequiv : {A : Set} → (A ≃ (¬ A)) → ⊥
+neg-nequiv {A} (e , p) = not-a ((inverse e p) not-a)
+  where
+    not-a : A → ⊥
+    not-a a = e a a
+
+-- ext-surjective* : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂}
+--                 → (f : A → ((B → C) → Set))
+--                 → Set (lsuc lzero ⊔ ℓ ⊔ ℓ₁ ⊔ ℓ₂)
+-- ext-surjective* {A = A}{B}{C} f = ∀ (g : (B → C) → Set) -- extensional g
+--                                   → (∀ bc bc' → bc ~ bc' → g bc ≃ g bc')
+--                                   → Σ a ∶ A , ∀ bc → f a bc ≃ g bc
+
+-- surj-ext-surj : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
+--               → surjective f → ext-surjective f
+-- surj-ext-surj f p x = Σ.p1 (p x) , id~ (Σ.p2 (p x))
+
+-- cantor-ext : {A : Set} → (f : (A → A) → ((A → A) → Set))
+--            → ext-surjective* f → ⊥
+-- cantor-ext {A} f p = diagonal-neq-any-n (p neg-diagonal equiv)
+--   where
+--     neg-diagonal : (A → A) → Set
+--     neg-diagonal n = ¬(f n n)
+
+--     equiv : ∀ (bc bc' : A → A) → bc ~ bc' → neg-diagonal bc ≃ neg-diagonal bc'
+--     equiv bc bc' p = invertible≃ {!!} {!!}
+
+--     diagonal-neq-any-n : ¬ (Σ n ∶ (A → A) , ∀ aa → f n aa ≃ neg-diagonal aa)
+--     diagonal-neq-any-n (n , p) = neg-nequiv (p n)
+
+-- 𝟙-endo-cantor : (f : (𝟙 → 𝟙) → ((𝟙 → 𝟙) → Set)) → ext-surjective* f → ⊥
+-- 𝟙-endo-cantor f p = cantor-ext f p
+
+-- 𝟙-endo-small : (f : (𝟙 → 𝟙) → Set) → surjective f → ⊥
+-- 𝟙-endo-small f p = {!!}
+--   where
+--     lemma : Σ r ∶ (Set → ((𝟙 → 𝟙) → Set)) , ext-surjective* r
+--     lemma = (λ z _ → z)
+--           , λ endo-s q → (endo-s id , λ endo → q id endo (λ _ → 𝟙-subsingleton _ _))
 
 {-
   compile-time nonsense
