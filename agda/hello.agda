@@ -200,6 +200,9 @@ lem→proof-by-contradiction {P} lem nnp = ind＋ (λ _ → P) id lemma lem
     lemma : (P → ⊥) → P
     lemma = λ np → ind⊥ (λ _ → P) (nnp np)
 
+excluded-middle→dne : (∀ {Q : Set} → ((Q → ⊥) → ⊥) → Q) → {P : Set} → (P ＋ (P → ⊥))
+excluded-middle→dne p {P} = p nn-lem
+
 {-
   contradiction leads to bottom, since type families are able to
   distinguish indices by computation
