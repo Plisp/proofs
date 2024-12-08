@@ -52,18 +52,29 @@ mutual
 open Itree
 open Wsim
 
-{-# ETA Wsim #-}
-{-# ETA Itree #-}
+postulate
+  tree-eta : ∀ (t : Itree E A R) → t ＝ alg' (alg t)
+  --tree-eta {E = E} {A} {R} t = {!ap (λ (x : Itree E A R) → alg x) (refl _)!}
 
 ret-refl : (t : Itree E A R) {r : R} → (alg t ＝ ret r) → wsim-ind _＝_ t t
-ret-refl t {r} (refl _) = wsim-ret r
+ret-refl {E = E} {A} {R} t {r} p = transport (λ x → (wsim-ind _ x x)) test' eq
+  where
+    test : alg' (alg t) ＝ alg' (ret r)
+    test = ap (λ x → alg' x) p
 
-tau-refl : (t : Itree E A R) {t' : Itree E A R} → (alg t ＝ tau t') → wsim-ind _＝_ t t
-tau-refl t {t'} (refl _) = wsim-ttau (refl _)
+    test' : Ret r ＝ t
+    test' = tree-eta (Ret r) ∙ ap (alg' ∘ alg) (sym＝ test) ∙ sym＝ (tree-eta t)
+
+    eq : wsim-ind {E} {A} _＝_ (Ret r) (Ret r)
+    eq = wsim-ret r
+
+tau-refl : (t : Itree E A R) {t' : Itree E A R}
+         → (alg t ＝ tau t') → wsim-ind _＝_ t t
+tau-refl t {t'} = {!!}
 
 vis-refl : (t : Itree E A R) {e : E A} {g : A → Itree E A R}
          → (alg t ＝ vis e g) → wsim-ind _＝_ t t
-vis-refl t {e}{g} (refl _) = wsim-vis e g g (λ a → refl (g a))
+vis-refl t {e}{g} = {!!}
 
 wsim-refl : {E : Set → Set} {A R : Set}
           → (t : Itree E A R) → Wsim _＝_ t t
