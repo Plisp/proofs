@@ -380,9 +380,9 @@ test-len : 1 + 1 ＝ 2
 test-len = refl 2
 
 equal : ℕ → ℕ → Bool
-equal 0       0       = true
-equal (suc x) 0       = false
-equal 0       (suc y) = false
+equal zero    zero    = true
+equal (suc x) zero    = false
+equal zero    (suc y) = false
 equal (suc x) (suc y) = equal x y
 
 -- bad definition, cannot compute on open term n

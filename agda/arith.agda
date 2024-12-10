@@ -21,14 +21,6 @@ zero    * b = 0
 (suc a) * b = (a * b) + b
 infix 8 _*_
 
-_≤_ _≥_ : ℕ → ℕ → Set
-0 ≤ y     = 𝟙
-suc x ≤ 0 = 𝟘
-suc x ≤ suc y = x ≤ y
-
-x ≥ y = y ≤ x
-infix 4 _≤_ _≥_
-
 suc-x≠0 : (x : ℕ) → suc x ≠ 0 -- peano axiom, note pattern lambda!
 suc-x≠0 _ p = 𝟙≠𝟘 (ap (λ { 0 → 𝟘 ; (suc _) → 𝟙 }) p)
 
@@ -40,16 +32,16 @@ pred' n = snd (pred'' n) where
           pred'' (suc n) = (suc (fst (pred'' n)) , fst (pred'' n))
 
 pred : ℕ → ℕ
-pred 0       = 0
+pred zero    = 0
 pred (suc n) = n
 
 suc-cancel : {x y : ℕ} → suc x ＝ suc y → x ＝ y
 suc-cancel = ap pred
 
 ℕ-decidable-equality : ℕ has-decidable-equality
-ℕ-decidable-equality 0       0       = (inl (refl 0))
-ℕ-decidable-equality 0       (suc b) = inr (≠-sym (suc-x≠0 b))
-ℕ-decidable-equality (suc a) 0       = inr (suc-x≠0 a)
+ℕ-decidable-equality zero    zero    = (inl (refl zero))
+ℕ-decidable-equality zero    (suc b) = inr (≠-sym (suc-x≠0 b))
+ℕ-decidable-equality (suc a) zero    = inr (suc-x≠0 a)
 ℕ-decidable-equality (suc a) (suc b) = f (ℕ-decidable-equality a b)
   where
     f = ind＋ (λ _ → decidable (suc a ＝ suc b))
@@ -57,35 +49,55 @@ suc-cancel = ap pred
         (λ (f : a ≠ b) → inr (f ∘ suc-cancel))
 
 {-
-  inequality TODO prove this is equivalent to other one
+  inequality
 -}
 
-_≼_ : ℕ → ℕ → Set
-x ≼ y = Σ z ∶ ℕ , (x + z) ＝ y
+_≤'_ : ℕ → ℕ → Set
+n ≤' zero    = n ＝ 0
+n ≤' (suc m) = (n ＝ suc m) ＋ n ≤' m
 
-infix 4 _≼_
+refl-≤' : (n : ℕ) → (n ≤' n)
+refl-≤' zero = refl 0
+refl-≤' (suc n) = inl (refl (suc n))
 
--- partial order of ≤
--- 0     ≤ y     = 𝟙
--- suc x ≤ 0     = 𝟘
--- suc x ≤ suc y = x ≤ y
+trans-≤' : (l m n : ℕ) → (l ≤' m) → (m ≤' n) → (l ≤' n)
+trans-≤' n m    zero p (refl .0) = p
+trans-≤' n zero (suc l) (refl .0) q = q
+trans-≤' n (suc m) (suc l) (inl p) (inl q) = inl (p ∙ q)
+trans-≤' n (suc m) (suc l) (inl p) (inr q) = inr (subst (λ x → x ≤' l) (sym＝ p) q)
+trans-≤' n (suc m) (suc l) (inr p) (inl q) = inr (subst (λ x → n ≤' x)
+                                                   (suc-cancel q) p)
+trans-≤' n (suc m) (suc l) (inr p) (inr q) = inr (trans-≤' _ _ _ (inr p) q)
+
+anti-≤' : (m n : ℕ) → (m ≤' n) → (n ≤' m) → (m ＝ n)
+anti-≤' zero n p q = sym＝ q
+anti-≤' (suc m) n p (inl q) = sym＝ q
+anti-≤' (suc m) (suc n) (inl p) (inr q) = p
+anti-≤' (suc m) (suc n) (inr p) (inr q) = ap suc (anti-≤' m n (l p) (l q))
+  where
+    l : {m n : ℕ} → suc n ≤' m → n ≤' m
+    l {m} {n} p = trans-≤' n (suc n) m (inr (refl-≤' n)) p
+
+-- cleaner def
+data _≤_ : ℕ → ℕ → Set where
+  z≤n : ∀ {n : ℕ} → zero ≤ n
+  s≤s : ∀ {m n : ℕ} → m ≤ n → suc m ≤ suc n
 
 refl-≤ : (n : ℕ) → (n ≤ n)
-refl-≤ 0       = ⋆
-refl-≤ (suc n) = refl-≤ n
+refl-≤ zero    = z≤n
+refl-≤ (suc n) = s≤s (refl-≤ n)
 
 trans-≤ : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
-trans-≤ 0 l n _ _ = ⋆
-trans-≤ (suc l) 0       0       p q = p
-trans-≤ (suc l) 0       (suc n) p q = rec⊥ (suc l ≤ suc n) p
-trans-≤ (suc l) (suc m) 0       p q = q
-trans-≤ (suc l) (suc m) (suc n) p q = trans-≤ l m n p q
+trans-≤ zero _ _ _ _ = z≤n
+trans-≤ (suc l) (suc m) (suc n) (s≤s p) (s≤s q) = s≤s (trans-≤ l m n p q)
 
 anti-≤ : (m n : ℕ) → (m ≤ n) → (n ≤ m) → (m ＝ n)
-anti-≤ 0       0       p q = refl 0
-anti-≤ 0       (suc n) p q = rec⊥ (0 ＝ suc n) q
-anti-≤ (suc m) 0       p q = rec⊥ (suc m ＝ 0) p
-anti-≤ (suc m) (suc n) p q = ap suc (anti-≤ m n p q)
+anti-≤ zero zero _ _ = refl zero
+anti-≤ (suc m) (suc n) (s≤s p) (s≤s q) = ap suc (anti-≤ m n p q)
+
+_≥_ : ℕ → ℕ → Set
+x ≥ y = y ≤ x
+infix 4 _≤_ _≥_
 
 -- strict inequality
 _<_ _>_ : ℕ → ℕ → Set
@@ -98,12 +110,12 @@ infix 4 _<_ _>_
 -}
 
 assoc-+ : (assoc _+_)
-assoc-+ 0       y z = refl (y + z)
+assoc-+ zero    y z = refl (y + z)
 assoc-+ (suc x) y z = ap suc (assoc-+ x y z)
 
 -- commutativity of addition
 idr-+ : (n : ℕ) → (n + 0) ＝ n
-idr-+ 0 = refl 0
+idr-+ zero = refl 0
 idr-+ (suc n) =
   begin                   suc n  + 0
     =⟨⟩                   suc (n + 0)
@@ -111,7 +123,7 @@ idr-+ (suc n) =
   ∎
 
 commutes-sucr-+ : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
-commutes-sucr-+ 0 n =
+commutes-sucr-+ zero n =
   begin suc (0 + n)
     =⟨⟩ suc n
     =⟨⟩ 0 + suc n
@@ -124,7 +136,7 @@ commutes-sucr-+ (suc m) n =
   ∎
 
 commutes-+ : commut _+_
-commutes-+ 0 n =
+commutes-+ zero n =
   begin                 0 + n
     =⟨⟩                 n
     =⟨ sym＝ (idr-+ n) ⟩ n + 0
@@ -141,7 +153,7 @@ right-ac-+ = right-ac _+_ assoc-+ commutes-+
 
 -- cancellation
 cancel-+ : (x y z : ℕ) → (x + y ＝ x + z) → (y ＝ z)
-cancel-+ 0       y z p = p
+cancel-+ zero    y z p = p
 cancel-+ (suc x) y z p = (cancel-+ x y z (ap pred p))
 
 n+1＝suc : (n : ℕ) → n + 1 ＝ suc n
@@ -209,7 +221,7 @@ commutes-* (suc a) b =
   ∎
 
 assoc-* : assoc _*_
-assoc-* 0       y z = refl _
+assoc-* zero    y z = refl _
 assoc-* (suc x) y z =
   begin                                         (suc x * y) * z
     =⟨⟩                                         ((x * y) + y) * z
