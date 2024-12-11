@@ -1,4 +1,4 @@
-{-# OPTIONS --without-K --exact-split #-}
+{-# OPTIONS --without-K --exact-split --rewriting #-}
 
 {-
   random proofs
@@ -26,14 +26,24 @@ open import univalence
 postulate
   LEM : (X : Set ℓ) → X ＋ ¬ X
   FUNEXT : {X : Set ℓ} {Y : Set ℓ₁} {f g : X → Y} → f ~ g → f ＝ g
-  AXIOM-K :  {X : Set ℓ} {x : X} → (p : x ＝ x) → p ＝ refl x
+  -- refl is the only element
+  AX-K : {X : Set ℓ} {x : X} (C : (x ＝ x) → Set ℓ₁)
+       → C (refl x) → (p : x ＝ x) → C p
+  AX-Kc : {X : Set ℓ} {x : X} (C : (x ＝ x) → Set ℓ₁)
+        → (p : C (refl x))
+        → AX-K C p (refl x) ＝ p
+--{-# REWRITE K-comp #-}
 
-{-
-  I love recursion principles
--}
+UIP : {A : Set ℓ} (x : A)
+    → (p q : x ＝ x) → p ＝ q
+UIP x = AX-K (λ p → ∀ q → p ＝ q) (AX-K (λ r → refl x ＝ r) (refl (refl x)))
 
-plus : ℕ → ℕ → ℕ  -- 0-plus and vv a-plus → a+1 plus
-plus = recℕ (λ b → b) (λ a plus-a → λ b → suc (plus-a b))
+-- this is equivalent, subst refl for p
+AX-K-rec : {X : Set ℓ} (x : X) (p : x ＝ x) → p ＝ refl x
+AX-K-rec x p = UIP x p (refl x)
+
+AX-K-rec-eq : {X : Set ℓ} (x : X) → AX-K-rec x (refl x) ＝ refl (refl x)
+AX-K-rec-eq x = AX-K-rec (refl x) (AX-K-rec x (refl x))
 
 -- unpack and repack alg until lift bottoms out (ignores its argument)
 -- (inl ⋆ : (1+ℕ)) --⋆--> (inl ⋆)
@@ -56,6 +66,30 @@ ackermann = recℕ mzero msucc
     -- from ackermann m _, produce ackermann (suc m) _
     msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
     msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
+
+ind≤ : (A : {n m : ℕ} → (p : n ≤ m) → Set)
+     → (∀ {n : ℕ} → (p : zero ≤ n) → A p)
+     → (∀ {m n : ℕ} → (p : m ≤ n) → A p → A (s≤s p))
+     → (m n : ℕ) → (p : m ≤ n) → A p
+ind≤ A zn ss n m z≤n = zn z≤n
+ind≤ A zn ss n m (s≤s p) = ss p (ind≤ A zn ss (pred n) (pred m) p)
+
+trans'-≤ : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
+trans'-≤ l m n lm mn = ind-lm n mn
+  where
+    ≤-dest : ∀ {m n} → suc m ≤ suc n → m ≤ n -- uniqueness is inversion
+    ≤-dest {m} {n} (s≤s p) = p
+
+    ind-mn : {l m : ℕ} → (l ≤ m)
+           → (∀ n → (m ≤ n) → (l ≤ n))
+           → (n : ℕ) → (suc m ≤ n) → (suc l ≤ n)
+    -- definitional match  vvv
+    ind-mn {l} {m} _ mnln (suc n) sm≤n = s≤s (mnln n (≤-dest sm≤n))
+
+    ind-lm : (n : ℕ) → (m ≤ n) → (l ≤ n)
+    ind-lm = ind≤ (λ {l' m' : ℕ} → λ (lm : l' ≤ m') -- need forall n
+                                 → ∀ (n : ℕ) → (m' ≤ n) → (l' ≤ n))
+                  (λ _ → λ _ _ → z≤n) ind-mn l m lm
 
 reindex : {J I : Set} {A : I → Set} (α : J → I)
         → Σ j ∶ J , A (α j) → Σ i ∶ I , A i
@@ -84,8 +118,8 @@ data Badalg : Set where
 badalg-rec : {A : Set} → ((𝟙 → A) → A) → Badalg → A
 badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
 
-badalg-contra : ¬ Badalg
-badalg-contra (co f) = badalg-rec (λ f → f ⋆) (co f)
+badalg-absurd : ¬ Badalg
+badalg-absurd (co f) = badalg-rec (λ f → f ⋆) (co f)
 
 {-
   isabelle is weird, review if this needs univalence
@@ -182,7 +216,7 @@ wrec (false ◂ _) z _ = z
 wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
 
 {-
-  double negation translation
+  propositional
 -}
 
 nn-lem : {P : Set} → ((P ＋ (P → ⊥)) → ⊥) → ⊥
@@ -192,16 +226,20 @@ proof-by-negation : {P : Set} → P → ((P → ⊥) → ⊥)
 proof-by-negation p f = f p
 
 triple-elim : {P : Set} → (((P → ⊥) → ⊥) → ⊥) → (P → ⊥)
-triple-elim f p = f (proof-by-negation p)
+triple-elim = contravariance proof-by-negation
 
-lem→proof-by-contradiction : {P : Set} → (P ＋ (P → ⊥)) → ((P → ⊥) → ⊥) → P
-lem→proof-by-contradiction {P} lem nnp = ind＋ (λ _ → P) id lemma lem
+lem→dne : {P : Set} → (P ＋ (P → ⊥)) → ((P → ⊥) → ⊥) → P
+lem→dne {P} lem nnp = ind＋ (λ _ → P) id lemma lem
   where
     lemma : (P → ⊥) → P
     lemma = λ np → ind⊥ (λ _ → P) (nnp np)
 
-excluded-middle→dne : (∀ {Q : Set} → ((Q → ⊥) → ⊥) → Q) → {P : Set} → (P ＋ (P → ⊥))
-excluded-middle→dne p {P} = p nn-lem
+dne→lem : (∀ {Q : Set} → ((Q → ⊥) → ⊥) → Q) → {P : Set} → (P ＋ (P → ⊥))
+dne→lem p {P} = p nn-lem
+
+-- other direction is easy
+pierce→dne : (P : Set) → (∀ (Q : Set) → ((P → Q) → P) → P) → (¬ (¬ P) → P)
+pierce→dne P p nnp = p ⊥ (λ np → rec⊥ P (nnp np))
 
 {-
   contradiction leads to bottom, since type families are able to
@@ -370,7 +408,8 @@ neg-nequiv {A} (e , p) = not-a ((inverse e p) not-a)
 --   where
 --     lemma : Σ r ∶ (Set → ((𝟙 → 𝟙) → Set)) , ext-surjective* r
 --     lemma = (λ z _ → z)
---           , λ endo-s q → (endo-s id , λ endo → q id endo (λ _ → 𝟙-subsingleton _ _))
+--           , λ endo-s q → (endo-s id , λ endo →
+--                                           q id endo (λ _ → 𝟙-subsingleton _ _))
 
 {-
   compile-time nonsense
@@ -504,3 +543,56 @@ yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
              → (η : Nat (Y x) A)
              → yoneda-nat A (yoneda-elem A η) ≈ η
 yoneda-lemma {A = A} η x (refl .x) = refl (yoneda-elem A η)
+
+{-
+  effective quotients
+-}
+
+record Quot (A : Set ℓ) (R : A → A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
+  constructor quo
+  field
+   c1 : ∀ x → R x x
+   c2 : ∀ x y → R x y → R y x
+   c3 : ∀ x y z → R x y → R y z → R x z
+
+qtest1 : Quot ℕ _＝_
+qtest1 = quo refl (λ x y → sym＝) (λ x y z → trans＝)
+
+-- intro
+record _/_ (A : Set ℓ) (R : A → A → Set ℓ₁) : Set (ℓ ⊔ ℓ₁) where
+  constructor ⟦_⟧[_]
+  field
+    e : A
+    quot : Quot A R
+
+qtest2 : ℕ / _＝_
+qtest2 = ⟦ 0 ⟧[ qtest1 ]
+
+postulate
+  qax : {A : Set ℓ} {R : A → A → Set ℓ₁}
+      → (Q : Quot A R)
+      → (a b : A) → R a b
+      → ⟦ a ⟧[ Q ] ＝ ⟦ b ⟧[ Q ]
+
+  qdest : {A : Set ℓ} {R : A → A → Set ℓ₁}
+        → (Q : Quot A R)
+        → (L : A / R → Set ℓ₂)
+        -- every map A → L respecting the quotient
+        → (l : (a : A) → L ⟦ a ⟧[ Q ])
+        → (∀ x y → (r : R x y) → subst L (qax Q x y r) (l x) ＝ l y)
+        -- induces a map A/R → L
+        → (q : A / R) → L q
+
+  qcomm : {A : Set ℓ} {R : A → A → Set ℓ₁}
+        → (Q : Quot A R)
+        → (L : A / R → Set ℓ₂)
+        → (l : (a : A) → L ⟦ a ⟧[ Q ])
+        → (p : ∀ x y → (r : R x y) → subst L (qax Q x y r) (l x) ＝ l y)
+        -- and this map agrees with l a
+        → (a : A) → qdest Q L l p ⟦ a ⟧[ Q ] ＝ l a
+
+  qeff : {A : Set ℓ} {R : A → A → Set ℓ₁}
+       → (Q : Quot A R)
+       → (x y : A)
+       → ⟦ x ⟧[ Q ] ＝ ⟦ y ⟧[ Q ]
+       → R x y

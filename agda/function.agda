@@ -6,6 +6,9 @@ open import bool
 open import path
 open import homotopy
 
+contravariance : {P Q R : Set} → (Q → P) → (P → R) → (Q → R)
+contravariance f g = g ∘ f
+
 -- space: witnesses x' × f x' = y
 fiber : {X :  Set ℓ} {Y : Set ℓ₁} (f : X → Y) → Y → Set (ℓ ⊔ ℓ₁)
 fiber {X = X}{Y} f y = Σ x ∶ X , f x ＝ y
