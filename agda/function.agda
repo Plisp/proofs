@@ -151,7 +151,13 @@ inj-wmono : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → injective f → wmono f
 inj-wmono {A = A}{B} f p g h fg~fh x = p (g x) (h x) (fg~fh x)
 
--- almost certainly the converse doesn't hold, epi is too little info for a fiber
+section-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
+            → has-retraction f → injective f
+section-inj f (r , p) a1 a2 fa1＝fa2 = sym＝ (p a1) ∙ ap r fa1＝fa2 ∙ p a2
+
+inj-no-section : Σ f ∶ (𝟘 → 𝟙) , injective f × ¬ has-retraction f
+inj-no-section = (λ _ → ⋆) , (λ x ()) , λ z → pr₁ z ⋆
+
 surj-wepi : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
           → surjective f → wepi f
 surj-wepi {A = A}{B} f p g h gf~hf x
@@ -160,6 +166,10 @@ surj-wepi {A = A}{B} f p g h gf~hf x
     lemma : Σ a ∶ A , f a ＝ x
     lemma = p x
 
+-- true if you consider all sets, take non-contr codomain for g,h and differ on F
+-- wepi-no-surj : Σ f ∶ (𝟙 → Bool) , wepi f × ¬ surjective f
+-- wepi-no-surj = (λ z → true) , (λ g h p b → {!!}) , {!!}
+
 surj-retraction : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
                 → surjective f → has-section f
 surj-retraction f fib = (λ b → fiber-base (fib b)) , λ a → fiber-id (fib a)
@@ -167,13 +177,6 @@ surj-retraction f fib = (λ b → fiber-base (fib b)) , λ a → fiber-id (fib a
 retraction-surj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
                 → has-section f → surjective f
 retraction-surj f (s , p) b = s b , p b
-
-inj-no-section : Σ f ∶ (𝟘 → 𝟙) , injective f × ¬ has-retraction f
-inj-no-section = (λ _ → ⋆) , (λ x ()) , λ z → pr₁ z ⋆
-
-section-inj : {A : Set ℓ} {B : Set ℓ₁} (f : A → B)
-            → has-retraction f → injective f
-section-inj f (r , p) a1 a2 fa1＝fa2 = sym＝ (p a1) ∙ ap r fa1＝fa2 ∙ p a2
 
 -- invertible is very strong
 

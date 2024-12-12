@@ -571,28 +571,35 @@ qtest2 = ⟦ 0 ⟧[ qtest1 ]
 postulate
   qax : {A : Set ℓ} {R : A → A → Set ℓ₁}
       → (Q : Quot A R)
-      → (a b : A) → R a b
+      → {a b : A} → R a b
       → ⟦ a ⟧[ Q ] ＝ ⟦ b ⟧[ Q ]
 
-  qdest : {A : Set ℓ} {R : A → A → Set ℓ₁}
-        → (Q : Quot A R)
+  qdest : {A : Set ℓ} {R : A → A → Set ℓ₁} {Q : Quot A R}
         → (L : A / R → Set ℓ₂)
         -- every map A → L respecting the quotient
         → (l : (a : A) → L ⟦ a ⟧[ Q ])
-        → (∀ x y → (r : R x y) → subst L (qax Q x y r) (l x) ＝ l y)
+        → (p : ∀ x y → (r : R x y) → subst L (qax Q r) (l x) ＝ l y)
         -- induces a map A/R → L
         → (q : A / R) → L q
 
-  qcomm : {A : Set ℓ} {R : A → A → Set ℓ₁}
-        → (Q : Quot A R)
+  qcomm : {A : Set ℓ} {R : A → A → Set ℓ₁} {Q : Quot A R}
         → (L : A / R → Set ℓ₂)
         → (l : (a : A) → L ⟦ a ⟧[ Q ])
-        → (p : ∀ x y → (r : R x y) → subst L (qax Q x y r) (l x) ＝ l y)
+        → (p : ∀ x y → (r : R x y) → subst L (qax Q r) (l x) ＝ l y)
         -- and this map agrees with l a
-        → (a : A) → qdest Q L l p ⟦ a ⟧[ Q ] ＝ l a
+        → (a : A) → qdest L l p ⟦ a ⟧[ Q ] ＝ l a
 
   qeff : {A : Set ℓ} {R : A → A → Set ℓ₁}
        → (Q : Quot A R)
        → (x y : A)
        → ⟦ x ⟧[ Q ] ＝ ⟦ y ⟧[ Q ]
        → R x y
+
+-- quniq : {A : Set ℓ} {R : A → A → Set ℓ₁} {Q : Quot A R}
+--       → (L : A / R → Set ℓ₂)
+--       → (l : (a : A) → L ⟦ a ⟧[ Q ])
+--       → (p : ∀ x y → (r : R x y) → subst L (qax Q r) (l x) ＝ l y)
+--       → (z : (q : A / R) → L q)
+--       → (∀ a → z ⟦ a ⟧[ Q ] ＝ l a)
+--       → (q : A / R) → z q ＝ qdest L l p q
+-- quniq {Q = Q} L l p z zp q = {!!}

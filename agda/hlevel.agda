@@ -10,6 +10,18 @@ open import types
 open import path
 
 {-
+  path space
+-}
+
+paths : (X : Set ℓ) → Set ℓ
+paths X = Σ x ∶ X , Σ x' ∶ X , x ＝ x'
+
+lift-paths : {X : Set ℓ} {Y : X → Set ℓ₁}
+           → (f : (x : X) → Y x)
+           → paths X → paths (Σ Y)
+lift-paths f = λ { (x , y , p) → (x , f x) , (y , f y) , Σ＝ (p , apd f p) }
+
+{-
   -2-type (contractible)
 -}
 
