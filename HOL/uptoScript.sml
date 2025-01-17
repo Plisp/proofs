@@ -16,8 +16,8 @@ QED
 
 (* TODO posetTheory? for irule-ing *)
 Theorem po_gfp_coinduct:
-  po_gfp (s,r) b gfix ∧ s x ∧ r x (b x)
-  ⇒ r x gfix
+  po_gfp (s,r) b gfix /\ s x /\ r x (b x)
+  ==> r x gfix
 Proof
   rw[gfp_def]
 QED
@@ -25,19 +25,19 @@ QED
 (* general *)
 
 Theorem function_in:
-  function s s t ∧ s x ⇒ s (t x)
+  function s s t /\ s x ==> s (t x)
 Proof
   rw[function_def]
 QED
 
 Theorem gfp_in:
-  po_gfp (s,r) b gfix ⇒ s gfix
+  po_gfp (s,r) b gfix ==> s gfix
 Proof
   rw[gfp_def]
 QED
 
 Definition compatible_def:
-  compatible (s,r) b f = (monotonic (s,r) b /\ monotonic (s,r) f /\
+  compatible (s,r) b f = (function s s f /\ monotonic (s,r) f /\
                           !x. s x ==> r (f(b x)) (b(f x)))
 End
 
@@ -52,7 +52,7 @@ Theorem compatible_id:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b
   ==> compatible (s,r) b I
 Proof
-  rw[compatible_def, monotonic_def, poset_def]
+  rw[compatible_def, monotonic_def, poset_def, function_def]
 QED
 
 Theorem compatible_const_gfp:
@@ -60,29 +60,29 @@ Theorem compatible_const_gfp:
   po_gfp (s,r) b fp
   ==> compatible (s,r) b (K fp)
 Proof
-  rw[compatible_def, monotone_def, gfp_def, poset_def, monotonic_def]
+  rw[compatible_def, monotone_def, gfp_def, poset_def, monotonic_def, function_def]
 QED
 
 (* λX. BIGUNION {f X | f | compatible b f} *)
 Definition companion_def:
-  companion (s,r) b t
-  = !x. lub (s,r) {f x | f | compatible (s,r) b f /\ function s s f} (t x)
+  companion (s,r) b t = (function s s t /\
+     !x. lub (s,r) { f x | f | compatible (s,r) b f } (t x))
 End
 
 Theorem compatible_below_companion:
-  poset (s,r) /\ s x /\ function s s f /\
-  compatible (s,r) b f /\ companion (s,r) b t
-  ==> r (f x) (t x)
+  poset (s,r) /\
+  compatible (s,r) b f /\ companion (s,r) b t /\
+  s x ==> r (f x) (t x)
 Proof
   rw[companion_def] >>
+  ‘function s s f’ by fs[compatible_def] >>
   gvs[lub_def, PULL_EXISTS, function_def]
 QED
 
 (* f x <= f y <= t y is upper bound *)
 Theorem companion_mono:
-  poset (s,r) /\ function s s b /\ function s s t /\
-  monotonic (s,r) b /\ companion (s,r) b t
-  ==> monotonic (s,r) t
+  poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
+  companion (s,r) b t ==> monotonic (s,r) t
 Proof
   rw[companion_def, lub_def, PULL_EXISTS] >>
   drule_all_then strip_assume_tac compatible_self >>
@@ -92,16 +92,17 @@ Proof
   (* establish fx < ty *)
   last_x_assum $ qspec_then ‘y’ strip_assume_tac >> pop_assum kall_tac >>
   pop_assum $ qspec_then ‘f’ strip_assume_tac >>
-  fs[poset_def, function_def] >>
+  fs[compatible_def, poset_def, function_def] >>
   metis_tac[compatible_def, monotonic_def]
 QED
 
 Theorem compatible_companion:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
-  function s s t /\ companion (s,r) b t
-  ==> compatible (s,r) b t
+  companion (s,r) b t ==> compatible (s,r) b t
 Proof
-  rw[compatible_def] >- (metis_tac[companion_mono]) >>
+  rw[compatible_def]
+  >- (fs[companion_def])
+  >- (metis_tac[companion_mono]) >>
   gvs[companion_def, lub_def, PULL_EXISTS] >>
   first_assum $ qspec_then ‘b x’ strip_assume_tac >>
   pop_assum irule >>
@@ -115,7 +116,6 @@ QED
 
 Theorem compatible_compose:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
-  function s s f /\ function s s g /\
   compatible (s,r) b f /\ compatible (s,r) b g
   ==> compatible (s,r) b (f o g)
 Proof
@@ -125,8 +125,8 @@ QED
 
 Theorem companion_gt:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
-  function s s t /\ companion (s,r) b t /\ s x
-  ==> r x (t x)
+  companion (s,r) b t /\
+  s x ==> r x (t x)
 Proof
   rpt strip_tac >>
   ho_match_mp_tac compatible_below_companion >>
@@ -136,16 +136,18 @@ QED
 
 Theorem companion_idem:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
-  function s s t /\ companion (s,r) b t /\ s x
-  ==> t (t x) = t x
+  companion (s,r) b t /\
+  s x ==> t (t x) = t x
 Proof
-  rpt strip_tac >>
+  rw[] >>
+  ‘function s s t’ by fs[companion_def] >>
   drule_then irule poset_antisym >>
   rw[function_in] >-
    (ho_match_mp_tac compatible_below_companion >>
-    fs[function_def] >>
-    metis_tac[compatible_compose, compatible_companion, function_def]) >-
-   (metis_tac[companion_gt, function_def])
+    rw[function_def, GSYM combinTheory.o_DEF] >>
+    irule compatible_compose >>
+    rw[compatible_companion]) >-
+   (metis_tac[companion_gt, function_def, companion_def])
 QED
 
 Theorem monotonic_comp:
@@ -156,18 +158,18 @@ Proof
 QED
 
 Theorem companion_bot_gfp:
-  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
-  bottom (s,r) bot ∧
-  po_gfp (s,r) b gfix ∧
-  function s s t ∧ companion (s,r) b t
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  bottom (s,r) bot /\ po_gfp (s,r) b gfix /\
+  companion (s,r) b t
   ==> t bot = gfix
 Proof
   rw[] >>
   drule_then irule poset_antisym >> rw[]
-  >- (fs[function_in, bottom_def])
+  >- (fs[companion_def, function_in, bottom_def])
   >- (fs[gfp_def])
   (* t⊥ <= tb⊥ <= bt⊥ *)
   >- (match_mp_tac po_gfp_coinduct >>
+      ‘function s s t’ by fs[companion_def] >>
       fs[function_in, bottom_def] >>
       drule_then match_mp_tac poset_trans >>
       qexists_tac ‘t (b bot)’ >>
@@ -185,13 +187,13 @@ QED
 
 (* any post fixpoint is below the greatest fixpoint *)
 Theorem companion_coinduct:
-  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
-  companion (s,r) b t ∧ function s s t ∧
-  po_gfp (s,r) b gfix ∧
-  s x ∧ r x ((b o t) x)
-  ==> r x gfix
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  companion (s,r) b t /\
+  po_gfp (s,r) b gfix /\
+  s x /\ r x ((b o t) x) ==> r x gfix
 Proof
   rw[] >>
+  ‘function s s t’ by fs[companion_def] >>
   drule_then match_mp_tac poset_trans >>
   qexists_tac ‘t x’ >> rw[function_in]
   >- (fs[gfp_def])
@@ -207,14 +209,13 @@ Proof
 QED
 
 Theorem enhanced_gfp:
-  poset (s,r) ∧ monotonic (s,r) b ∧ function s s b ∧
-  po_gfp (s,r) b gfix ∧
-
-  function s s t ∧ companion (s,r) b t ∧
-  po_gfp (s,r) (b ∘ t) efix
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  po_gfp (s,r) b gfix /\
+  companion (s,r) b t /\ po_gfp (s,r) (b o t) efix
   ==> efix = gfix
 Proof
   rw[] >>
+  ‘function s s t’ by fs[companion_def] >>
   drule_then irule poset_antisym >> rw[]
   >- (fs[gfp_def])
   >- (fs[gfp_def])
@@ -222,61 +223,65 @@ Proof
       qexistsl_tac [‘t’,‘b’] >>
       fs[gfp_def, poset_def]) >>
   irule po_gfp_coinduct >>
-  qexistsl_tac [‘(b ∘ t)’, ‘s’] >>
+  qexistsl_tac [‘(b o t)’, ‘s’] >>
   fs[gfp_def] >>
   metis_tac[monotonic_def, function_def, companion_gt]
 QED
 
-(* TODO parameterized *)
-Definition semicompatible_def:
-  semicompatible b f = !x. f x SUBSET companion b x
-End
-
+(* parameterized *)
 Theorem param_coind_init:
-  monotone b
-  ==> {(xs,ys)} SUBSET companion b {}
-  ==> (xs,ys) IN gfp b
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  bottom (s,r) bot /\ po_gfp (s,r) b gfix /\
+  companion (s,r) b t
+  ==> r x (t bot) ==> r x gfix
 Proof
-  rw[companion_bot_gfp]
+  metis_tac[companion_bot_gfp]
 QED
 
 Theorem param_coind_done:
-  monotone b
-  ==> y SUBSET x ==> y SUBSET companion b x
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  companion (s,r) b t
+  ==> s x /\ s y /\ r y x ==> r y (t x)
 Proof
-  metis_tac[companion_gt, SUBSET_TRANS]
+  rw[] >>
+  ‘function s s t’ by fs[companion_def] >>
+  drule_then match_mp_tac poset_trans >>
+  qexists_tac ‘x’ >> rw[function_in] >>
+  metis_tac[companion_gt]
 QED
 
 Theorem param_coind_upto_f:
-  monotone b
-  ==> y SUBSET f (companion b x) /\ semicompatible b f
-  ==> y SUBSET companion b x
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  companion (s,r) b t
+  ==> function s s f /\ (!x. r (f x) (t x))
+  ==> s x ∧ s y /\ r y (f (t x))
+  ==> r y (t x)
 Proof
-  rw[semicompatible_def] >>
-  (* matches drule precondition against assumptions *)
-  drule_then match_mp_tac SUBSET_TRANS >>
-  match_mp_tac SUBSET_TRANS >>
-  first_assum $ irule_at (Pos hd) >>
-  simp[companion_idem]
+  rw[] >>
+  drule_then match_mp_tac poset_trans >>
+  first_assum $ irule_at Any >>
+  ‘function s s t’ by fs[companion_def] >>
+  simp[function_in] >>
+  metis_tac[companion_idem]
 QED
 
 (* second order stuff *)
 Definition endo_def:
-  endo s f = ∀x. if s x then s (f x) else f x = ARB
+  endo s f = !x. if s x then s (f x) else f x = ARB
 End
 
 Theorem endo_restrict:
-  endo s f ⇒ function s s f
+  endo s f ==> function s s f
 Proof
   metis_tac[endo_def, function_def]
 QED
 
 Definition endo_lift_def:
-  endo_lift (s,r) = (endo s , (λf g. ∀x. s x ⇒ r (f x) (g x)))
+  endo_lift (s,r) = (endo s , (λf g. !x. s x ==> r (f x) (g x)))
 End
 
 Theorem poset_lift:
-  poset (s,r) ⇒ poset (endo_lift (s,r))
+  poset (s,r) ==> poset (endo_lift (s,r))
 Proof
   rw[poset_def, endo_lift_def, endo_def]
   >- (qexists_tac ‘λx. if s x then x else ARB’ >> rw[])
@@ -285,6 +290,8 @@ Proof
       Cases_on ‘s x'’ >> metis_tac[])
   >- metis_tac[]
 QED
+
+(* TODO *)
 
 Definition connection_join:
   connection_join b g = λx. BIGUNION { f x | !y. f (b y) SUBSET b (g y) }
@@ -505,6 +512,10 @@ QED
 
 Definition cons_rel_def:
   cons_rel R = {x:::xs,y:::ys | x = y /\ (xs,ys) IN R}
+End
+
+Definition semicompatible_def:
+  semicompatible b f = !x. f x SUBSET companion b x
 End
 
 Theorem semicompatible_cons:
