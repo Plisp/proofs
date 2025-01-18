@@ -125,41 +125,41 @@ badalg-absurd (co f) = badalg-rec (λ f → f ⋆) (co f)
   isabelle is weird, review if this needs univalence
 -}
 
--- isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
---               → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
--- isabelle-cong {P = P}{P'}{Q}{Q'} univalence p＝ q＝
---   = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
---   where
---     qmap : (P' → Q) → (P' → Q')
---     qmap pq p' = subst id (q＝ p') (pq p')
---     qmap⁻¹ : (P' → Q') → (P' → Q)
---     qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
+isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
+              → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
+isabelle-cong {P = P}{P'}{Q}{Q'} univalence p＝ q＝
+  = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
+  where
+    qmap : (P' → Q) → (P' → Q')
+    qmap pq p' = subst id (q＝ p') (pq p')
+    qmap⁻¹ : (P' → Q') → (P' → Q)
+    qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
 
---     l : (f : P' → Q') (p : P')
---       → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
---     l f p = let qq = (q＝ p) in
---               (transport∙ (sym＝ qq) _ _)
---             ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
+    l : (f : P' → Q') (p : P')
+      → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
+    l f p = let qq = (q＝ p) in
+              (transport∙ (sym＝ qq) _ _)
+            ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
 
---     g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
---     g f p = let qq = (q＝ p) in
---               (transport∙ qq (sym＝ qq) (f p))
---             ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
+    g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
+    g f p = let qq = (q＝ p) in
+              (transport∙ qq (sym＝ qq) (f p))
+            ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
 
---     hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
---     hom f p' = g f p'
+    hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
+    hom f p' = g f p'
 
---     left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
---     left f = FUNEXT (hom f)
+    left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
+    left f = FUNEXT (hom f)
 
---     qmap-is-invertible : invertible qmap
---     qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
+    qmap-is-invertible : invertible qmap
+    qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
 
---     pq-equiv : (P' → Q) ≃ (P' → Q')
---     pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
+    pq-equiv : (P' → Q) ≃ (P' → Q')
+    pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
 
---     p-cong : (P' → Q) ＝ (P' → Q')
---     p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
+    p-cong : (P' → Q) ＝ (P' → Q')
+    p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
 
 {-
   uniqueness: intro on elim thing = thing

@@ -22,7 +22,7 @@ NatΣ : {X : Set ℓ} {A : X → Set ℓ₁} {B : X → Set ℓ₂} → Nat A B 
 NatΣ τ (x , a) = (x , τ x a)
 
 {-
-  functorial liftings
+  functorial lifting
 -}
 
 f× : {W : Set ℓ} {X : Set ℓ₁} {Y : Set ℓ₂} {Z : Set ℓ₃}
