@@ -23,9 +23,9 @@ Proof
 QED
 
 Theorem glb_uniq:
-  poset (s,r) ∧
-  glb (s,r) p a ∧ glb (s,r) p b
-  ⇒ a = b
+  poset (s,r) /\
+  glb (s,r) p a /\ glb (s,r) p b
+  ==> a = b
 Proof
   rw[glb_def] >>
   drule_then irule poset_antisym >> simp[]
@@ -374,9 +374,9 @@ Proof
   rw[] >>
   ‘function s s t’ by fs[companion_def] >>
   drule_all companion_alt >> rw[] >>
-  ‘glb (s,r) {t z | z | s z ∧ r xy (t z)} (t xy)’
+  ‘glb (s,r) {t z | z | s z /\ r xy (t z)} (t xy)’
     by metis_tac[lub_def,companion_alt] >>
-  ‘{t z | z | s z ∧ r y (t z)} = {t z | z | s z ∧ r xy (t z)}’
+  ‘{t z | z | s z /\ r y (t z)} = {t z | z | s z /\ r xy (t z)}’
     suffices_by metis_tac[glb_uniq] >>
   pop_assum kall_tac >> pop_assum kall_tac >>
   reverse (rw[EXTENSION, EQ_IMP_THM]) >-
@@ -406,7 +406,7 @@ Proof
   subgoal ‘r (t y) (t x) \/ r (t x) (t y)’ >-
    (metis_tac[companion_ord]) >-
    (metis_tac[poset_trans, function_in, companion_gt]) >>
-  (* t(x\/y) = ty when tx ≤ ty so y <= bt(x\/y) <= bty
+  (* t(x\/y) = ty when tx <= ty so y <= bt(x\/y) <= bty
      ty <= tbty = b(ty) which means y <= (ty <= gfp)
      gfp <= tx <= ty <= gfp so tx = gfp
    *)
@@ -423,10 +423,10 @@ Proof
     drule_all compatible_companion >>
     rw[compatible_def, lift_rel] >>
     metis_tac[function_in]) >>
-  (* finally y ≤ ty ≤ gfp = tx *)
+  (* finally y <= ty <= gfp = tx *)
   ‘t x = gfix’
     suffices_by metis_tac[companion_gt, poset_trans, function_in, gfp_in] >>
-  (* XXX takes so much time to rw with gfp_in ∃∀ *)
+  (* XXX takes so much time to rw with gfp_in ?! *)
   drule_then irule poset_antisym >> rw[function_in] >-
    (metis_tac[gfp_in]) >-
    (metis_tac[poset_trans, function_in, gfp_in]) >>
@@ -437,24 +437,9 @@ QED
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-(* example *)
-
-Theorem subset_poset:
-  poset (UNIV, $SUBSET)
-Proof
-  rw[poset_def, SUBSET_ANTISYM]
-QED
+(*
+ * llist bisimulation
+ *)
 
 open llistTheory;
 Definition llist_functional:
@@ -470,15 +455,6 @@ Proof
   rw[llist_functional]
 QED
 
-open itreeTauTheory;
-Definition itree_wbisim_functional:
-  itree_wbisim_functional R =
-  ({ (t,t') | ?r. strip_tau t (Ret r) /\ strip_tau t' (Ret r)}
- UNION { (t,t') | ?e k k'. strip_tau t (Vis e k) /\ strip_tau t' (Vis e k') /\
-                       !r. (k r, k' r) IN R }
- UNION { (Tau t, Tau t') | (t,t') IN R })
-End
-
 (*  llist_functional {}
       the set of all list pairs such that either:
       - they're both empty, or
@@ -488,57 +464,42 @@ End
       - their two outermost constructors are the same
 
     We're interested in fixed points of llist_functional
-
       lfp llist_functional    <--- equality between finite lists
-
       gfp llist_functional    <--- equality between finite or infinite lists
   *)
 
-Theorem monotone_llist_functional[simp]:
-  monotone llist_functional
+Theorem monotone_llist_functional:
+  monotonic (UNIV, $SUBSET) llist_functional
 Proof
   rw[monotone_def,llist_functional,pred_setTheory.SUBSET_DEF]
 QED
 
-Theorem monotone_itree_functional[simp]:
-  monotone itree_wbisim_functional
+Theorem llist_functional_gfp:
+  ∃bsim. po_gfp (UNIV, $SUBSET) llist_functional bsim
 Proof
-  rw[monotone_def, itree_wbisim_functional, pred_setTheory.SUBSET_DEF] >>
-  cheat
+  irule knaster_tarski_gfp >> rw[monotone_llist_functional, function_def]
 QED
 
 Theorem llist_functional_correct:
-  gfp llist_functional = UNCURRY $=
+  po_gfp (UNIV,$SUBSET) llist_functional (UNCURRY $=)
 Proof
-  simp[SET_EQ_SUBSET] \\
-  conj_tac THEN1
-   (simp[SUBSET_DEF,Once FUN_EQ_THM] \\ Cases \\
-    strip_tac \\ gvs[IN_DEF] \\
-    match_mp_tac LLIST_BISIMULATION_I \\
-    qexists_tac ‘CURRY $ gfp llist_functional’ \\
-    rw[] \\
-    pop_assum mp_tac \\
-    dep_rewrite.DEP_ONCE_REWRITE_TAC [GSYM $ cj 1 gfp_greatest_fixedpoint] \\
-    conj_tac THEN1 simp[] \\
-    simp[Once llist_functional] \\
-    rw[] \\
-    simp[cj 1 gfp_greatest_fixedpoint] \\
-    fs[IN_DEF]) \\
-  match_mp_tac $ MP_CANON gfp_coinduction \\
-  simp[SUBSET_DEF] \\
-  Cases \\ rw[] \\
-  simp[llist_functional] \\
-  Cases_on ‘q’ \\ gvs[]
+  rw[gfp_def] >-
+   (rw[llist_functional, SET_EQ_SUBSET, SUBSET_DEF, Once FUN_EQ_THM] >> rw[] >>
+    Cases_on ‘x’ >> Cases_on ‘q’ >> Cases_on ‘r’ >> fs[]) >>
+  simp[SUBSET_DEF,Once FUN_EQ_THM] \\ Cases \\ rw[] >>
+  match_mp_tac LLIST_BISIMULATION_I \\
+  assume_tac llist_functional_gfp >> fs[] >>
+  qexists_tac ‘CURRY bsim’ \\ rw[] >-
+   (fs[gfp_def] >>
+    metis_tac[SRULE [IN_DEF] SUBSET_DEF, IN_DEF]) >>
+  fs[gfp_def] >>
+  ‘llist_functional bsim (ll3,ll4)’ by gvs[] >>
+  pop_assum mp_tac >>
+  rpt (pop_assum kall_tac) >>
+  rw[llist_functional, IN_DEF]
 QED
 
-Theorem itree_functional_corres:
-  gfp itree_wbisim_functional = UNCURRY itree_wbisim
-Proof
-  cheat
-QED
-
-
-
+(* example *)
 Definition ones_def:
   ones = LUNFOLD (K $ SOME ((),1)) ()
 End
@@ -548,7 +509,6 @@ Definition ones'_def:
 End
 
 (* pretend these are the definitions: *)
-
 Theorem ones_thm:
   ones = 1:::ones
 Proof
@@ -561,20 +521,139 @@ Proof
   simp[ones'_def] >> ntac 2 $ simp[Once LUNFOLD]
 QED
 
+(* standard solution: expand relation, could be large, need to restart *)
 Theorem ones_eq_ones':
   ones = ones'
 Proof
   simp[Once LLIST_BISIMULATION] >>
   qexists_tac ‘CURRY {(ones,ones'); (ones,1:::ones')}’ >>
   rw[]
-  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] >>
-         simp[] >>
-         disj2_tac >>
-         metis_tac[ones_thm,ones'_thm]
-        )
-  THEN1 (PURE_ONCE_REWRITE_TAC[ones_thm] >> simp[] >>
-         metis_tac[ones_thm])
+  >- (PURE_ONCE_REWRITE_TAC[ones_thm, ones'_thm] >>
+      simp[] >>
+      disj2_tac >>
+      metis_tac[ones_thm,ones'_thm])
+  >- (PURE_ONCE_REWRITE_TAC[ones_thm] >> simp[] >>
+      metis_tac[ones_thm])
 QED
+
+Theorem compatible_cons:
+  compatible (UNIV,$SUBSET) llist_functional
+             (λR. R ∪ {([||],[||])} ∪ {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R})
+Proof
+  rw[compatible_def, monotone_def, SUBSET_DEF, lift_rel, function_def] >>
+  gvs[llist_functional]
+QED
+
+Theorem powerset_poset:
+  poset (𝕌(:α -> bool), $SUBSET)
+Proof
+  rw[]
+QED
+
+Theorem subset_compl:
+  complete (𝕌(:α -> bool), $SUBSET)
+Proof
+  rw[]
+QED
+
+Theorem llist_companion:
+  ∃t. companion (UNIV,$SUBSET) llist_functional t
+Proof
+  rw[companion_def, function_def] >>
+  ho_match_mp_tac (iffLR SKOLEM_THM) >>
+  metis_tac[subset_compl_lattice, complete_def]
+QED
+
+Theorem compatible_enhance:
+  companion (UNIV,$SUBSET) b t ∧ compatible (UNIV,$SUBSET) b f
+  ⇒ e ∈ f x
+  ⇒ e ∈ t x
+Proof
+  strip_tac >>
+  ‘f x ⊆ t x’ suffices_by metis_tac[SUBSET_DEF] >>
+  assume_tac powerset_poset >>
+  drule_all compatible_below_companion >>
+  rw[lift_rel]
+QED
+
+Theorem ones_eq_ones':
+  ones = ones'
+Proof
+  ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
+  irule companion_coinduct >>
+  assume_tac (INST_TYPE [alpha |-> “:num”] llist_companion) >> rw[] >>
+  first_assum $ irule_at Any >>
+  rw[monotone_llist_functional, function_def,
+     llist_functional_correct, llist_functional] >>
+  (* ones = 1:1:ones' and ones' = 1:1:ones' *)
+  disj2_tac >>
+  rw[Once ones_thm, Once ones_thm, Once ones'_thm] >>
+  drule_then irule compatible_enhance >> (* cons compatible ⇒ below companion *)
+  irule_at Any compatible_cons >> rw[]
+QED
+
+Definition cons_rel_def:
+  cons_rel R = {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R}
+End
+
+Theorem llist_functional_cons:
+  {(x:::xs,x:::ys)} ⊆ llist_functional R ⇔ {(xs,ys)} ⊆ R
+Proof
+  rw[llist_functional, SUBSET_DEF]
+QED
+
+Theorem cons_rel_cons:
+  {(x:::xs,x:::ys)} ⊆ cons_rel R ⇔ {(xs,ys)} ⊆ R
+Proof
+  rw[cons_rel_def, SUBSET_DEF]
+QED
+
+Theorem singleton_subset:
+  {x} ⊆ y ⇒ x ∈ y
+Proof
+  rw[]
+QED
+
+Theorem ones_eq_ones':
+  ones = ones'
+Proof
+  ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
+  irule param_coind_init >>
+  assume_tac (INST_TYPE [alpha |-> “:num”] llist_companion) >> rw[] >>
+  first_assum $ irule_at Any >>
+  qexists_tac ‘∅’ >>
+  rw[monotone_llist_functional, function_def, bottom_def,
+     llist_functional_correct, llist_functional] >>
+
+  ‘{(ones,ones')} ⊆ t ∅’ suffices_by rw[singleton_subset] >>
+  irule param_coind >>
+  first_assum $ irule_at Any >>
+  qexistsl_tac [‘{(ones,ones')}’, ‘UNCURRY $=’] >>
+  simp[monotone_llist_functional, llist_functional_correct, function_def] >>
+  reverse conj_tac >-
+   (rw[lub_def]
+    >- (rw[EMPTY_SUBSET])
+    >- (rw[SUBSET_REFL])
+    >- (fs[SUBSET_DEF]))
+   cheat
+
+  match_mp_tac param_coind >>
+  SIMP_TAC std_ss [Once ones'_thm, Once ones_thm, llist_functional_cons] >>
+  SIMP_TAC std_ss [Once ones_thm] >>
+  match_mp_tac param_coind_upto_f >>
+  irule_at Any semicompatible_cons >>
+  SIMP_TAC std_ss [cons_rel_cons] >>
+  match_mp_tac param_coind_done >> rw[]
+QED
+
+(* open itreeTauTheory; *)
+(* Definition itree_wbisim_functional: *)
+(*   itree_wbisim_functional R = *)
+(*   ({ (t,t') | ?r. strip_tau t (Ret r) /\ strip_tau t' (Ret r)} *)
+(*  UNION { (t,t') | ?e k k'. strip_tau t (Vis e k) /\ strip_tau t' (Vis e k') /\ *)
+(*                        !r. (k r, k' r) IN R } *)
+(*  UNION { (Tau t, Tau t') | (t,t') IN R }) *)
+(* End *)
 
 Theorem companion_coinduct_itree:
   !t t' R.
@@ -587,75 +666,4 @@ Proof
   qspecl_then [‘itree_wbisim_functional’,‘R’] strip_assume_tac companion_coinduct >>
   gvs[itree_functional_corres, SUBSET_DEF, pairTheory.ELIM_UNCURRY] >>
   metis_tac[FST, SND, PAIR]
-QED
-
-Theorem ones_eq_ones':
-  ones = ones'
-Proof
-  match_mp_tac companion_coinduct' >>
-  qexists_tac ‘{(ones,ones')}’ >>
-  rw[llist_functional] >>
-  PURE_ONCE_REWRITE_TAC[ones_thm,ones'_thm] >> simp[] >>
-  simp[companion_def] >>
-  irule_at (Pos last) compatible_cons >>
-  simp[] >> disj2_tac >>
-  metis_tac[ones_thm,ones'_thm]
-QED
-
-Theorem compatible_cons:
-  compatible $ (λR. R UNION {([||],[||])} UNION {x:::xs,y:::ys | x = y /\ (xs,ys) IN R})
-Proof
-  rw[compatible_def,monotone_def,SUBSET_DEF,PULL_EXISTS] >>
-  gvs[llist_functional]
-QED
-
-Definition cons_rel_def:
-  cons_rel R = {x:::xs,y:::ys | x = y /\ (xs,ys) IN R}
-End
-
-Definition semicompatible_def:
-  semicompatible b f = !x. f x SUBSET companion b x
-End
-
-Theorem semicompatible_cons:
-  semicompatible cons_rel
-Proof
-  rw[semicompatible_def,SUBSET_DEF,companion_def,cons_rel_def] >>
-  irule_at (Pos last) compatible_cons >>
-  rw[]
-QED
-
-Theorem llist_functional_cons:
-  {(x:::xs,x:::ys)} SUBSET llist_functional R
-  <=> {(xs,ys)} SUBSET R
-Proof
-  rw[llist_functional,SUBSET_DEF]
-QED
-
-Theorem cons_rel_cons:
-  {(x:::xs,x:::ys)} SUBSET cons_rel R
-  <=> {(xs,ys)} SUBSET R
-Proof
-  rw[cons_rel_def,SUBSET_DEF]
-QED
-
-Theorem semicompatible_id:
-  semicompatible I
-Proof
-  rw[semicompatible_def,companion_def,SUBSET_DEF,PULL_EXISTS] >>
-  irule_at (Pos last) compatible_id >>
-  simp[]
-QED
-
-Theorem ones_eq_ones':
-  ones = ones'
-Proof
-  match_mp_tac param_coind_init >>
-  match_mp_tac param_coind >>
-  SIMP_TAC std_ss [Once ones'_thm, Once ones_thm,llist_functional_cons] >>
-  SIMP_TAC std_ss [Once ones_thm] >>
-  match_mp_tac param_coind_upto_f >>
-  irule_at Any semicompatible_cons >>
-  SIMP_TAC std_ss [cons_rel_cons] >>
-  match_mp_tac param_coind_done >> rw[]
 QED
