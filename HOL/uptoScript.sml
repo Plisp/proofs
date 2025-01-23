@@ -338,19 +338,6 @@ QED
 (*   rw[] *)
 (* QED *)
 
-(* definitely true based on the early characterization of t x
-   as a intersection of final sequence elements b^n(⊤) containing x *)
-Theorem companion_ord:
-  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
-  companion (s,r) b t /\
-  s x /\ s y
-  ==> r (t x) (t y) \/ r (t y) (t x)
-Proof
-  rw[] >>
-  ‘function s s t’ by fs[companion_def] >>
-  cheat
-QED
-
 Theorem companion_alt:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
   companion (s,r) b t /\
@@ -393,9 +380,11 @@ Proof
   metis_tac[companion_idem, poset_trans, function_in, monotonic_def, companion_mono]
 QED
 
+(* total ordering required *)
 Theorem param_coind:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
   companion (s,r) b t /\
+  (!x y. s x /\ s y ==> r (t x) (t y) \/ r (t y) (t x)) /\
   po_gfp (s,r) b gfix /\
   s x /\ s y /\
   lub (s,r) { x; y } xy
@@ -403,8 +392,8 @@ Theorem param_coind:
 Proof
   rw[] >>
   ‘function s s t’ by fs[companion_def] >>
-  subgoal ‘r (t y) (t x) \/ r (t x) (t y)’ >-
-   (metis_tac[companion_ord]) >-
+  first_x_assum $ qspecl_then [‘x’, ‘y’] strip_assume_tac >>
+  reverse (rfs[]) >-
    (metis_tac[poset_trans, function_in, companion_gt]) >>
   (* t(x\/y) = ty when tx <= ty so y <= bt(x\/y) <= bty
      ty <= tbty = b(ty) which means y <= (ty <= gfp)
@@ -444,16 +433,8 @@ QED
 open llistTheory;
 Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
-  ({[||],[||]} UNION {(x:::xs,y:::ys) | x = y /\ (xs,ys) IN R})
+  ({[||],[||]} ∪ {(x:::xs,y:::ys) | x = y ∧ (xs,ys) ∈ R})
 End
-
-Theorem llist_inversion:
-  (x, y) IN llist_functional R
-  ==> (x = [||] /\ y = [||]) \/
-    (?e xs ys. x = e:::xs /\ y = e:::ys /\ (xs,ys) IN R)
-Proof
-  rw[llist_functional]
-QED
 
 (*  llist_functional {}
       the set of all list pairs such that either:
@@ -621,29 +602,32 @@ Proof
   irule param_coind_init >>
   assume_tac (INST_TYPE [alpha |-> “:num”] llist_companion) >> rw[] >>
   first_assum $ irule_at Any >>
-  qexists_tac ‘∅’ >>
+  qexists_tac ‘∅’ >> (* TODO make version with this proven, and no UNIV *)
   rw[monotone_llist_functional, function_def, bottom_def,
      llist_functional_correct, llist_functional] >>
 
-  ‘{(ones,ones')} ⊆ t ∅’ suffices_by rw[singleton_subset] >>
+  irule singleton_subset >>
   irule param_coind >>
   first_assum $ irule_at Any >>
   qexistsl_tac [‘{(ones,ones')}’, ‘UNCURRY $=’] >>
   simp[monotone_llist_functional, llist_functional_correct, function_def] >>
-  reverse conj_tac >-
-   (rw[lub_def]
-    >- (rw[EMPTY_SUBSET])
-    >- (rw[SUBSET_REFL])
-    >- (fs[SUBSET_DEF]))
-   cheat
+  reverse conj_tac >- (rw[lub_def] >> fs[SUBSET_DEF]) >>
+  rw[Once ones'_thm, Once ones_thm, Once ones_thm, llist_functional_cons] >>
+  rw[llist_functional] >>
 
-  match_mp_tac param_coind >>
-  SIMP_TAC std_ss [Once ones'_thm, Once ones_thm, llist_functional_cons] >>
-  SIMP_TAC std_ss [Once ones_thm] >>
-  match_mp_tac param_coind_upto_f >>
-  irule_at Any semicompatible_cons >>
-  SIMP_TAC std_ss [cons_rel_cons] >>
-  match_mp_tac param_coind_done >> rw[]
+  irule singleton_subset >>
+  irule param_coind_upto_f >>
+  first_assum $ irule_at Any >>
+  rw[monotone_llist_functional, function_def] >>
+  qexists_tac ‘cons_rel’ >>
+  conj_tac >-
+   cheat >>
+
+  irule singleton_subset >>
+  rw[cons_rel_cons] >>
+  irule singleton_subset >>
+  drule_at_then Any irule param_coind_done >>
+  rw[monotone_llist_functional, function_def]
 QED
 
 (* open itreeTauTheory; *)
