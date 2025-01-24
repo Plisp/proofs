@@ -84,6 +84,16 @@ Definition companion_def:
      !x. lub (s,r) { f x | f | compatible (s,r) b f } (t x))
 End
 
+Theorem companion_unique:
+  poset (s,r) ∧
+  companion (s,r) b t ∧ companion (s,r) b t'
+  ⇒ s x ⇒ t x = t' x
+Proof
+  rw[companion_def, function_def, lub_def] >>
+  irule poset_antisym >>
+  qexistsl_tac [‘r’, ‘s’] >> fs[]
+QED
+
 Theorem compatible_below_companion:
   poset (s,r) /\
   compatible (s,r) b f /\ companion (s,r) b t
@@ -424,7 +434,135 @@ Proof
   metis_tac[compatible_below_companion, lift_rel, function_in]
 QED
 
+(*
+  powerset helpers
+*)
 
+Definition set_compatible_def:
+  set_compatible b f = (monotone f ∧ ∀X. f (b X) ⊆ b (f X))
+End
+
+Theorem set_compatible:
+  set_compatible b f ⇒ compatible (UNIV,$SUBSET) b f
+Proof
+  rw[set_compatible_def, compatible_def, lift_rel, function_def]
+QED
+
+Theorem set_compatible_self:
+  monotone b ⇒ set_compatible b b
+Proof
+  rw[set_compatible_def, monotone_def]
+QED
+
+Theorem set_compatible_compose:
+  monotone b ⇒
+  set_compatible b f ∧ set_compatible b g
+  ⇒ set_compatible b (f ∘ g)
+Proof
+  rw[monotone_def, set_compatible_def] >>
+  metis_tac[SUBSET_DEF]
+QED
+
+Definition set_companion_def:
+  set_companion b X = BIGUNION { f X | f | set_compatible b f }
+End
+
+Theorem set_companion:
+  companion (UNIV,$SUBSET) b (set_companion b)
+Proof
+  rw[companion_def, set_companion_def, function_def] >>
+  rw[lub_def, compatible_def, set_compatible_def, lift_rel, function_def] >>
+  fs[SUBSET_DEF, BIGUNION, IN_DEF] >>
+  metis_tac[]
+QED
+
+Theorem set_companion_coinduct:
+  monotone b ∧
+  X ⊆ (b ∘ set_companion b) X
+  ⇒ X ⊆ gfp b
+Proof
+  rw[] >>
+  irule companion_coinduct >>
+  qexistsl_tac [‘b’, ‘UNIV’, ‘set_companion b’] >>
+  rw[function_def, gfp_poset_gfp, set_companion]
+QED
+
+Theorem set_compatible_enhance:
+  monotone b ∧ set_compatible b f ∧
+  Y ⊆ f X
+  ⇒ Y ⊆ set_companion b X
+Proof
+  rw[] >>
+  drule_then irule SUBSET_TRANS >>
+  irule (SRULE [lift_rel] compatible_below_companion) >>
+  qexistsl_tac [‘b’, ‘UNIV’] >>
+  rw[set_compatible, set_companion]
+QED
+
+(* to prove X is in a coinductive set from b, consider t⊥ *)
+Theorem set_param_coind_init:
+  monotone b ∧
+  X ⊆ set_companion b ∅
+  ⇒ X ⊆ gfp b
+Proof
+  rw[] >>
+  drule_at_then Any irule param_coind_init >>
+  qexistsl_tac [‘b’, ‘UNIV’] >>
+  rw[bottom_def, set_companion, function_def, gfp_poset_gfp]
+QED
+
+(* pull f out of tX *)
+Theorem set_param_coind_upto_f:
+  monotone b ∧
+  (∀X. f X ⊆ set_companion b X) ∧
+  Y ⊆ f (set_companion b X)
+  ⇒ Y ⊆ set_companion b X
+Proof
+  rw[] >>
+  drule_at_then Any irule param_coind_upto_f >> rw[] >>
+  qexistsl_tac [‘b’, ‘UNIV’] >>
+  rw[set_companion, function_def]
+QED
+
+(* conclude: Y is a safe deduction from X *)
+Theorem set_param_coind_done:
+  monotone b ∧
+  Y ⊆ X ⇒ Y ⊆ set_companion b X
+Proof
+  rw[] >>
+  irule param_coind_done >> rw[] >>
+  qexistsl_tac [‘b’, ‘UNIV’] >>
+  rw[set_companion, function_def]
+QED
+
+(* do a deduction step, Y must step to itself or conclude with X *)
+Theorem set_param_coind:
+  monotone b ∧ (∀X Y. (set_companion b X) ⊆ (set_companion b Y) ∨
+                      (set_companion b Y) ⊆ (set_companion b X))
+  ⇒ Y ⊆ b (set_companion b (X ∪ Y))
+  ⇒ Y ⊆ set_companion b X
+Proof
+  rw[] >>
+  drule_at_then Any irule param_coind >>
+  qexistsl_tac [‘gfp b’, ‘UNIV’] >>
+  rw[function_def, set_companion, gfp_poset_gfp, lub_def] >>
+  rw[SUBSET_UNION]
+QED
+
+(* sufficient condition for establishing the linear order on companion values,
+   it's hard to state this in general since ordinals aren't supported *)
+Definition wbounded_def:
+  wbounded b = (gfp b = BIGINTER {FUNPOW b n UNIV | n | T})
+End
+
+Theorem llist_companion_total_order:
+  monotone b ∧ wbounded b ⇒
+  ∀X Y. set_companion b X ⊆ set_companion b Y ∨
+        set_companion b Y ⊆ set_companion b X
+Proof
+  rw[wbounded_def] >>
+  cheat
+QED
 
 (*
  * llist bisimulation
@@ -435,6 +573,41 @@ Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
   ({[||],[||]} ∪ {(x:::xs,y:::ys) | x = y ∧ (xs,ys) ∈ R})
 End
+
+Theorem monotone_llist_functional[simp]:
+  monotone llist_functional
+Proof
+  rw[monotone_def, llist_functional,pred_setTheory.SUBSET_DEF]
+QED
+
+Theorem test:
+  wbounded llist_functional
+Proof
+  rw[wbounded_def, llist_functional] >>
+  rw[SET_EQ_SUBSET] >-
+   (rw[fixedPointTheory.gfp_def, BIGUNION_SUBSET, SUBSET_BIGINTER] >>
+    Induct_on ‘n’ >> rw[] >>
+    metis_tac[monotone_llist_functional, monotone_def, FUNPOW_SUC, SUBSET_TRANS]) >>
+  irule gfp_coinduction >>
+  rw[BIGINTER, llist_functional, SUBSET_DEF] >>
+  Cases_on ‘x’ >>
+  Cases_on ‘q’ >> Cases_on ‘r’ >> rw[]
+  >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
+      ‘([||],h:::t) ∈ llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
+      fs[llist_functional])
+  >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
+      ‘(h:::t,[||]) ∈ llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
+      fs[llist_functional])
+  >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
+      fs[llist_functional] >>
+      pop_assum irule >>
+      qexists_tac ‘1’ >>
+      rw[FUNPOW_1, llist_functional])
+  >- (pop_assum $ qspec_then ‘FUNPOW llist_functional (SUC n) UNIV’
+                  strip_assume_tac >>
+      ‘(h:::t,h':::t') ∈ FUNPOW llist_functional (SUC n) UNIV’ by metis_tac[] >>
+      fs[Once FUNPOW_SUC, llist_functional])
+QED
 
 (*  llist_functional {}
       the set of all list pairs such that either:
@@ -449,35 +622,28 @@ End
       gfp llist_functional    <--- equality between finite or infinite lists
   *)
 
-Theorem monotone_llist_functional:
-  monotonic (UNIV, $SUBSET) llist_functional
-Proof
-  rw[monotone_def,llist_functional,pred_setTheory.SUBSET_DEF]
-QED
-
 Theorem llist_functional_gfp:
-  ∃bsim. po_gfp (UNIV, $SUBSET) llist_functional bsim
+  gfp llist_functional = UNCURRY $=
 Proof
-  irule knaster_tarski_gfp >> rw[monotone_llist_functional, function_def]
-QED
-
-Theorem llist_functional_correct:
-  po_gfp (UNIV,$SUBSET) llist_functional (UNCURRY $=)
-Proof
-  rw[gfp_def] >-
-   (rw[llist_functional, SET_EQ_SUBSET, SUBSET_DEF, Once FUN_EQ_THM] >> rw[] >>
-    Cases_on ‘x’ >> Cases_on ‘q’ >> Cases_on ‘r’ >> fs[]) >>
-  simp[SUBSET_DEF,Once FUN_EQ_THM] \\ Cases \\ rw[] >>
-  match_mp_tac LLIST_BISIMULATION_I \\
-  assume_tac llist_functional_gfp >> fs[] >>
-  qexists_tac ‘CURRY bsim’ \\ rw[] >-
-   (fs[gfp_def] >>
-    metis_tac[SRULE [IN_DEF] SUBSET_DEF, IN_DEF]) >>
-  fs[gfp_def] >>
-  ‘llist_functional bsim (ll3,ll4)’ by gvs[] >>
-  pop_assum mp_tac >>
-  rpt (pop_assum kall_tac) >>
-  rw[llist_functional, IN_DEF]
+  simp[SET_EQ_SUBSET] \\
+  conj_tac THEN1
+   (simp[SUBSET_DEF,Once FUN_EQ_THM] \\ Cases \\
+    strip_tac \\ gvs[IN_DEF] \\
+    match_mp_tac LLIST_BISIMULATION_I \\
+    qexists_tac ‘CURRY $ gfp llist_functional’ \\
+    rw[] \\
+    pop_assum mp_tac \\
+    dep_rewrite.DEP_ONCE_REWRITE_TAC [GSYM $ cj 1 gfp_greatest_fixedpoint] \\
+    conj_tac THEN1 simp[] \\
+    simp[Once llist_functional] \\
+    rw[] \\
+    simp[cj 1 gfp_greatest_fixedpoint] \\
+    fs[IN_DEF]) \\
+  match_mp_tac $ MP_CANON gfp_coinduction \\
+  simp[SUBSET_DEF] \\
+  Cases \\ rw[] \\
+  simp[llist_functional] \\
+  Cases_on ‘q’ \\ gvs[]
 QED
 
 (* example *)
@@ -486,7 +652,7 @@ Definition ones_def:
 End
 
 Definition ones'_def:
-  ones' = LUNFOLD (λx. SOME (~x,1)) T
+  ones' = LUNFOLD (K $ SOME ((),1)) ()
 End
 
 (* pretend these are the definitions: *)
@@ -497,80 +663,67 @@ Proof
 QED
 
 Theorem ones'_thm:
-  ones' = 1:::1:::ones'
+  ones' = 1:::1:::1:::ones'
 Proof
-  simp[ones'_def] >> ntac 2 $ simp[Once LUNFOLD]
+  simp[ones'_def] >> ntac 3 $ simp[Once LUNFOLD]
 QED
 
-(* standard solution: expand relation, could be large, need to restart *)
+(* standard solution: expand relation, can be large set, need to restart *)
 Theorem ones_eq_ones':
   ones = ones'
 Proof
   simp[Once LLIST_BISIMULATION] >>
-  qexists_tac ‘CURRY {(ones,ones'); (ones,1:::ones')}’ >>
+  qexists_tac ‘CURRY {(ones,ones'); (ones,1:::ones'); (ones,1:::1:::ones')}’ >>
   rw[]
-  >- (PURE_ONCE_REWRITE_TAC[ones_thm, ones'_thm] >>
-      simp[] >>
-      disj2_tac >>
+  >- (PURE_ONCE_REWRITE_TAC[ones_thm, ones'_thm] >> simp[] >>
       metis_tac[ones_thm,ones'_thm])
-  >- (PURE_ONCE_REWRITE_TAC[ones_thm] >> simp[] >>
+  >- (PURE_ONCE_REWRITE_TAC[ones_thm, ones'_thm] >> simp[] >>
+      metis_tac[ones_thm])
+  >- (PURE_ONCE_REWRITE_TAC[ones_thm, ones'_thm] >> simp[] >>
       metis_tac[ones_thm])
 QED
 
-Theorem compatible_cons:
-  compatible (UNIV,$SUBSET) llist_functional
-             (λR. R ∪ {([||],[||])} ∪ {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R})
+Definition strong_enhance_def:
+  strong_enhance R = R ∪ llist_functional R
+End
+
+Theorem strong_enhance_mono:
+  monotone strong_enhance
 Proof
-  rw[compatible_def, monotone_def, SUBSET_DEF, lift_rel, function_def] >>
-  gvs[llist_functional]
+  rw[monotone_def, strong_enhance_def] >-
+   (metis_tac[SUBSET_TRANS, SUBSET_UNION]) >>
+  metis_tac[SUBSET_TRANS, SUBSET_UNION, monotone_def, monotone_llist_functional]
 QED
 
-Theorem powerset_poset:
-  poset (𝕌(:α -> bool), $SUBSET)
+Theorem strong_enhance_compatible:
+  set_compatible llist_functional strong_enhance
+Proof
+  rw[strong_enhance_def, set_compatible_def, strong_enhance_mono] >-
+   (metis_tac[SUBSET_UNION, monotone_llist_functional, monotone_def]) >>
+  metis_tac[SUBSET_UNION, monotone_llist_functional, monotone_def]
+QED
+
+Theorem singleton_subset:
+  {x} ⊆ y ⇒ x ∈ y
 Proof
   rw[]
-QED
-
-Theorem subset_compl:
-  complete (𝕌(:α -> bool), $SUBSET)
-Proof
-  rw[]
-QED
-
-Theorem llist_companion:
-  ∃t. companion (UNIV,$SUBSET) llist_functional t
-Proof
-  rw[companion_def, function_def] >>
-  ho_match_mp_tac (iffLR SKOLEM_THM) >>
-  metis_tac[subset_compl_lattice, complete_def]
-QED
-
-Theorem compatible_enhance:
-  companion (UNIV,$SUBSET) b t ∧ compatible (UNIV,$SUBSET) b f
-  ⇒ e ∈ f x
-  ⇒ e ∈ t x
-Proof
-  strip_tac >>
-  ‘f x ⊆ t x’ suffices_by metis_tac[SUBSET_DEF] >>
-  assume_tac powerset_poset >>
-  drule_all compatible_below_companion >>
-  rw[lift_rel]
 QED
 
 Theorem ones_eq_ones':
   ones = ones'
 Proof
   ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
-  irule companion_coinduct >>
-  assume_tac (INST_TYPE [alpha |-> “:num”] llist_companion) >> rw[] >>
-  first_assum $ irule_at Any >>
-  rw[monotone_llist_functional, function_def,
-     llist_functional_correct, llist_functional] >>
-  (* ones = 1:1:ones' and ones' = 1:1:ones' *)
-  disj2_tac >>
-  rw[Once ones_thm, Once ones_thm, Once ones'_thm] >>
-  drule_then irule compatible_enhance >> (* cons compatible ⇒ below companion *)
-  irule_at Any compatible_cons >> rw[]
+  rewrite_tac[GSYM llist_functional_gfp] >>
+  irule set_companion_coinduct >>
+  (* ones = 1:1:1:ones after unfolding 3 times *)
+  rw[Once ones_thm, Once ones_thm, Once ones_thm, Once ones'_thm] >>
+  rw[llist_functional] >>
+  irule singleton_subset >>
+  irule set_compatible_enhance >> rw[] >>
+  qexists_tac ‘strong_enhance ∘ strong_enhance’ >>
+  rw[strong_enhance_def] >- (rw[llist_functional]) >>
+  irule set_compatible_compose >>
+  rw[strong_enhance_compatible]
 QED
 
 Definition cons_rel_def:
@@ -587,12 +740,6 @@ Theorem cons_rel_cons:
   {(x:::xs,x:::ys)} ⊆ cons_rel R ⇔ {(xs,ys)} ⊆ R
 Proof
   rw[cons_rel_def, SUBSET_DEF]
-QED
-
-Theorem singleton_subset:
-  {x} ⊆ y ⇒ x ∈ y
-Proof
-  rw[]
 QED
 
 Theorem ones_eq_ones':
