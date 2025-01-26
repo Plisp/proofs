@@ -539,7 +539,7 @@ Proof
   rw[set_companion, function_def]
 QED
 
-(* conclude: Y is a safe deduction from X *)
+(* conclude: X is a safe deduction from Y *)
 Theorem set_param_coind_done:
   monotone b ∧
   Y ⊆ X ⇒ Y ⊆ set_companion b X
@@ -908,12 +908,6 @@ Definition cons_rel_def:
   cons_rel R = {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R}
 End
 
-Theorem llist_functional_cons:
-  {(x:::xs,x:::ys)} ⊆ llist_functional R ⇔ {(xs,ys)} ⊆ R
-Proof
-  rw[llist_functional, SUBSET_DEF]
-QED
-
 Theorem cons_rel_cons:
   {(x:::xs,x:::ys)} ⊆ cons_rel R ⇔ {(xs,ys)} ⊆ R
 Proof
@@ -924,34 +918,27 @@ Theorem ones_eq_ones':
   ones = ones'
 Proof
   ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
-  irule param_coind_init >>
-  assume_tac (INST_TYPE [alpha |-> “:num”] llist_companion) >> rw[] >>
-  first_assum $ irule_at Any >>
-  qexists_tac ‘∅’ >> (* TODO make version with this proven, and no UNIV *)
-  rw[monotone_llist_functional, function_def, bottom_def,
-     llist_functional_correct, llist_functional] >>
-
+  rewrite_tac[GSYM llist_functional_gfp] >>
+  irule set_param_coind_init >> rw[] >>
   irule singleton_subset >>
-  irule param_coind >>
-  first_assum $ irule_at Any >>
-  qexistsl_tac [‘{(ones,ones')}’, ‘UNCURRY $=’] >>
-  simp[monotone_llist_functional, llist_functional_correct, function_def] >>
-  reverse conj_tac >- (rw[lub_def] >> fs[SUBSET_DEF]) >>
-  rw[Once ones'_thm, Once ones_thm, Once ones_thm, llist_functional_cons] >>
+  irule wbounded_param_coind >> rw[llist_wbounded] >>
+  (* unroll thrice  *)
+  rw[Once ones'_thm, Once ones_thm, Once ones_thm, Once ones_thm] >>
   rw[llist_functional] >>
-
+  (* work upto cons *)
   irule singleton_subset >>
-  irule param_coind_upto_f >>
-  first_assum $ irule_at Any >>
-  rw[monotone_llist_functional, function_def] >>
-  qexists_tac ‘cons_rel’ >>
+  irule set_param_coind_upto_f >> rw[] >>
+  qexists_tac ‘llist_functional ∘ llist_functional’ >>
   conj_tac >-
-
+   (strip_tac >>
+    irule set_compatible_enhance >> rw[] >>
+    qexists_tac ‘llist_functional ∘ llist_functional’ >> rw[] >>
+    irule set_compatible_compose >>
+    rw[set_compatible_self]) >>
+  rw[llist_functional] >>
   irule singleton_subset >>
-  rw[cons_rel_cons] >>
-  irule singleton_subset >>
-  drule_at_then Any irule param_coind_done >>
-  rw[monotone_llist_functional, function_def]
+  irule set_param_coind_done >>
+  rw[]
 QED
 
 (* open itreeTauTheory; *)
@@ -962,16 +949,3 @@ QED
 (*                        !r. (k r, k' r) IN R } *)
 (*  UNION { (Tau t, Tau t') | (t,t') IN R }) *)
 (* End *)
-
-Theorem companion_coinduct_itree:
-  !t t' R.
-    (t,t') IN R /\
-    R SUBSET itree_wbisim_functional (companion itree_wbisim_functional R)
-    ==> itree_wbisim t t'
-Proof
-  rpt strip_tac >>
-  assume_tac monotone_itree_functional >>
-  qspecl_then [‘itree_wbisim_functional’,‘R’] strip_assume_tac companion_coinduct >>
-  gvs[itree_functional_corres, SUBSET_DEF, pairTheory.ELIM_UNCURRY] >>
-  metis_tac[FST, SND, PAIR]
-QED
