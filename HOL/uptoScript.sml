@@ -565,29 +565,23 @@ Proof
 QED
 
 (* Sufficient condition for establishing the linear order on companion values,
-   it's hard to state this in general since ordinals aren't supported in HOL.   This follows from ω-continuity, TODO see if that's cleaner to prove for llist
+   which is hard to state in general since big ordinals aren't supported in HOL4.
+
+   This is basically a special case of the harder direction of ω-continuity
+   - the fact that applying b preserves limits/intersections of ℕ-indexed sets
  *)
 Definition wbounded_def:
-  wbounded b = (gfp b = BIGINTER {FUNPOW b n UNIV | n | T})
+  wbounded b = (BIGINTER {FUNPOW b n UNIV | n | T} ⊆ gfp b)
 End
 
-Theorem gfp_below_funpow:
-  monotone b ⇒
-  ∀n. gfp b ⊆ FUNPOW b n UNIV
-Proof
-  strip_tac >>
-  Induct >- (rw[FUNPOW_0]) >>
-  metis_tac[monotone_def, cj 1 gfp_greatest_fixedpoint, FUNPOW_SUC]
-QED
-
-Theorem x_in_funpows_gfp:
+Triviality x_in_funpows_gfp:
   wbounded b ⇒
   (∀n. x ⊆ FUNPOW b n UNIV) ⇒ x ⊆ gfp b
 Proof
   rw[] >>
   subgoal ‘x ⊆ BIGINTER {FUNPOW b n UNIV | n | T}’ >-
    (fs[BIGINTER, SUBSET_DEF] >> metis_tac[]) >>
-  fs[wbounded_def]
+  metis_tac[wbounded_def, SUBSET_TRANS]
 QED
 
 Triviality FUNPOW_b_mono:
@@ -596,6 +590,18 @@ Proof
   strip_tac >>
   Induct_on ‘k’ >- (rw[monotone_def, FUNPOW_0]) >>
   fs[monotone_def, FUNPOW_SUC]
+QED
+
+Triviality FUNPOW_UNIV_ord:
+  monotone b ⇒
+  k' ≤ k ⇒ FUNPOW b k 𝕌(:α) ⊆ FUNPOW b k' 𝕌(:α)
+Proof
+  rw[] >>
+  drule LESS_EQUAL_ADD >> rw[] >>
+  rw[FUNPOW_ADD] >>
+  drule FUNPOW_b_mono >> rw[] >>
+  first_x_assum $ qspec_then ‘k'’ strip_assume_tac >>
+  fs[monotone_def]
 QED
 
 Triviality set_companion_funpow_lemma:
@@ -629,31 +635,91 @@ Proof
   fs[SUB_EQUAL_0]
 QED
 
-Theorem wbounded_companion_prop:
+(* XXX this is terrible *)
+open whileTheory;
+Triviality not_gfp_has_lowest_FUNPOW:
+  monotone b ∧ wbounded b ∧
+  ¬(X ⊆ gfp b) ⇒
+  ∃k. (X ⊆ FUNPOW b k UNIV) ∧ (∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k)
+Proof
+  rw[] >>
+  ‘∃n. ¬(X ⊆ FUNPOW b n UNIV)’ by metis_tac[x_in_funpows_gfp] >>
+  subgoal ‘$LEAST (λn. ¬(X ⊆ FUNPOW b n UNIV)) ≠ 0’ >-
+   (spose_not_then strip_assume_tac >>
+    qspec_then ‘λn. ¬(X ⊆ FUNPOW b n UNIV)’ strip_assume_tac
+               (cj 1 (iffLR LEAST_EXISTS)) >>
+    rfs[] >> gvs[]) >>
+  qexists_tac ‘$LEAST (λn. ¬(X ⊆ FUNPOW b n UNIV)) - 1’ >>
+  rw[] >-
+   (subgoal ‘∀n. n < $LEAST (λk. ¬(X ⊆ FUNPOW b k UNIV)) ⇒ ¬¬(X ⊆ FUNPOW b n UNIV)’
+    >- (ho_match_mp_tac (cj 2 (iffLR LEAST_EXISTS)) >> metis_tac[LEAST_EXISTS]) >>
+    fs[]) >>
+  spose_not_then strip_assume_tac >>
+  fs[NOT_LE] >>
+  Cases_on ‘m’ >>
+  fs[GSYM LE_LT1] >>
+  ‘∀k. (LEAST n. ¬(X ⊆ FUNPOW b n 𝕌(:α))) ≤ k ⇒ ¬(X ⊆ FUNPOW b k UNIV)’
+    suffices_by metis_tac[] >>
+  rw[] >>
+  qspec_then ‘λn. ¬(X ⊆ FUNPOW b n UNIV)’ strip_assume_tac
+             (cj 1 (iffLR LEAST_EXISTS)) >>
+  fs[] >>
+  metis_tac[FUNPOW_UNIV_ord, SUBSET_TRANS]
+QED
+
+Theorem wbounded_companion_final_sequence:
   monotone b ∧ wbounded b ⇒
   if X ⊆ gfp b
   then set_companion b X = gfp b
-  else ∃k. set_companion b X = FUNPOW b k UNIV ∧
-           ∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k
+  else ∃k. set_companion b X = FUNPOW b k UNIV
 Proof
   rw[] >-
    (irule lt_gfp_companion >>
     qexistsl_tac [‘b’, ‘∅’, ‘$SUBSET’, ‘UNIV’] >>
     rw[bottom_def, set_companion, function_def, gfp_poset_gfp]) >>
   (* there exists a lower bound on b^n⊤ containing X  *)
-  ‘∃n. ¬(X ⊆ FUNPOW b n UNIV)’ by metis_tac[x_in_funpows_gfp] >>
-  subgoal ‘∃k. (X ⊆ FUNPOW b k UNIV) ∧ (∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k)’ >-
-   (cheat) >>
+  ‘∃k. X ⊆ FUNPOW b k UNIV ∧ (∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k)’
+    by metis_tac[not_gfp_has_lowest_FUNPOW] >>
   qexists_tac ‘k’ >> rw[] >>
   rw[SET_EQ_SUBSET]
   >- (‘set_companion b X ⊆ set_companion b (FUNPOW b k UNIV)’
         by metis_tac[set_companion_compatible, set_compatible_def, monotone_def] >>
       metis_tac[set_companion_funpow_lemma]) >>
-  (* ≤ companion *)
-  rw[set_companion_def, BIGUNION, SUBSET_DEF] >>
+  (* why is this companion compatible? it's all about invalid deductions x ⊊ gfp *)
+  irule set_compatible_enhance >> rw[] >>
+  qexists_tac ‘λY. if (Y ⊆ gfp b) then ∅
+                   else BIGINTER { FUNPOW b k UNIV | k | Y ⊆ FUNPOW b k UNIV }’ >>
+  rw[] (* we need k to upper bound stuff in the BIGINTER *)
+  >- (rw[SUBSET_BIGINTER] >>
+      ‘k' ≤ k’ by metis_tac[] >>
+      rw[FUNPOW_UNIV_ord]) >>
+  rw[set_compatible_def, monotone_def] >-
+   (* monotone because X ≤ Y ⇒ X ≤ every b_y, so every b_y is a b_x *)
+   (rw[] >- (metis_tac[SUBSET_TRANS]) >>
+    rw[SUBSET_BIGINTER] >>
+    irule BIGINTER_SUBSET >>
+    qexists_tac ‘FUNPOW b k' UNIV’ >> rw[] >>
+    metis_tac[SUBSET_TRANS]) >>
+  (* compatible because by (and so tby) is bounded above by bb_n = bty *)
+  rw[] >- (metis_tac[gfp_greatest_fixedpoint, monotone_def]) >>
+  ‘∃k. (Y ⊆ FUNPOW b k UNIV) ∧ (∀m. Y ⊆ FUNPOW b m UNIV ⇒ m ≤ k)’
+    by metis_tac[not_gfp_has_lowest_FUNPOW] >>
+  ‘b Y ⊆ FUNPOW b (SUC k') UNIV’ by metis_tac[monotone_def, FUNPOW_SUC] >>
+  irule BIGINTER_SUBSET >> rw[] >>
   pop_assum $ irule_at Any >>
-  qexists_tac ‘λY. if X ⊆ Y then FUNPOW b k UNIV else ∅’ >>
-  cheat
+  rw[FUNPOW_SUC] >>
+  fs[monotone_def] >> last_assum irule >>
+  rw[SUBSET_BIGINTER] >>
+  metis_tac[FUNPOW_UNIV_ord, SUBSET_BIGINTER, monotone_def]
+QED
+
+Triviality gfp_below_funpow:
+  monotone b ⇒
+  ∀n. gfp b ⊆ FUNPOW b n UNIV
+Proof
+  strip_tac >>
+  Induct >- (rw[FUNPOW_0]) >>
+  metis_tac[monotone_def, cj 1 gfp_greatest_fixedpoint, FUNPOW_SUC]
 QED
 
 Theorem wbounded_companion_total_order:
@@ -662,24 +728,14 @@ Theorem wbounded_companion_total_order:
         set_companion b Y ⊆ set_companion b X
 Proof
   rw[] >>
-  drule_all wbounded_companion_prop >> rw[] >>
+  drule_all wbounded_companion_final_sequence >> rw[] >>
   first_assum $ qspec_then ‘X’ strip_assume_tac >>
   first_assum $ qspec_then ‘Y’ strip_assume_tac >>
   Cases_on ‘X ⊆ gfp b’ >> Cases_on ‘Y ⊆ gfp b’ >> fs[gfp_below_funpow] >>
   Cases_on ‘k' ≤ k’
-  >- (disj1_tac >>
-      drule LESS_EQUAL_ADD >> rw[] >>
-      rw[FUNPOW_ADD] >>
-      drule FUNPOW_b_mono >> rw[] >>
-      first_x_assum $ qspec_then ‘k'’ strip_assume_tac >>
-      fs[monotone_def])
-  >- (disj2_tac >>
-      ‘k ≤ k'’ by fs[LE_CASES] >>
-      drule LESS_EQUAL_ADD >> rw[] >>
-      rw[FUNPOW_ADD] >>
-      drule FUNPOW_b_mono >> rw[] >>
-      first_x_assum $ qspec_then ‘k’ strip_assume_tac >>
-      fs[monotone_def])
+  >- (metis_tac[FUNPOW_UNIV_ord])
+  >- (‘k ≤ k'’ by fs[LE_CASES] >>
+      metis_tac[FUNPOW_UNIV_ord])
 QED
 
 Theorem wbounded_param_coind:
@@ -710,10 +766,6 @@ Theorem llist_wbounded:
   wbounded llist_functional
 Proof
   rw[wbounded_def, llist_functional] >>
-  rw[SET_EQ_SUBSET] >-
-   (rw[fixedPointTheory.gfp_def, BIGUNION_SUBSET, SUBSET_BIGINTER] >>
-    Induct_on ‘n’ >> rw[] >>
-    metis_tac[monotone_llist_functional, monotone_def, FUNPOW_SUC, SUBSET_TRANS]) >>
   irule gfp_coinduction >>
   rw[BIGINTER, llist_functional, SUBSET_DEF] >>
   Cases_on ‘x’ >>
@@ -809,22 +861,22 @@ Proof
       metis_tac[ones_thm])
 QED
 
-Definition strong_enhance_def:
-  strong_enhance R = R ∪ llist_functional R
+Definition id_enhance_def:
+  id_enhance R = R ∪ llist_functional R
 End
 
-Theorem strong_enhance_mono:
-  monotone strong_enhance
+Theorem id_enhance_mono:
+  monotone id_enhance
 Proof
-  rw[monotone_def, strong_enhance_def] >-
+  rw[monotone_def, id_enhance_def] >-
    (metis_tac[SUBSET_TRANS, SUBSET_UNION]) >>
   metis_tac[SUBSET_TRANS, SUBSET_UNION, monotone_def, monotone_llist_functional]
 QED
 
-Theorem strong_enhance_compatible:
-  set_compatible llist_functional strong_enhance
+Theorem id_enhance_compatible:
+  set_compatible llist_functional id_enhance
 Proof
-  rw[strong_enhance_def, set_compatible_def, strong_enhance_mono] >-
+  rw[id_enhance_def, set_compatible_def, id_enhance_mono] >-
    (metis_tac[SUBSET_UNION, monotone_llist_functional, monotone_def]) >>
   metis_tac[SUBSET_UNION, monotone_llist_functional, monotone_def]
 QED
@@ -846,10 +898,10 @@ Proof
   rw[llist_functional] >>
   irule singleton_subset >>
   irule set_compatible_enhance >> rw[] >>
-  qexists_tac ‘strong_enhance ∘ strong_enhance’ >>
-  rw[strong_enhance_def] >- (rw[llist_functional]) >>
+  qexists_tac ‘id_enhance ∘ id_enhance’ >>
+  rw[id_enhance_def] >- (rw[llist_functional]) >>
   irule set_compatible_compose >>
-  rw[strong_enhance_compatible]
+  rw[id_enhance_compatible]
 QED
 
 Definition cons_rel_def:
@@ -868,7 +920,6 @@ Proof
   rw[cons_rel_def, SUBSET_DEF]
 QED
 
-(* TODO *)
 Theorem ones_eq_ones':
   ones = ones'
 Proof
