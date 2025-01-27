@@ -309,49 +309,8 @@ Proof
 QED
 
 (*
- * second order companion
+ * parameterized coinduction via ordering
  *)
-
-Definition endo_def:
-  endo s f = !x. if s x then s (f x) else f x = ARB
-End
-
-Theorem endo_restrict:
-  endo s f ==> function s s f
-Proof
-  metis_tac[endo_def, function_def]
-QED
-
-Definition endo_lift_def:
-  endo_lift (s,r) = (endo s , lift_rel (s,r))
-End
-
-Theorem poset_lift:
-  poset (s,r) ==> poset (endo_lift (s,r))
-Proof
-  rw[poset_def, endo_lift_def, lift_rel, endo_def]
-  >- (qexists_tac ‘λx. if s x then x else ARB’ >> rw[])
-  >- (metis_tac[])
-  >- (rw[FUN_EQ_THM] >> metis_tac[])
-  >- metis_tac[]
-QED
-
-(* TODO try following paper formalization *)
-(* Definition connection_join: *)
-(*   connection_join (s,r) b g = lub (s,r) { f x | !y. f (b y) SUBSET b (g y) } *)
-(* End *)
-
-(* Theorem connection_join_mono: *)
-(*   monotone b *)
-(*   ==> pointwise_monotone (connection_join b) *)
-(* Proof *)
-(*   rw[monotone_def, pointwise_monotone_def] >> *)
-(*   rw[connection_join, Once SUBSET_DEF, PULL_EXISTS] >> *)
-(*   qexists_tac ‘f'’ >> rw[] >> *)
-(*   pop_assum $ qspec_then ‘y’ strip_assume_tac >> *)
-(*   ‘b (f y) SUBSET b (g y)’ suffices_by metis_tac[SUBSET_TRANS] >> *)
-(*   metis_tac[] *)
-(* QED *)
 
 Theorem companion_alt:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
@@ -440,29 +399,148 @@ Proof
 QED
 
 (*
+ * parameterized formalization following the cawu paper with 2nd order lattice
+ *)
+
+Definition endo_def:
+  endo s f = (!x. if s x then s (f x) else f x = @y. ~(s y))
+End
+
+Theorem endo_restrict:
+  endo s f ==> function s s f
+Proof
+  metis_tac[endo_def, function_def]
+QED
+
+Definition endo_lift_def:
+  endo_lift (s,r) = (endo s , lift_rel (s,r))
+End
+
+Theorem endo_in:
+  endo s t /\ s x ==> s (t x)
+Proof
+  rw[endo_def] >> metis_tac[]
+QED
+
+(* this is one reason why we need choose instead of ARB (which can be in s) *)
+Theorem endo_comp:
+  endo s f /\ endo s g ==> endo s (f o g)
+Proof
+  rw[endo_def] >>
+  rw[] >> metis_tac[]
+QED
+
+Theorem endo_poset:
+  poset (s,r) ==> poset (endo_lift (s,r))
+Proof
+  rw[poset_def, endo_lift_def, lift_rel, endo_def]
+  >- (qexists_tac ‘λx. if s x then x else @y. ~s y’ >> rw[])
+  >- (metis_tac[])
+  >- (rw[FUN_EQ_THM] >> metis_tac[])
+  >- (metis_tac[])
+QED
+
+Definition B_join_def:
+  B_join (s,r) b B =
+  (endo (endo s) B ∧
+   !g x. lub (s,r) { f x | f | endo s f ∧ lift_rel (s,r) (f o b) (b o g) } (B g x))
+End
+
+Theorem B_mono:
+  poset (s,r) /\ endo s b /\ monotonic (s,r) b /\
+  B_join (s,r) b B ==>
+  monotonic (endo_lift (s,r)) B
+Proof
+  rw[B_join_def, endo_lift_def] >>
+  rw[monotonic_def] >>
+  fs[lub_def] >>
+  rename1 ‘lift_rel _ (B f) (B g)’ >>
+  rw[lift_rel] >>
+  last_assum $ qspecl_then [‘f’, ‘x’] strip_assume_tac >>
+  pop_assum irule >> pop_assum kall_tac >>
+  conj_tac >- (metis_tac[]) >>
+  rw[] >>
+  last_x_assum $ qspecl_then [‘g’, ‘x’] strip_assume_tac >>
+  pop_assum kall_tac >> rw[] >>
+  first_x_assum irule >> rw[] >>
+  qexists_tac ‘f'’ >> fs[lift_rel] >>
+  rw[] >>
+  drule_then irule poset_trans >> rw[endo_in] >>
+  qexists_tac ‘b (f x')’ >> rw[endo_in] >>
+  fs[monotonic_def] >>
+  last_assum irule >>
+  metis_tac[endo_in]
+QED
+
+Theorem compatible_B_functional_postfix:
+  poset (s,r) /\ endo s b /\ monotonic (s,r) b /\
+  B_join (s,r) b B /\
+  endo s f ==>
+  (lift_rel (s,r) f (B f) <=> lift_rel (s,r) (f o b) (b o f))
+Proof
+  reverse (rw[B_join_def, EQ_IMP_THM]) >-
+   (fs[lub_def, lift_rel] >>  metis_tac[endo_in]) >>
+  (* look pointwise since the predicate is pointwise *)
+  subgoal ‘lift_rel (s,r) (B f o b) (b o f)’ >-
+   (fs[lub_def] >> rw[lift_rel] >>
+    first_x_assum $ qspecl_then [‘f’, ‘b x’] strip_assume_tac >>
+    first_x_assum irule >> rw[endo_in] >>
+    fs[lift_rel]) >>
+  fs[lift_rel] >> rw[endo_in] >>
+  drule_then irule poset_trans >>
+  metis_tac[endo_in]
+QED
+
+Theorem B_greatest_fixpoint_is_companion:
+  poset (s,r) /\ monotonic (s,r) b /\ endo s b /\
+  companion (s,r) b t /\ endo s t ∧
+  B_join (s,r) b B
+  ⇒ po_gfp (endo_lift (s,r)) B t ∧
+    (po_gfp (endo_lift (s,r)) B t' ⇒ companion (s,r) b t')
+Proof
+  rw[gfp_def, endo_lift_def] >>
+  cheat
+QED
+
+(* functionals on sets form a complete lattice under pointwise inclusion
+ * B is monotone with that ordering, and it can be defined via lub = BIGUNION
+ * hence B has a greatest fixpoint and we can instantiate
+ *)
+Theorem param_coind':
+  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  companion (s,r) b t /\
+  po_gfp (s,r) b gfix /\
+  s x /\ s y /\
+  lub (s,r) { x; y } xy
+  ==> r y (b (t xy)) ==> r y (t x)
+Proof
+  cheat
+QED
+
+(*
   powerset helpers
 *)
 
 Definition set_compatible_def:
-  set_compatible b f = (monotone f ∧ ∀X. f (b X) ⊆ b (f X))
+  set_compatible b f = (monotone f /\ !X. f (b X) SUBSET b (f X))
 End
 
 Theorem set_compatible:
-  set_compatible b f ⇒ compatible (UNIV,$SUBSET) b f
+  set_compatible b f ==> compatible (UNIV,$SUBSET) b f
 Proof
   rw[set_compatible_def, compatible_def, lift_rel, function_def]
 QED
 
 Theorem set_compatible_self:
-  monotone b ⇒ set_compatible b b
+  monotone b ==> set_compatible b b
 Proof
   rw[set_compatible_def, monotone_def]
 QED
 
 Theorem set_compatible_compose:
-  monotone b ⇒
-  set_compatible b f ∧ set_compatible b g
-  ⇒ set_compatible b (f ∘ g)
+  monotone b ==>
+  set_compatible b f /\ set_compatible b g
+  ==> set_compatible b (f o g)
 Proof
   rw[monotone_def, set_compatible_def] >>
   metis_tac[SUBSET_DEF]
@@ -482,7 +560,7 @@ Proof
 QED
 
 Theorem set_companion_compatible:
-  monotone b ⇒ set_compatible b (set_companion b)
+  monotone b ==> set_compatible b (set_companion b)
 Proof
   rw[] >>
   subgoal ‘compatible (UNIV,$SUBSET) b (set_companion b)’ >-
@@ -492,9 +570,9 @@ Proof
 QED
 
 Theorem set_companion_coinduct:
-  monotone b ∧
-  X ⊆ (b ∘ set_companion b) X
-  ⇒ X ⊆ gfp b
+  monotone b /\
+  X SUBSET (b o set_companion b) X
+  ==> X SUBSET gfp b
 Proof
   rw[] >>
   irule companion_coinduct >>
@@ -503,9 +581,9 @@ Proof
 QED
 
 Theorem set_compatible_enhance:
-  monotone b ∧ set_compatible b f ∧
-  Y ⊆ f X
-  ⇒ Y ⊆ set_companion b X
+  monotone b /\ set_compatible b f /\
+  Y SUBSET f X
+  ==> Y SUBSET set_companion b X
 Proof
   rw[] >>
   drule_then irule SUBSET_TRANS >>
@@ -516,9 +594,9 @@ QED
 
 (* to prove X is in a coinductive set from b, consider t⊥ *)
 Theorem set_param_coind_init:
-  monotone b ∧
-  X ⊆ set_companion b ∅
-  ⇒ X ⊆ gfp b
+  monotone b /\
+  X SUBSET set_companion b {}
+  ==> X SUBSET gfp b
 Proof
   rw[] >>
   drule_at_then Any irule param_coind_init >>
@@ -528,10 +606,10 @@ QED
 
 (* pull f out of tX *)
 Theorem set_param_coind_upto_f:
-  monotone b ∧
-  (∀X. f X ⊆ set_companion b X) ∧
-  Y ⊆ f (set_companion b X)
-  ⇒ Y ⊆ set_companion b X
+  monotone b /\
+  (!X. f X SUBSET set_companion b X) /\
+  Y SUBSET f (set_companion b X)
+  ==> Y SUBSET set_companion b X
 Proof
   rw[] >>
   drule_at_then Any irule param_coind_upto_f >> rw[] >>
@@ -541,8 +619,8 @@ QED
 
 (* conclude: X is a safe deduction from Y *)
 Theorem set_param_coind_done:
-  monotone b ∧
-  Y ⊆ X ⇒ Y ⊆ set_companion b X
+  monotone b /\
+  Y SUBSET X ==> Y SUBSET set_companion b X
 Proof
   rw[] >>
   irule param_coind_done >> rw[] >>
@@ -552,10 +630,10 @@ QED
 
 (* do a deduction step, Y must step to itself or conclude with X *)
 Theorem set_param_coind:
-  monotone b ∧ (∀X Y. (set_companion b X) ⊆ (set_companion b Y) ∨
-                      (set_companion b Y) ⊆ (set_companion b X))
-  ⇒ Y ⊆ b (set_companion b (X ∪ Y))
-  ⇒ Y ⊆ set_companion b X
+  monotone b /\ (!X Y. (set_companion b X) SUBSET (set_companion b Y) \/
+                      (set_companion b Y) SUBSET (set_companion b X))
+  ==> Y SUBSET b (set_companion b (X UNION Y))
+  ==> Y SUBSET set_companion b X
 Proof
   rw[] >>
   drule_at_then Any irule param_coind >>
@@ -567,25 +645,25 @@ QED
 (* Sufficient condition for establishing the linear order on companion values,
    which is hard to state in general since big ordinals aren't supported in HOL4.
 
-   This is basically a special case of the harder direction of ω-continuity
+   This is essentially a special case of the harder direction of 'y-continuity
    - the fact that applying b preserves limits/intersections of ℕ-indexed sets
  *)
 Definition wbounded_def:
-  wbounded b = (BIGINTER {FUNPOW b n UNIV | n | T} ⊆ gfp b)
+  wbounded b = (BIGINTER {FUNPOW b n UNIV | n | T} SUBSET gfp b)
 End
 
 Triviality x_in_funpows_gfp:
-  wbounded b ⇒
-  (∀n. x ⊆ FUNPOW b n UNIV) ⇒ x ⊆ gfp b
+  wbounded b ==>
+  (!n. x SUBSET FUNPOW b n UNIV) ==> x SUBSET gfp b
 Proof
   rw[] >>
-  subgoal ‘x ⊆ BIGINTER {FUNPOW b n UNIV | n | T}’ >-
+  subgoal ‘x SUBSET BIGINTER {FUNPOW b n UNIV | n | T}’ >-
    (fs[BIGINTER, SUBSET_DEF] >> metis_tac[]) >>
   metis_tac[wbounded_def, SUBSET_TRANS]
 QED
 
 Triviality FUNPOW_b_mono:
-  monotone b ⇒ monotone (FUNPOW b k)
+  monotone b ==> monotone (FUNPOW b k)
 Proof
   strip_tac >>
   Induct_on ‘k’ >- (rw[monotone_def, FUNPOW_0]) >>
@@ -593,8 +671,8 @@ Proof
 QED
 
 Triviality FUNPOW_UNIV_ord:
-  monotone b ⇒
-  k' ≤ k ⇒ FUNPOW b k 𝕌(:α) ⊆ FUNPOW b k' 𝕌(:α)
+  monotone b ==>
+  k' <= k ==> FUNPOW b k univ(:'a) SUBSET FUNPOW b k' univ(:'a)
 Proof
   rw[] >>
   drule LESS_EQUAL_ADD >> rw[] >>
@@ -605,30 +683,30 @@ Proof
 QED
 
 Triviality set_companion_funpow_lemma:
-  monotone b ∧
-  set_companion b X ⊆ set_companion b (FUNPOW b k UNIV)
-  ⇒ set_companion b X ⊆ FUNPOW b k UNIV
+  monotone b /\
+  set_companion b X SUBSET set_companion b (FUNPOW b k UNIV)
+  ==> set_companion b X SUBSET FUNPOW b k UNIV
 Proof
   rw[] >>
   drule_then irule SUBSET_TRANS >>
-  subgoal ‘FUNPOW b k (set_companion b UNIV) ⊆ FUNPOW b k UNIV’ >-
+  subgoal ‘FUNPOW b k (set_companion b UNIV) SUBSET FUNPOW b k UNIV’ >-
    (‘monotone (FUNPOW b k)’ by rw[FUNPOW_b_mono] >>
     fs[monotone_def]) >>
   drule_at_then Any irule SUBSET_TRANS >>
   drule set_companion_compatible >>
   rw[set_compatible_def] >>
-  subgoal ‘∀m. m ≤ k ⇒
-               FUNPOW b (k-m) (set_companion b (FUNPOW b m 𝕌(:α))) ⊆
-                      FUNPOW b k (set_companion b 𝕌(:α))’ >-
+  subgoal ‘!m. m <= k ==>
+               FUNPOW b (k-m) (set_companion b (FUNPOW b m univ(:'a))) SUBSET
+                      FUNPOW b k (set_companion b univ(:'a))’ >-
    (Induct_on ‘m’ >- (rw[FUNPOW_0]) >>
     rw[FUNPOW_SUC] >>
     Cases_on ‘k - m’ >-
-     (‘¬(SUC m ≤ k)’ suffices_by metis_tac[] >>
+     (‘~(SUC m <= k)’ suffices_by metis_tac[] >>
       pop_assum mp_tac >> numLib.ARITH_TAC) >>
-    ‘m ≤ k’ by metis_tac[LESS_EQ_SUC_REFL, LESS_EQ_TRANS] >>
+    ‘m <= k’ by metis_tac[LESS_EQ_SUC_REFL, LESS_EQ_TRANS] >>
     first_x_assum drule >> rw[] >>
     drule_at_then Any irule SUBSET_TRANS >>
-    ‘k - m = SUC n ⇒ k - SUC m = n’ by numLib.ARITH_TAC >>
+    ‘k - m = SUC n ==> k - SUC m = n’ by numLib.ARITH_TAC >>
     rw[FUNPOW] >>
     metis_tac[FUNPOW_b_mono, monotone_def]) >>
   pop_assum $ qspec_then ‘k’ strip_assume_tac >>
@@ -638,63 +716,63 @@ QED
 (* XXX this is terrible *)
 open whileTheory;
 Triviality not_gfp_has_lowest_FUNPOW:
-  monotone b ∧ wbounded b ∧
-  ¬(X ⊆ gfp b) ⇒
-  ∃k. (X ⊆ FUNPOW b k UNIV) ∧ (∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k)
+  monotone b /\ wbounded b /\
+  ~(X SUBSET gfp b) ==>
+  ?k. (X SUBSET FUNPOW b k UNIV) /\ (!m. X SUBSET FUNPOW b m UNIV ==> m <= k)
 Proof
   rw[] >>
-  ‘∃n. ¬(X ⊆ FUNPOW b n UNIV)’ by metis_tac[x_in_funpows_gfp] >>
-  subgoal ‘$LEAST (λn. ¬(X ⊆ FUNPOW b n UNIV)) ≠ 0’ >-
+  ‘?n. ~(X SUBSET FUNPOW b n UNIV)’ by metis_tac[x_in_funpows_gfp] >>
+  subgoal ‘$LEAST (λn. ~(X SUBSET FUNPOW b n UNIV)) <> 0’ >-
    (spose_not_then strip_assume_tac >>
-    qspec_then ‘λn. ¬(X ⊆ FUNPOW b n UNIV)’ strip_assume_tac
+    qspec_then ‘λn. ~(X SUBSET FUNPOW b n UNIV)’ strip_assume_tac
                (cj 1 (iffLR LEAST_EXISTS)) >>
     rfs[] >> gvs[]) >>
-  qexists_tac ‘$LEAST (λn. ¬(X ⊆ FUNPOW b n UNIV)) - 1’ >>
+  qexists_tac ‘$LEAST (λn. ~(X SUBSET FUNPOW b n UNIV)) - 1’ >>
   rw[] >-
-   (subgoal ‘∀n. n < $LEAST (λk. ¬(X ⊆ FUNPOW b k UNIV)) ⇒ ¬¬(X ⊆ FUNPOW b n UNIV)’
+   (subgoal ‘!n. n < $LEAST (λk. ~(X SUBSET FUNPOW b k UNIV)) ==> ~~(X SUBSET FUNPOW b n UNIV)’
     >- (ho_match_mp_tac (cj 2 (iffLR LEAST_EXISTS)) >> metis_tac[LEAST_EXISTS]) >>
     fs[]) >>
   spose_not_then strip_assume_tac >>
   fs[NOT_LE] >>
   Cases_on ‘m’ >>
   fs[GSYM LE_LT1] >>
-  ‘∀k. (LEAST n. ¬(X ⊆ FUNPOW b n 𝕌(:α))) ≤ k ⇒ ¬(X ⊆ FUNPOW b k UNIV)’
+  ‘!k. (LEAST n. ~(X SUBSET FUNPOW b n univ(:'a))) <= k ==> ~(X SUBSET FUNPOW b k UNIV)’
     suffices_by metis_tac[] >>
   rw[] >>
-  qspec_then ‘λn. ¬(X ⊆ FUNPOW b n UNIV)’ strip_assume_tac
+  qspec_then ‘λn. ~(X SUBSET FUNPOW b n UNIV)’ strip_assume_tac
              (cj 1 (iffLR LEAST_EXISTS)) >>
   fs[] >>
   metis_tac[FUNPOW_UNIV_ord, SUBSET_TRANS]
 QED
 
 Theorem wbounded_companion_final_sequence:
-  monotone b ∧ wbounded b ⇒
-  if X ⊆ gfp b
+  monotone b /\ wbounded b ==>
+  if X SUBSET gfp b
   then set_companion b X = gfp b
-  else ∃k. set_companion b X = FUNPOW b k UNIV
+  else ?k. set_companion b X = FUNPOW b k UNIV
 Proof
   rw[] >-
    (irule lt_gfp_companion >>
-    qexistsl_tac [‘b’, ‘∅’, ‘$SUBSET’, ‘UNIV’] >>
+    qexistsl_tac [‘b’, ‘ {} ’, ‘$SUBSET’, ‘UNIV’] >>
     rw[bottom_def, set_companion, function_def, gfp_poset_gfp]) >>
   (* there exists a lower bound on b^n⊤ containing X  *)
-  ‘∃k. X ⊆ FUNPOW b k UNIV ∧ (∀m. X ⊆ FUNPOW b m UNIV ⇒ m ≤ k)’
+  ‘?k. X SUBSET FUNPOW b k UNIV /\ (!m. X SUBSET FUNPOW b m UNIV ==> m <= k)’
     by metis_tac[not_gfp_has_lowest_FUNPOW] >>
   qexists_tac ‘k’ >> rw[] >>
   rw[SET_EQ_SUBSET]
-  >- (‘set_companion b X ⊆ set_companion b (FUNPOW b k UNIV)’
+  >- (‘set_companion b X SUBSET set_companion b (FUNPOW b k UNIV)’
         by metis_tac[set_companion_compatible, set_compatible_def, monotone_def] >>
       metis_tac[set_companion_funpow_lemma]) >>
   (* why is this companion compatible? it's all about invalid deductions x ⊊ gfp *)
   irule set_compatible_enhance >> rw[] >>
-  qexists_tac ‘λY. if (Y ⊆ gfp b) then ∅
-                   else BIGINTER { FUNPOW b k UNIV | k | Y ⊆ FUNPOW b k UNIV }’ >>
+  qexists_tac ‘λY. if (Y SUBSET gfp b) then {}
+                   else BIGINTER { FUNPOW b k UNIV | k | Y SUBSET FUNPOW b k UNIV }’ >>
   rw[] (* we need k to upper bound stuff in the BIGINTER *)
   >- (rw[SUBSET_BIGINTER] >>
-      ‘k' ≤ k’ by metis_tac[] >>
+      ‘k' <= k’ by metis_tac[] >>
       rw[FUNPOW_UNIV_ord]) >>
   rw[set_compatible_def, monotone_def] >-
-   (* monotone because X ≤ Y ⇒ X ≤ every b_y, so every b_y is a b_x *)
+   (* monotone because X <= Y ==> X <= every b_y, so every b_y is a b_x *)
    (rw[] >- (metis_tac[SUBSET_TRANS]) >>
     rw[SUBSET_BIGINTER] >>
     irule BIGINTER_SUBSET >>
@@ -702,9 +780,9 @@ Proof
     metis_tac[SUBSET_TRANS]) >>
   (* compatible because by (and so tby) is bounded above by bb_n = bty *)
   rw[] >- (metis_tac[gfp_greatest_fixedpoint, monotone_def]) >>
-  ‘∃k. (Y ⊆ FUNPOW b k UNIV) ∧ (∀m. Y ⊆ FUNPOW b m UNIV ⇒ m ≤ k)’
+  ‘?k. (Y SUBSET FUNPOW b k UNIV) /\ (!m. Y SUBSET FUNPOW b m UNIV ==> m <= k)’
     by metis_tac[not_gfp_has_lowest_FUNPOW] >>
-  ‘b Y ⊆ FUNPOW b (SUC k') UNIV’ by metis_tac[monotone_def, FUNPOW_SUC] >>
+  ‘b Y SUBSET FUNPOW b (SUC k') UNIV’ by metis_tac[monotone_def, FUNPOW_SUC] >>
   irule BIGINTER_SUBSET >> rw[] >>
   pop_assum $ irule_at Any >>
   rw[FUNPOW_SUC] >>
@@ -714,8 +792,8 @@ Proof
 QED
 
 Triviality gfp_below_funpow:
-  monotone b ⇒
-  ∀n. gfp b ⊆ FUNPOW b n UNIV
+  monotone b ==>
+  !n. gfp b SUBSET FUNPOW b n UNIV
 Proof
   strip_tac >>
   Induct >- (rw[FUNPOW_0]) >>
@@ -723,25 +801,25 @@ Proof
 QED
 
 Theorem wbounded_companion_total_order:
-  monotone b ∧ wbounded b ⇒
-  ∀X Y. set_companion b X ⊆ set_companion b Y ∨
-        set_companion b Y ⊆ set_companion b X
+  monotone b /\ wbounded b ==>
+  !X Y. set_companion b X SUBSET set_companion b Y \/
+        set_companion b Y SUBSET set_companion b X
 Proof
   rw[] >>
   drule_all wbounded_companion_final_sequence >> rw[] >>
   first_assum $ qspec_then ‘X’ strip_assume_tac >>
   first_assum $ qspec_then ‘Y’ strip_assume_tac >>
-  Cases_on ‘X ⊆ gfp b’ >> Cases_on ‘Y ⊆ gfp b’ >> fs[gfp_below_funpow] >>
-  Cases_on ‘k' ≤ k’
+  Cases_on ‘X SUBSET gfp b’ >> Cases_on ‘Y SUBSET gfp b’ >> fs[gfp_below_funpow] >>
+  Cases_on ‘k' <= k’
   >- (metis_tac[FUNPOW_UNIV_ord])
-  >- (‘k ≤ k'’ by fs[LE_CASES] >>
+  >- (‘k <= k'’ by fs[LE_CASES] >>
       metis_tac[FUNPOW_UNIV_ord])
 QED
 
 Theorem wbounded_param_coind:
-  monotone b ∧ wbounded b
-  ⇒ Y ⊆ b (set_companion b (X ∪ Y))
-  ⇒ Y ⊆ set_companion b X
+  monotone b /\ wbounded b
+  ==> Y SUBSET b (set_companion b (X UNION Y))
+  ==> Y SUBSET set_companion b X
 Proof
   metis_tac[set_param_coind, wbounded_companion_total_order]
 QED
@@ -753,7 +831,7 @@ QED
 open llistTheory;
 Definition llist_functional:
   llist_functional R = (* in the paper, llist_functional is called "b" *)
-  ({[||],[||]} ∪ {(x:::xs,y:::ys) | x = y ∧ (xs,ys) ∈ R})
+  ({[||],[||]} UNION {(x:::xs,y:::ys) | x = y /\ (xs,ys) IN R})
 End
 
 Theorem monotone_llist_functional[simp]:
@@ -771,10 +849,10 @@ Proof
   Cases_on ‘x’ >>
   Cases_on ‘q’ >> Cases_on ‘r’ >> rw[]
   >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
-      ‘([||],h:::t) ∈ llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
+      ‘([||],h:::t) IN llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
       fs[llist_functional])
   >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
-      ‘(h:::t,[||]) ∈ llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
+      ‘(h:::t,[||]) IN llist_functional UNIV’ by metis_tac[FUNPOW_1] >>
       fs[llist_functional])
   >- (pop_assum $ qspec_then ‘llist_functional UNIV’ strip_assume_tac >>
       fs[llist_functional] >>
@@ -783,7 +861,7 @@ Proof
       rw[FUNPOW_1, llist_functional])
   >- (pop_assum $ qspec_then ‘FUNPOW llist_functional (SUC n) UNIV’
                   strip_assume_tac >>
-      ‘(h:::t,h':::t') ∈ FUNPOW llist_functional (SUC n) UNIV’ by metis_tac[] >>
+      ‘(h:::t,h':::t') IN FUNPOW llist_functional (SUC n) UNIV’ by metis_tac[] >>
       fs[Once FUNPOW_SUC, llist_functional])
 QED
 
@@ -862,7 +940,7 @@ Proof
 QED
 
 Definition id_enhance_def:
-  id_enhance R = R ∪ llist_functional R
+  id_enhance R = R UNION llist_functional R
 End
 
 Theorem id_enhance_mono:
@@ -882,7 +960,7 @@ Proof
 QED
 
 Theorem singleton_subset:
-  {x} ⊆ y ⇒ x ∈ y
+  {x} SUBSET y ==> x IN y
 Proof
   rw[]
 QED
@@ -890,7 +968,7 @@ QED
 Theorem ones_eq_ones':
   ones = ones'
 Proof
-  ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
+  ‘{(ones,ones')} SUBSET UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
   rewrite_tac[GSYM llist_functional_gfp] >>
   irule set_companion_coinduct >>
   (* ones = 1:1:1:ones after unfolding 3 times *)
@@ -898,18 +976,18 @@ Proof
   rw[llist_functional] >>
   irule singleton_subset >>
   irule set_compatible_enhance >> rw[] >>
-  qexists_tac ‘id_enhance ∘ id_enhance’ >>
+  qexists_tac ‘id_enhance o id_enhance’ >>
   rw[id_enhance_def] >- (rw[llist_functional]) >>
   irule set_compatible_compose >>
   rw[id_enhance_compatible]
 QED
 
 Definition cons_rel_def:
-  cons_rel R = {x:::xs,y:::ys | x = y ∧ (xs,ys) ∈ R}
+  cons_rel R = {x:::xs,y:::ys | x = y /\ (xs,ys) IN R}
 End
 
 Theorem cons_rel_cons:
-  {(x:::xs,x:::ys)} ⊆ cons_rel R ⇔ {(xs,ys)} ⊆ R
+  {(x:::xs,x:::ys)} SUBSET cons_rel R <=> {(xs,ys)} SUBSET R
 Proof
   rw[cons_rel_def, SUBSET_DEF]
 QED
@@ -917,7 +995,7 @@ QED
 Theorem ones_eq_ones':
   ones = ones'
 Proof
-  ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
+  ‘{(ones,ones')} SUBSET UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
   rewrite_tac[GSYM llist_functional_gfp] >>
   irule set_param_coind_init >> rw[] >>
   irule singleton_subset >>
@@ -928,11 +1006,11 @@ Proof
   (* work upto cons *)
   irule singleton_subset >>
   irule set_param_coind_upto_f >> rw[] >>
-  qexists_tac ‘llist_functional ∘ llist_functional’ >>
+  qexists_tac ‘llist_functional o llist_functional’ >>
   conj_tac >-
    (strip_tac >>
     irule set_compatible_enhance >> rw[] >>
-    qexists_tac ‘llist_functional ∘ llist_functional’ >> rw[] >>
+    qexists_tac ‘llist_functional o llist_functional’ >> rw[] >>
     irule set_compatible_compose >>
     rw[set_compatible_self]) >>
   rw[llist_functional] >>
