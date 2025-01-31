@@ -94,7 +94,7 @@ Proof
   gvs[lub_def, PULL_EXISTS, function_def]
 QED
 
-(* f x <= f y <= t y is upper bound *)
+(* f x <= f y <= t y is upper bound, compatible f must be mono *)
 Theorem companion_mono:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
   companion (s,r) b t ==> monotonic (s,r) t
@@ -403,30 +403,25 @@ QED
  *)
 
 Definition endo_def:
-  endo s f = (!x. if s x then s (f x) else f x = @y. ~(s y))
+  endo (s,r) f = (monotonic (s,r) f ∧ ∀x. if s x then s (f x) else f x = @y. ~(s y))
 End
 
-Theorem endo_restrict:
-  endo s f ==> function s s f
-Proof
-  metis_tac[endo_def, function_def]
-QED
-
 Definition endo_lift_def:
-  endo_lift (s,r) = (endo s , lift_rel (s,r))
+  endo_lift (s,r) = (endo (s,r) , lift_rel (s,r))
 End
 
 Theorem endo_in:
-  endo s t /\ s x ==> s (t x)
+  endo (s,r) t /\ s x ==> s (t x)
 Proof
   rw[endo_def] >> metis_tac[]
 QED
 
 (* this is one reason why we need choose instead of ARB (which can be in s) *)
 Theorem endo_comp:
-  endo s f /\ endo s g ==> endo s (f o g)
+  endo (s,r) f /\ endo (s,r) g ==> endo (s,r) (f o g)
 Proof
-  rw[endo_def] >>
+  rw[endo_def] >-
+   (metis_tac[monotonic_comp, function_def]) >>
   rw[] >> metis_tac[]
 QED
 
@@ -434,7 +429,7 @@ Theorem endo_poset:
   poset (s,r) ==> poset (endo_lift (s,r))
 Proof
   rw[poset_def, endo_lift_def, lift_rel, endo_def]
-  >- (qexists_tac ‘λx. if s x then x else @y. ~s y’ >> rw[])
+  >- (qexists_tac ‘λx. if s x then x else @y. ~s y’ >> rw[monotonic_def])
   >- (metis_tac[])
   >- (rw[FUN_EQ_THM] >> metis_tac[])
   >- (metis_tac[])
@@ -442,64 +437,117 @@ QED
 
 Definition B_join_def:
   B_join (s,r) b B =
-  (endo (endo s) B ∧
-   !g x. lub (s,r) { f x | f | endo s f ∧ lift_rel (s,r) (f o b) (b o g) } (B g x))
+  (endo (endo_lift (s,r)) B ∧
+   !g x. lub (s,r) { f x | f | endo (s,r) f ∧ lift_rel (s,r) (f o b) (b o g) }
+             (B g x))
 End
 
 Theorem B_mono:
-  poset (s,r) /\ endo s b /\ monotonic (s,r) b /\
+  poset (s,r) /\ endo (s,r) b /\
   B_join (s,r) b B ==>
   monotonic (endo_lift (s,r)) B
 Proof
   rw[B_join_def, endo_lift_def] >>
-  rw[monotonic_def] >>
-  fs[lub_def] >>
-  rename1 ‘lift_rel _ (B f) (B g)’ >>
-  rw[lift_rel] >>
-  last_assum $ qspecl_then [‘f’, ‘x’] strip_assume_tac >>
-  pop_assum irule >> pop_assum kall_tac >>
-  conj_tac >- (metis_tac[]) >>
-  rw[] >>
-  last_x_assum $ qspecl_then [‘g’, ‘x’] strip_assume_tac >>
-  pop_assum kall_tac >> rw[] >>
-  first_x_assum irule >> rw[] >>
-  qexists_tac ‘f'’ >> fs[lift_rel] >>
-  rw[] >>
-  drule_then irule poset_trans >> rw[endo_in] >>
-  qexists_tac ‘b (f x')’ >> rw[endo_in] >>
-  fs[monotonic_def] >>
-  last_assum irule >>
-  metis_tac[endo_in]
+  fs[endo_def, monotonic_def]
 QED
 
 Theorem compatible_B_functional_postfix:
-  poset (s,r) /\ endo s b /\ monotonic (s,r) b /\
+  poset (s,r) /\ endo (s,r) b /\
   B_join (s,r) b B /\
-  endo s f ==>
+  endo (s,r) f ==>
   (lift_rel (s,r) f (B f) <=> lift_rel (s,r) (f o b) (b o f))
 Proof
   reverse (rw[B_join_def, EQ_IMP_THM]) >-
-   (fs[lub_def, lift_rel] >>  metis_tac[endo_in]) >>
+   (fs[lub_def, lift_rel] >> metis_tac[endo_in]) >>
   (* look pointwise since the predicate is pointwise *)
   subgoal ‘lift_rel (s,r) (B f o b) (b o f)’ >-
    (fs[lub_def] >> rw[lift_rel] >>
     first_x_assum $ qspecl_then [‘f’, ‘b x’] strip_assume_tac >>
-    first_x_assum irule >> rw[endo_in] >>
+    first_x_assum irule >> rw[] >- (metis_tac[endo_in]) >>
     fs[lift_rel]) >>
   fs[lift_rel] >> rw[endo_in] >>
-  drule_then irule poset_trans >>
+  drule_then irule poset_trans >> rw[] >-
+   (metis_tac[endo_in]) >- (metis_tac[endo_in]) >>
+  fs[endo_lift_def] >>
   metis_tac[endo_in]
 QED
 
-Theorem B_greatest_fixpoint_is_companion:
-  poset (s,r) /\ monotonic (s,r) b /\ endo s b /\
-  companion (s,r) b t /\ endo s t ∧
-  B_join (s,r) b B
-  ⇒ po_gfp (endo_lift (s,r)) B t ∧
-    (po_gfp (endo_lift (s,r)) B t' ⇒ companion (s,r) b t')
+Theorem gfp_lub_postfix:
+  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
+  lub (s,r) { x | r x (f x) } l
+  ⇒ po_gfp (s,r) f l
 Proof
-  rw[gfp_def, endo_lift_def] >>
-  cheat
+  rw[lub_def, gfp_def, monotonic_def, function_def] >>
+  subgoal ‘r l (f l)’ >-
+   (first_x_assum irule >> rw[] >>
+    drule_then irule poset_trans >>
+    first_assum $ irule_at Any >> rw[] >>
+    metis_tac[]) >>
+  drule_then irule poset_antisym >> rw[]
+QED
+
+Theorem gfp_unique:
+  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
+  po_gfp (s,r) f u ∧ po_gfp (s,r) f v
+  ⇒ u = v
+Proof
+  rw[function_def, monotonic_def, gfp_def] >>
+  drule_then irule poset_antisym >>
+  metis_tac[poset_refl]
+QED
+
+Theorem lub_is_gfp:
+  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
+  lub (s,r) { x | r x (f x) } l ∧
+  t = l
+  ⇒ po_gfp (s,r) f t
+Proof
+  metis_tac[gfp_lub_postfix, gfp_unique]
+QED
+
+Theorem B_greatest_fixpoint_is_companion:
+  poset (s,r) /\ endo (s,r) b /\
+  endo (s,r) t ∧ companion (s,r) b t ∧
+  lub (endo_lift (s,r)) {f | lift_rel (s,r) f (B f) } l ∧
+  B_join (s,r) b B
+  ⇒ po_gfp (endo_lift (s,r)) B t
+Proof
+  rw[EQ_IMP_THM] >>
+  drule endo_poset >> rw[] >>
+  fs[endo_lift_def] >>
+  subgoal ‘lift_rel (s,r) (l ∘ b) (b ∘ l)’ >-
+   (drule_then irule (iffLR compatible_B_functional_postfix) >>
+    fs[lub_def] >>
+    qexists_tac ‘B’ >> rw[] >>
+    first_x_assum irule >>
+    reverse conj_tac >- (fs[B_join_def, endo_def, endo_lift_def] >> metis_tac[]) >>
+    rw[] >>
+    fs[B_join_def, endo_lift_def] >>
+    ‘lift_rel (s,r) y l’ by metis_tac[] >>
+    drule_then irule poset_trans >>
+    rw[] >- (fs[endo_def] >> metis_tac[]) >>
+    qexists_tac ‘B y’ >> rw[] >- (fs[endo_def] >> metis_tac[]) >>
+    ‘monotonic (endo (s,r),lift_rel (s,r)) B’ by fs[endo_def] >>
+    fs[monotonic_def]) >>
+  subgoal ‘compatible (s,r) b t’ >-
+   (drule_then irule compatible_companion >>
+    fs[endo_def, function_def] >> metis_tac[]) >>
+  drule_all compatible_B_functional_postfix >> rw[] >>
+  (* argument: gfp B = lub of postfix points = lub of compat functions *)
+  ho_match_mp_tac lub_is_gfp >> rw[] >-
+   (metis_tac[endo_def, function_def, B_join_def, endo_lift_def]) >-
+   (fs[B_join_def, endo_lift_def, endo_def]) >>
+  drule_then irule poset_antisym >>
+  fs[B_join_def, companion_def, lub_def] >>
+  rw[] >-
+   (last_x_assum $ drule_then irule >> fs[compatible_def]) >>
+  rw[lift_rel] >>
+  last_x_assum $ qspec_then ‘x’ strip_assume_tac >>
+  first_x_assum irule >>
+  conj_tac >- (metis_tac[endo_in]) >>
+  qexists_tac ‘l’ >> rw[compatible_def] >-
+   (metis_tac[endo_def, function_def]) >-
+   (metis_tac[endo_def])
 QED
 
 (* functionals on sets form a complete lattice under pointwise inclusion
@@ -507,9 +555,10 @@ QED
  * hence B has a greatest fixpoint and we can instantiate
  *)
 Theorem param_coind':
-  poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
+  poset (s,r) /\ monotonic (s,r) b  /\ endo s b /\
   companion (s,r) b t /\
   po_gfp (s,r) b gfix /\
+  B_join (s,r) b B ∧
   s x /\ s y /\
   lub (s,r) { x; y } xy
   ==> r y (b (t xy)) ==> r y (t x)
