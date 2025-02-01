@@ -135,8 +135,12 @@ Theorem compatible_compose:
   compatible (s,r) b f /\ compatible (s,r) b g
   ==> compatible (s,r) b (f o g)
 Proof
-  rw[poset_def, compatible_def, monotonic_def, function_def, lift_rel] >>
-  metis_tac[]
+  rw[compatible_def, lift_rel] >-
+   (fs[function_def]) >-
+   (fs[function_in, monotonic_def]) >>
+  ‘r (f (g (b x))) (f (b (g x)))’ by metis_tac[monotonic_def, function_in] >>
+  drule_then irule poset_trans >> rw[function_in] >>
+  metis_tac[function_in]
 QED
 
 Theorem companion_gt:
@@ -242,8 +246,9 @@ Proof
   drule_then irule poset_antisym >> fs[function_in] >>
   rw[] >-
    (fs[function_in, bottom_def]) >-
-   (metis_tac[companion_mono, monotonic_def, companion_idem,
-              poset_trans, function_in, bottom_def]) >>
+   (‘r (t x) (t (t bot))’ by metis_tac[companion_mono, monotonic_def,
+                                       function_in, bottom_def] >>
+    metis_tac[companion_idem, poset_trans, function_in, bottom_def]) >>
   ‘r ((K (t bot)) x) (t x)’ suffices_by rw[] >>
   metis_tac[compatible_below_companion, compatible_const_gfp, lift_rel, function_in]
 QED
@@ -351,11 +356,12 @@ Proof
   drule_all_then (irule_at (Pos (el 2))) companion_gt >> rw[function_in] >>
   drule_then irule poset_trans >> rw[function_in] >>
   first_x_assum $ irule_at (Pos (el 2)) >> rw[function_in] >>
-  metis_tac[companion_idem, poset_trans, function_in, monotonic_def, companion_mono]
+  ‘r (t y) (t (t z))’ by metis_tac[companion_mono, monotonic_def, function_in] >>
+  metis_tac[companion_idem, poset_trans, function_in]
 QED
 
 (* total ordering required *)
-Theorem param_coind:
+Theorem param_coind':
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
   companion (s,r) b t /\
   (!x y. s x /\ s y ==> r (t x) (t y) \/ r (t y) (t x)) /\
@@ -550,20 +556,89 @@ Proof
    (metis_tac[endo_def])
 QED
 
-(* functionals on sets form a complete lattice under pointwise inclusion
- * B is monotone with that ordering, and it can be defined via lub = BIGUNION
- * hence B has a greatest fixpoint and we can instantiate
- *)
-Theorem param_coind':
-  poset (s,r) /\ monotonic (s,r) b  /\ endo s b /\
-  companion (s,r) b t /\
+(* extremely annoying without completeness *)
+Theorem param_coind:
+  complete (s,r) ∧ complete (endo_lift (s,r)) ∧
+  poset (s,r) /\ endo (s,r) b /\
+  companion (s,r) b t /\ endo (s,r) t ∧
   po_gfp (s,r) b gfix /\
   B_join (s,r) b B ∧
+  companion (endo_lift (s,r)) B Tt ∧
   s x /\ s y /\
   lub (s,r) { x; y } xy
   ==> r y (b (t xy)) ==> r y (t x)
 Proof
-  cheat
+  rw[] >>
+  ‘∃bot. lub (s,r) ∅ bot’ by metis_tac[complete_def] >>
+  reverse (subgoal ‘lift_rel (s,r)
+                    (λz. if s z then (if r x z then y else bot) else @y. ¬s y)
+                    t’) >-
+   (fs[lift_rel] >>
+    pop_assum $ qspec_then ‘x’ strip_assume_tac >>
+    reverse (Cases_on ‘r x x’) >- metis_tac[poset_refl] >>
+    fs[]) >>
+  qmatch_goalsub_abbrev_tac ‘lift_rel _ f _’ >>
+  subgoal ‘endo (s,r) f’ >-
+   (rw[endo_def, Abbr ‘f’] >-
+     (rw[monotonic_def] >>
+      Cases_on ‘r x z’ >-
+       (metis_tac[poset_refl, poset_trans]) >>
+      fs[lub_def] >> metis_tac[]) >>
+    Cases_on ‘r x z’ >> fs[lub_def] >> metis_tac[]) >>
+  ‘∃l. lub (endo_lift (s,r)) {f | lift_rel (s,r) f (B f)} l’
+    by metis_tac[complete_def] >>
+  drule_all B_greatest_fixpoint_is_companion >>
+  rw[endo_lift_def] >>
+  irule companion_coinduct >>
+  qexistsl_tac [‘B’, ‘endo (s,r)’, ‘Tt’] >> rw[] >-
+   (metis_tac[endo_poset, endo_lift_def]) >-
+   (fs[B_join_def, endo_lift_def, lub_def] >>
+    rw[lift_rel] >>
+    last_x_assum $ qspecl_then [‘Tt f’, ‘x'’] strip_assume_tac >>
+    first_x_assum irule >>
+    conj_tac >- (fs[Abbr ‘f’] >> Cases_on ‘r x x'’ >> fs[bottom_def]) >>
+    qexists_tac ‘f’ >> rw[] >> ntac 3 (pop_assum kall_tac) >>
+    rw[lift_rel] >>
+    reverse (Cases_on ‘r x (b x')’) >-
+     (reverse (rw[Abbr ‘f’, endo_in]) >- (metis_tac[endo_in]) >>
+      ‘s (Tt (λz. if s z then if r x z then y else bot else @y. ¬s y) x')’
+        suffices_by metis_tac[bottom_def, endo_in] >>
+      fs[companion_def] >>
+      metis_tac[function_def, endo_in]) >>
+    ‘∃fxl. lub (s,r) { f x ; x } fxl’ by metis_tac[complete_def] >>
+    ‘∃fbxl. lub (s,r) { f (b x') ; b x' } fbxl’ by metis_tac[complete_def] >>
+    ‘∃fbl. lub (endo (s,r),lift_rel (s,r)) { f ∘ b ; b } fbl’
+      by metis_tac[complete_def] >>
+    subgoal ‘f (b x') = y’ >-
+     (fs[Abbr ‘f’] >> metis_tac[endo_in]) >>
+    rfs[] >> pop_assum kall_tac >>
+    drule_then irule poset_trans >>
+    ‘s (b (Tt f x'))’ by metis_tac[endo_in, companion_def, function_def] >> rw[] >>
+    qexists_tac ‘b (t xy)’ >> rw[endo_in] >- (metis_tac[endo_in]) >>
+    subgoal ‘b (t xy) = b (t fxl)’ >-
+     cheat >>
+    rfs[] >> pop_assum kall_tac >>
+    drule_then irule poset_trans >> rw[] >- (metis_tac[lub_def, endo_in]) >>
+    qexists_tac ‘b (t fbxl)’ >> rw[] >-
+     (metis_tac[endo_in, lub_def]) >-
+     (cheat
+     ) >>
+    drule_then irule poset_trans >> rw[] >- (metis_tac[lub_def, endo_in]) >>
+    qexists_tac ‘b (t (fbl x'))’ >> rw[] >-
+     (metis_tac[endo_in, lub_def]) >-
+     cheat >>
+    ‘monotonic (s,r) b’ by fs[endo_def] >> fs[monotonic_def] >>
+    pop_assum irule >> rw[] >-
+     (metis_tac[endo_in, lub_def]) >-
+     (metis_tac[endo_in, companion_def, function_def]) >>
+    ‘lift_rel (s,r) (t ∘ fbl) (Tt f)’ suffices_by
+      metis_tac[combinTheory.o_DEF, lift_rel] >>
+    cheat
+   ) >-
+   (fs[B_join_def, endo_def, endo_lift_def]) >-
+   (fs[endo_lift_def]) >-
+   (fs[B_join_def, endo_lift_def] >>
+    metis_tac[endo_def, function_def])
 QED
 
 (*
