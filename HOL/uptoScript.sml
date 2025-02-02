@@ -14,7 +14,7 @@ Proof
   rw[monotone_def]
 QED
 
-(* TODO posetTheory? maybe add lub *)
+(* TODO posetTheory? *)
 Theorem po_gfp_coinduct:
   po_gfp (s,r) b gfix /\ s x /\ r x (b x)
   ==> r x gfix
@@ -22,13 +22,46 @@ Proof
   rw[gfp_def]
 QED
 
-Theorem glb_uniq:
+Theorem glb_unique:
   poset (s,r) /\
   glb (s,r) p a /\ glb (s,r) p b
   ==> a = b
 Proof
   rw[glb_def] >>
   drule_then irule poset_antisym >> simp[]
+QED
+
+Theorem lub_unique:
+  poset (s,r) ∧
+  lub (s,r) P x ∧ lub (s,r) P y
+  ⇒ x = y
+Proof
+  rw[lub_def] >>
+  drule_then irule poset_antisym >> simp[]
+QED
+
+Theorem gfp_lub_postfix:
+  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
+  lub (s,r) { x | r x (f x) } l
+  ⇒ po_gfp (s,r) f l
+Proof
+  rw[lub_def, gfp_def, monotonic_def, function_def] >>
+  subgoal ‘r l (f l)’ >-
+   (first_x_assum irule >> rw[] >>
+    drule_then irule poset_trans >>
+    first_assum $ irule_at Any >> rw[] >>
+    metis_tac[]) >>
+  drule_then irule poset_antisym >> rw[]
+QED
+
+Theorem gfp_unique:
+  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
+  po_gfp (s,r) f u ∧ po_gfp (s,r) f v
+  ⇒ u = v
+Proof
+  rw[function_def, monotonic_def, gfp_def] >>
+  drule_then irule poset_antisym >>
+  metis_tac[poset_refl]
 QED
 
 (* general *)
@@ -343,7 +376,7 @@ Proof
   ‘glb (s,r) {t z | z | s z /\ r xy (t z)} (t xy)’
     by metis_tac[lub_def,companion_alt] >>
   ‘{t z | z | s z /\ r y (t z)} = {t z | z | s z /\ r xy (t z)}’
-    suffices_by metis_tac[glb_uniq] >>
+    suffices_by metis_tac[glb_unique] >>
   pop_assum kall_tac >> pop_assum kall_tac >>
   reverse (rw[EXTENSION, EQ_IMP_THM]) >-
    (qexists_tac ‘z’ >>
@@ -443,19 +476,10 @@ QED
 
 Definition B_join_def:
   B_join (s,r) b B =
-  (endo (endo_lift (s,r)) B ∧
+  (function (endo (s,r)) (endo (s,r)) B ∧ monotonic (endo_lift (s,r)) B ∧
    !g x. lub (s,r) { f x | f | endo (s,r) f ∧ lift_rel (s,r) (f o b) (b o g) }
              (B g x))
 End
-
-Theorem B_mono:
-  poset (s,r) /\ endo (s,r) b /\
-  B_join (s,r) b B ==>
-  monotonic (endo_lift (s,r)) B
-Proof
-  rw[B_join_def, endo_lift_def] >>
-  fs[endo_def, monotonic_def]
-QED
 
 Theorem compatible_B_functional_postfix:
   poset (s,r) /\ endo (s,r) b /\
@@ -475,31 +499,7 @@ Proof
   drule_then irule poset_trans >> rw[] >-
    (metis_tac[endo_in]) >- (metis_tac[endo_in]) >>
   fs[endo_lift_def] >>
-  metis_tac[endo_in]
-QED
-
-Theorem gfp_lub_postfix:
-  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
-  lub (s,r) { x | r x (f x) } l
-  ⇒ po_gfp (s,r) f l
-Proof
-  rw[lub_def, gfp_def, monotonic_def, function_def] >>
-  subgoal ‘r l (f l)’ >-
-   (first_x_assum irule >> rw[] >>
-    drule_then irule poset_trans >>
-    first_assum $ irule_at Any >> rw[] >>
-    metis_tac[]) >>
-  drule_then irule poset_antisym >> rw[]
-QED
-
-Theorem gfp_unique:
-  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
-  po_gfp (s,r) f u ∧ po_gfp (s,r) f v
-  ⇒ u = v
-Proof
-  rw[function_def, monotonic_def, gfp_def] >>
-  drule_then irule poset_antisym >>
-  metis_tac[poset_refl]
+  metis_tac[endo_in, monotonic_def, function_def]
 QED
 
 Theorem lub_is_gfp:
@@ -526,13 +526,13 @@ Proof
     fs[lub_def] >>
     qexists_tac ‘B’ >> rw[] >>
     first_x_assum irule >>
-    reverse conj_tac >- (fs[B_join_def, endo_def, endo_lift_def] >> metis_tac[]) >>
+    reverse conj_tac >- (fs[B_join_def, function_def, endo_lift_def]) >>
     rw[] >>
     fs[B_join_def, endo_lift_def] >>
     ‘lift_rel (s,r) y l’ by metis_tac[] >>
     drule_then irule poset_trans >>
-    rw[] >- (fs[endo_def] >> metis_tac[]) >>
-    qexists_tac ‘B y’ >> rw[] >- (fs[endo_def] >> metis_tac[]) >>
+    fs[function_def] >>
+    qexists_tac ‘B y’ >> rw[] >>
     ‘monotonic (endo (s,r),lift_rel (s,r)) B’ by fs[endo_def] >>
     fs[monotonic_def]) >>
   subgoal ‘compatible (s,r) b t’ >-
@@ -556,19 +556,154 @@ Proof
    (metis_tac[endo_def])
 QED
 
-(* extremely annoying without completeness *)
+Theorem t_below_Tf:
+  poset (s,r) /\ endo (s,r) b /\
+  endo (s,r) t ∧ companion (s,r) b t ∧
+  B_join (s,r) b B ∧ lub (endo_lift (s,r)) {f | lift_rel (s,r) f (B f)} l ∧
+  bottom (endo_lift (s,r)) bot ∧
+  companion (endo_lift (s,r)) B T' ∧
+  endo (s,r) f
+  ⇒ lift_rel (s,r) t (T' f)
+Proof
+  rw[] >>
+  drule endo_poset >>
+  drule_all B_greatest_fixpoint_is_companion >> rw[] >>
+  fs[endo_lift_def] >>
+  subgoal ‘T' bot = t’ >-
+   (irule companion_bot_gfp >>
+    qexistsl_tac [‘B’, ‘lift_rel (s,r)’, ‘endo (s,r)’] >>
+    fs[SRULE [endo_lift_def] endo_poset, B_join_def, endo_lift_def]) >>
+  subgoal ‘monotonic (endo (s,r),lift_rel (s,r)) T'’ >-
+   (irule companion_mono >> fs[function_def] >>
+    qexists_tac ‘B’ >> fs[B_join_def, endo_lift_def, function_def]) >>
+  fs[monotonic_def] >>
+  metis_tac[bottom_def]
+QED
+
+Theorem lift_rel_comp:
+  poset (s,r) ∧
+  function s s g ∧ function s s f ∧ function s s f' ∧ function s s g' ∧
+  monotonic (s,r) f ∧ monotonic (s,r) f' ∧
+  lift_rel (s,r) f f' ∧ lift_rel (s,r) g g'
+  ⇒ lift_rel (s,r) (f ∘ g) (f' ∘ g')
+Proof
+  rw[lift_rel, function_def] >>
+  drule_then irule poset_trans >> rw[] >>
+  metis_tac[monotonic_def, poset_trans]
+QED
+
+Theorem Bf_compatible_f:
+  poset (s,r) /\ endo (s,r) b /\ endo (s,r) f ∧
+  B_join (s,r) b B
+  ⇒ lift_rel (s,r) (B f ∘ b) (b ∘ f)
+Proof
+  rw[B_join_def, endo_lift_def, lift_rel, lub_def] >>
+  first_x_assum $ qspecl_then [‘f’, ‘b x’] strip_assume_tac >>
+  pop_assum irule >> pop_assum kall_tac >> rw[] >>
+  metis_tac[endo_in]
+QED
+
+Theorem doubling_compatible_B:
+  poset (s,r) /\ endo (s,r) b /\
+  B_join (s,r) b B
+  ⇒ compatible (endo_lift (s,r)) B (λf. f ∘ f)
+Proof
+  rw[compatible_def, endo_lift_def] >-
+   (rw[function_def, endo_def] >-
+     (irule monotonic_comp >> metis_tac[function_def]) >- (metis_tac[])) >-
+   (fs[monotonic_def, B_join_def, endo_lift_def] >> rw[] >>
+    metis_tac[lift_rel_comp, endo_def, function_def]) >>
+  rw[lift_rel] >>
+  rename1 ‘r (B f (B f y)) _’ >>
+  drule_all Bf_compatible_f >> rw[] >>
+  fs[lift_rel, B_join_def, endo_lift_def, lub_def] >> rw[] >>
+  first_x_assum $ qspecl_then [‘f ∘ f’, ‘y’] strip_assume_tac >>
+  first_x_assum irule >> pop_assum kall_tac >> rw[] >-
+   (metis_tac[function_def, endo_def]) >>
+  qexists_tac ‘B f ∘ B f’ >> rw[] >- (metis_tac[function_def, endo_comp]) >>
+  drule_then irule poset_trans >> rw[] >-
+   (metis_tac[endo_in, function_def]) >- (metis_tac[endo_in]) >>
+  qexists_tac ‘B f (b (f x))’ >> rw[] >- (metis_tac[endo_in, function_def]) >-
+   (‘monotonic (s,r) (B f)’ by metis_tac[function_def, endo_def] >>
+    fs[monotonic_def] >> metis_tac[endo_def, function_def]) >>
+  metis_tac[endo_def, function_def]
+QED
+
+Theorem Tf_idem:
+  poset (s,r) /\ endo (s,r) b /\
+  B_join (s,r) b B ∧
+  endo (s,r) t ∧ companion (s,r) b t ∧
+  companion (endo_lift (s,r)) B T' ∧
+  lub (endo_lift (s,r)) {f | lift_rel (s,r) f (B f)} l ∧
+  bottom (endo_lift (s,r)) bot ∧
+  endo (s,r) f
+  ⇒ T' f ∘ T' f = T' f
+Proof
+  rw[endo_lift_def] >>
+  drule endo_poset >> rw[] >>
+  irule poset_antisym >>
+  qexistsl_tac [‘lift_rel (s,r)’, ‘endo (s,r)’] >> rw[] >-
+   (metis_tac[companion_def, function_def, endo_comp, endo_def]) >-
+   (metis_tac[companion_def, function_def, endo_comp, endo_def]) >-
+   (fs[endo_lift_def])
+  >- (irule poset_trans >>
+      qexistsl_tac [‘endo (s,r)’, ‘T' (T' f)’] >>
+      fs[B_join_def, endo_lift_def, function_def] >>
+      rw[] >-
+       (metis_tac[endo_comp, companion_def, function_def]) >-
+       (metis_tac[companion_def, function_def]) >-
+       (metis_tac[companion_def, function_def]) >-
+       (‘lift_rel (endo (s,r),lift_rel (s,r)) ((λf. f ∘ f) ∘ T') (T' ∘ T')’
+          suffices_by fs[lift_rel] >>
+        irule lift_rel_comp >> fs[] >>
+        ‘function (endo (s,r)) (endo (s,r)) T'’ by metis_tac[companion_def] >>
+        rw[] >-
+         (rw[monotonic_def] >>
+          irule lift_rel_comp >> metis_tac[endo_def, function_def]) >-
+         (irule companion_mono >> metis_tac[function_def]) >-
+         (rw[function_def, endo_comp]) >-
+         (irule compatible_below_companion >> rw[] >>
+          qexists_tac ‘B’ >> rw[GSYM endo_lift_def] >>
+          irule doubling_compatible_B >>
+          rw[B_join_def, endo_lift_def] >> metis_tac[function_def]) >-
+         (rw[lift_rel] >> metis_tac[poset_refl, endo_in, function_def])) >-
+       (‘T' (T' f) = T' f’
+          suffices_by metis_tac[poset_refl, companion_def, function_def] >>
+        irule companion_idem >>
+        qexistsl_tac [‘B’, ‘lift_rel (s,r)’, ‘endo (s,r)’] >>
+        metis_tac[function_def, endo_def])) >>
+  (* Tf∘id ≤ Tf∘t ≤ Tf∘Tf *)
+  ‘lift_rel (s,r) (T' f ∘ I) (T' f ∘ T' f)’ suffices_by rw[] >>
+  irule lift_rel_comp >>
+  ‘function s s (T' f)’ by metis_tac[function_def, companion_def, endo_def] >>
+  ‘monotonic (s,r) (T' f)’ by metis_tac[function_def, companion_def, endo_def] >>
+  rw[] >-
+   (fs[function_def]) >-
+   (rw[lift_rel] >> metis_tac[poset_refl, companion_def, function_def, endo_def]) >-
+   (drule_all (SRULE [endo_lift_def] t_below_Tf) >>
+    rw[lift_rel] >>
+    drule_then irule poset_trans >> rw[] >-
+     (metis_tac[companion_def, function_def, endo_def]) >>
+    qexists_tac ‘t x’ >> rw[] >- (metis_tac[endo_in]) >>
+    drule_then irule companion_gt >>
+    metis_tac[function_def, endo_def])
+QED
+
+(* only needs binary lubs aside from t, but completeness is more convenient *)
 Theorem param_coind:
   complete (s,r) ∧ complete (endo_lift (s,r)) ∧
   poset (s,r) /\ endo (s,r) b /\
   companion (s,r) b t /\ endo (s,r) t ∧
   po_gfp (s,r) b gfix /\
   B_join (s,r) b B ∧
-  companion (endo_lift (s,r)) B Tt ∧
+  companion (endo_lift (s,r)) B T' ∧
   s x /\ s y /\
   lub (s,r) { x; y } xy
   ==> r y (b (t xy)) ==> r y (t x)
 Proof
   rw[] >>
+  ‘monotonic (s,r) t’ by metis_tac[companion_mono, lub_def, endo_def] >>
+  ‘monotonic (s,r) b’ by metis_tac[function_def, endo_def] >>
   ‘∃bot. lub (s,r) ∅ bot’ by metis_tac[complete_def] >>
   reverse (subgoal ‘lift_rel (s,r)
                     (λz. if s z then (if r x z then y else bot) else @y. ¬s y)
@@ -590,51 +725,120 @@ Proof
   drule_all B_greatest_fixpoint_is_companion >>
   rw[endo_lift_def] >>
   irule companion_coinduct >>
-  qexistsl_tac [‘B’, ‘endo (s,r)’, ‘Tt’] >> rw[] >-
+  qexistsl_tac [‘B’, ‘endo (s,r)’, ‘T'’] >> rw[] >-
+   (* begin *)
    (metis_tac[endo_poset, endo_lift_def]) >-
-   (fs[B_join_def, endo_lift_def, lub_def] >>
+   (‘∃fxl. lub (s,r) { f x ; x } fxl’ by metis_tac[complete_def] >>
+    subgoal ‘xy = fxl’ >-
+     (drule_then irule lub_unique >>
+      ‘y = f x’ by metis_tac[Abbr ‘f’, poset_refl] >> fs[] >>
+      ‘{x; f x} = {f x; x}’ by rw[SET_EQ_SUBSET, SUBSET_DEF] >>
+      fs[] >> metis_tac[]) >>
+    fs[B_join_def, endo_lift_def] >>
+    ‘B_join (s,r) b B’ by fs[B_join_def, endo_lift_def] >>
     rw[lift_rel] >>
-    last_x_assum $ qspecl_then [‘Tt f’, ‘x'’] strip_assume_tac >>
-    first_x_assum irule >>
-    conj_tac >- (fs[Abbr ‘f’] >> Cases_on ‘r x x'’ >> fs[bottom_def]) >>
-    qexists_tac ‘f’ >> rw[] >> ntac 3 (pop_assum kall_tac) >>
+    last_x_assum $ qspecl_then [‘T' f’, ‘x'’] strip_assume_tac >>
+    pop_assum mp_tac >>
+    rw[lub_def] >>
+    first_x_assum irule >> pop_assum kall_tac >>
+    conj_tac >- (fs[Abbr ‘f’] >> Cases_on ‘r x x'’ >> fs[lub_def]) >>
+    qexists_tac ‘f’ >> rw[] >> ntac 2 (pop_assum kall_tac) >>
     rw[lift_rel] >>
     reverse (Cases_on ‘r x (b x')’) >-
      (reverse (rw[Abbr ‘f’, endo_in]) >- (metis_tac[endo_in]) >>
-      ‘s (Tt (λz. if s z then if r x z then y else bot else @y. ¬s y) x')’
-        suffices_by metis_tac[bottom_def, endo_in] >>
+      fs[lub_def] >>
+      ‘s (T' (λz. if s z then if r x z then y else bot else @y. ¬s y) x')’
+        suffices_by metis_tac[endo_in] >>
       fs[companion_def] >>
       metis_tac[function_def, endo_in]) >>
-    ‘∃fxl. lub (s,r) { f x ; x } fxl’ by metis_tac[complete_def] >>
-    ‘∃fbxl. lub (s,r) { f (b x') ; b x' } fbxl’ by metis_tac[complete_def] >>
-    ‘∃fbl. lub (endo (s,r),lift_rel (s,r)) { f ∘ b ; b } fbl’
-      by metis_tac[complete_def] >>
-    subgoal ‘f (b x') = y’ >-
-     (fs[Abbr ‘f’] >> metis_tac[endo_in]) >>
+    subgoal ‘f (b x') = y’ >- (fs[Abbr ‘f’] >> metis_tac[endo_in]) >>
     rfs[] >> pop_assum kall_tac >>
     drule_then irule poset_trans >>
-    ‘s (b (Tt f x'))’ by metis_tac[endo_in, companion_def, function_def] >> rw[] >>
-    qexists_tac ‘b (t xy)’ >> rw[endo_in] >- (metis_tac[endo_in]) >>
-    subgoal ‘b (t xy) = b (t fxl)’ >-
-     cheat >>
-    rfs[] >> pop_assum kall_tac >>
+    ‘s (b (T' f x'))’ by metis_tac[endo_in, companion_def, function_def] >> rw[] >>
+    qexists_tac ‘b (t fxl)’ >> rw[endo_in] >- (metis_tac[lub_def, endo_in]) >>
     drule_then irule poset_trans >> rw[] >- (metis_tac[lub_def, endo_in]) >>
+    ‘∃fbxl. lub (s,r) { f (b x') ; b x' } fbxl’ by metis_tac[complete_def] >>
     qexists_tac ‘b (t fbxl)’ >> rw[] >-
+     (* cases *)
      (metis_tac[endo_in, lub_def]) >-
-     (cheat
-     ) >>
-    drule_then irule poset_trans >> rw[] >- (metis_tac[lub_def, endo_in]) >>
-    qexists_tac ‘b (t (fbl x'))’ >> rw[] >-
-     (metis_tac[endo_in, lub_def]) >-
-     cheat >>
-    ‘monotonic (s,r) b’ by fs[endo_def] >> fs[monotonic_def] >>
-    pop_assum irule >> rw[] >-
-     (metis_tac[endo_in, lub_def]) >-
-     (metis_tac[endo_in, companion_def, function_def]) >>
-    ‘lift_rel (s,r) (t ∘ fbl) (Tt f)’ suffices_by
+     (‘r (t fxl) (t fbxl)’ suffices_by metis_tac[monotonic_def, lub_def,
+                                                 endo_def, endo_in] >>
+      ‘r fxl fbxl’ suffices_by metis_tac[companion_mono, monotonic_def, lub_def,
+                                         function_def, endo_def] >>
+      fs[lub_def] >>
+      last_x_assum irule >> rw[] >-
+       (‘r (b x') fbxl’ by metis_tac[endo_in] >>
+        drule_then irule poset_trans >>
+        pop_assum $ irule_at Any >>
+        metis_tac[endo_in]) >-
+       (‘y = f x’ by metis_tac[Abbr ‘f’, poset_refl] >> fs[] >>
+        ‘r (f (b x')) fbxl’ by metis_tac[endo_in] >>
+        ‘monotonic (s,r) f’ by fs[endo_def] >>
+        metis_tac[monotonic_def, poset_trans, endo_in])) >>
+    subgoal ‘∃fbl. ∀X. lub (s,r) { f (b X) ; b X } (fbl X)’ >-
+     (rw[GSYM SKOLEM_THM] >> metis_tac[complete_def]) >>
+    ‘fbxl = fbl x'’ by metis_tac[lub_unique] >> fs[] >>
+    ‘r (t (fbl x')) (T' f x')’ suffices_by metis_tac[monotonic_def, lub_def,
+                                                     endo_def, endo_in] >>
+    ‘lift_rel (s,r) (t ∘ fbl) (T' f)’ suffices_by
       metis_tac[combinTheory.o_DEF, lift_rel] >>
-    cheat
-   ) >-
+    subgoal ‘bottom (endo_lift (s,r)) (λx. if s x then bot else @y. ¬s y)’ >-
+     (rw[bottom_def, endo_lift_def] >-
+       (rw[endo_def, monotonic_def] >-
+          (metis_tac[poset_refl, lub_def]) >-
+          (metis_tac[lub_def])) >-
+        (rw[lift_rel, lub_def] >>
+         fs[lub_def] >> metis_tac[endo_def])) >>
+    subgoal ‘T' f ∘ T' f = T' f’ >-
+     (drule_then irule Tf_idem >> rw[] >- (metis_tac[]) >>
+      qexistsl_tac [‘B’, ‘b’, ‘l’, ‘t’] >> rw[endo_lift_def]) >>
+    ‘lift_rel (s,r) (t ∘ fbl) (T' f ∘ T' f)’ suffices_by metis_tac[] >>
+    subgoal ‘lift_rel (s,r) t (T' f)’ >-
+     (drule_then irule t_below_Tf >> rw[] >- (metis_tac[]) >>
+      qexistsl_tac [‘B’, ‘b’, ‘l’] >> rw[endo_lift_def]) >>
+    irule lift_rel_comp >> rw[] >-
+     (metis_tac[endo_def, companion_def, function_def]) >-
+     (metis_tac[endo_def, function_def]) >-
+     (metis_tac[endo_def, companion_def, function_def]) >-
+     (metis_tac[function_def, complete_def, lub_def]) >-
+     (metis_tac[endo_def, companion_def, function_def]) >-
+     (‘∀X. s (fbl X) ∧ (∀y. s y ∧ (y = f (b X) ∨ y = b X) ⇒ r y (fbl X)) ∧
+           ∀z. s z ∧ (∀y. s y ∧ (y = f (b X) ∨ y = b X) ⇒ r y z) ⇒
+               r (fbl X) z’ by fs[lub_def] >>
+      rw[lift_rel] >>
+      ‘r (t x'') (T' f x'')’ by fs[lift_rel] >>
+      first_x_assum $ qspec_then ‘x''’ strip_assume_tac >>
+      first_x_assum irule >> pop_assum kall_tac >>
+      rw[] >-
+       (metis_tac[companion_def, function_def, endo_def]) >-
+       (‘lift_rel (s,r) (f ∘ b) (T' f ∘ T' f)’
+          suffices_by metis_tac[lift_rel, combinTheory.o_DEF] >>
+        irule lift_rel_comp >> rw[] >-
+         (fs[endo_def]) >-
+         (metis_tac[companion_def, function_def, endo_def]) >-
+         (metis_tac[endo_def, function_def]) >-
+         (metis_tac[companion_def, function_def, endo_def]) >-
+         (metis_tac[endo_def, function_def]) >-
+         (metis_tac[companion_def, function_def, endo_def]) >-
+         (irule companion_gt >>
+          qexistsl_tac [‘B’, ‘endo (s,r)’] >> rw[] >>
+          metis_tac[endo_poset, endo_lift_def]) >-
+         (rw[lift_rel] >>
+          drule_then irule poset_trans >>
+          rw[] >-
+           (metis_tac[function_def, endo_def]) >-
+           (metis_tac[companion_def, function_def, endo_def]) >>
+          qexists_tac ‘t x'³'’ >> rw[] >-
+           (metis_tac[function_def, endo_def]) >-
+           (‘lift_rel (s,r) b t’ suffices_by rw[lift_rel] >>
+            drule_then irule compatible_below_companion >>
+            metis_tac[compatible_self, function_def, endo_def, lift_rel]) >>
+          rfs[lift_rel])) >-
+       (drule_then irule poset_trans >> rw[] >-
+         (metis_tac[companion_def, function_def, endo_def]) >>
+        qexists_tac ‘t x''’ >> rw[] >- (metis_tac[companion_def, function_def]) >>
+        metis_tac[compatible_below_companion, compatible_self,
+                  function_def, endo_def, lift_rel]))) >-
    (fs[B_join_def, endo_def, endo_lift_def]) >-
    (fs[endo_lift_def]) >-
    (fs[B_join_def, endo_lift_def] >>
@@ -753,17 +957,116 @@ Proof
 QED
 
 (* do a deduction step, Y must step to itself or conclude with X *)
-Theorem set_param_coind:
+Theorem set_param_coind':
   monotone b /\ (!X Y. (set_companion b X) SUBSET (set_companion b Y) \/
                       (set_companion b Y) SUBSET (set_companion b X))
   ==> Y SUBSET b (set_companion b (X UNION Y))
   ==> Y SUBSET set_companion b X
 Proof
   rw[] >>
-  drule_at_then Any irule param_coind >>
+  drule_at_then Any irule param_coind' >>
   qexistsl_tac [‘gfp b’, ‘UNIV’] >>
   rw[function_def, set_companion, gfp_poset_gfp, lub_def] >>
   rw[SUBSET_UNION]
+QED
+
+Definition set_B_def:
+  set_B b = λg X. BIGUNION { f X | f | monotone f ∧ ∀Y. f (b Y) ⊆ b (g Y) }
+End
+
+Definition higher_monotone:
+  higher_monotone fn = ∀f g. monotone f ∧ monotone g ∧
+                             (∀X. f X ⊆ g X) ⇒ (∀X. (fn f) X ⊆ (fn g) X)
+End
+
+Definition higher_compat_def:
+  higher_compat fn b = ((∀f. monotone f ⇒ monotone (fn f)) ∧ higher_monotone fn ∧
+                        ∀f X. monotone f ⇒ (fn (set_B b f)) X ⊆ (set_B b (fn f)) X)
+End
+
+Definition set_T_def:
+  set_T b = λf X. BIGUNION { (fn f) X | fn | monotone (fn f) ∧ higher_compat fn b }
+End
+
+Theorem set_higher_complete:
+  complete (endo_lift (𝕌(:α -> bool),$SUBSET))
+Proof
+  rw[complete_def, endo_lift_def] >-
+   (qexists_tac ‘λX. BIGUNION { f X | f | monotone f ∧ c f }’ >>
+    rw[lub_def] >-
+     (rw[endo_def, monotone_def] >>
+      rw[BIGUNION_SUBSET] >>
+      rw[BIGUNION, Once SUBSET_DEF] >>
+      qexists_tac ‘f X'’ >> rw[] >> metis_tac[SUBSET_DEF]) >-
+     (fs[endo_def, lift_rel, BIGUNION, Once SUBSET_DEF] >> metis_tac[]) >>
+    fs[lift_rel, endo_def] >> rw[] >>
+    irule (iffRL BIGUNION_SUBSET) >> rw[] >> metis_tac[]) >>
+  (qexists_tac ‘λX. BIGINTER { f X | f | monotone f ∧ c f }’ >>
+   rw[glb_def] >-
+    (rw[endo_def, monotone_def] >>
+     rw[SUBSET_BIGINTER] >>
+     rw[BIGINTER, Once SUBSET_DEF] >>
+     metis_tac[SUBSET_DEF]) >-
+    (fs[endo_def, lift_rel, BIGINTER, Once SUBSET_DEF] >> metis_tac[]) >>
+   fs[lift_rel, endo_def] >> rw[] >>
+   irule (iffRL SUBSET_BIGINTER) >> rw[] >> metis_tac[])
+QED
+
+(* functionals on sets form a complete lattice under pointwise inclusion
+ * B is monotone with that ordering, and it can be defined via lub = BIGUNION
+ * hence B has a greatest fixpoint and we can instantiate
+ *)
+Theorem set_param_coind:
+  monotone b
+  ==> Y SUBSET b (set_companion b (X UNION Y))
+  ==> Y SUBSET set_companion b X
+Proof
+  rw[] >>
+  drule_at_then Any irule param_coind >>
+  qexistsl_tac [‘set_B b’, ‘set_T b’, ‘gfp b’, ‘UNIV’] >>
+  rw[endo_def, set_companion, gfp_poset_gfp, set_higher_complete] >-
+   (metis_tac[set_companion_compatible, set_compatible_def]) >-
+   (rw[B_join_def, set_B_def, endo_lift_def, endo_def, function_def] >-
+     (rw[monotone_def, lift_rel] >>
+      rw[BIGUNION_SUBSET] >>
+      rw[BIGUNION, Once SUBSET_DEF] >>
+      qexists_tac ‘f X''’ >> rw[] >>
+      metis_tac[SUBSET_DEF, SUBSET_TRANS]) >-
+     (rw[monotonic_def, lift_rel] >>
+      rw[BIGUNION_SUBSET] >>
+      rw[BIGUNION, Once SUBSET_DEF] >>
+      qexists_tac ‘f X'’ >> rw[] >>
+      metis_tac[SUBSET_TRANS, monotone_def]) >-
+     (rw[lub_def, lift_rel] >-
+       (rw[BIGUNION, Once SUBSET_DEF] >> metis_tac[]) >>
+      rw[BIGUNION_SUBSET])) >-
+   (rw[companion_def, endo_lift_def, set_B_def, set_T_def] >-
+     (rw[function_def, endo_def, monotone_def] >>
+      rw[BIGUNION_SUBSET] >>
+      rw[BIGUNION, Once SUBSET_DEF] >>
+      qexists_tac ‘fn f X''’ >> metis_tac[SUBSET_DEF]) >>
+    rw[lub_def, endo_def, lift_rel]
+    >- (rw[monotone_def, BIGUNION_SUBSET] >>
+        rw[BIGUNION, Once SUBSET_DEF] >>
+        qexists_tac ‘fn f X''’ >> metis_tac[SUBSET_DEF])
+    >- (rw[BIGUNION, Once SUBSET_DEF] >>
+        qexists_tac ‘f' f X'’ >> rw[] >>
+        qexists_tac ‘f'’ >> rw[] >>
+        rw[higher_compat_def, higher_monotone] >-
+         (fs[compatible_def, function_def, endo_def, monotonic_def, lift_rel]) >>
+        fs[GSYM set_B_def] >>
+        fs[compatible_def, lift_rel, endo_def, monotonic_def])
+    >- (rw[BIGUNION_SUBSET] >>
+        first_x_assum irule >> rw[] >>
+        qexists_tac ‘fn’ >> rw[compatible_def] >-
+         (rw[function_def, endo_def] >>
+          fs[higher_compat_def, higher_monotone]) >-
+         (fs[higher_compat_def, higher_monotone] >>
+          rw[monotonic_def, lift_rel, endo_def]) >-
+         (rw[GSYM set_B_def] >>
+          rw[lift_rel] >>
+          fs[higher_compat_def, endo_def]))) >>
+     (rw[lub_def] >> rw[SUBSET_UNION])
 QED
 
 (* Sufficient condition for establishing the linear order on companion values,
@@ -945,7 +1248,7 @@ Theorem wbounded_param_coind:
   ==> Y SUBSET b (set_companion b (X UNION Y))
   ==> Y SUBSET set_companion b X
 Proof
-  metis_tac[set_param_coind, wbounded_companion_total_order]
+  metis_tac[set_param_coind', wbounded_companion_total_order]
 QED
 
 (*
