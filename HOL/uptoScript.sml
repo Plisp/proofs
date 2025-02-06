@@ -1004,7 +1004,8 @@ Definition higher_compat_def:
 End
 
 Definition set_T_def:
-  set_T b = λf X. BIGUNION { (fn f) X | fn | monotone (fn f) ∧ higher_compat fn b }
+  set_T b = λf X. BIGUNION { (fn f) X | fn | monotone (fn f)
+                                             ∧ higher_compat fn b }
 End
 
 Theorem set_higher_complete:
@@ -1093,6 +1094,8 @@ QED
 
    This is essentially a special case of the harder direction of 'y-continuity
    - the fact that applying b preserves limits/intersections of ℕ-indexed sets
+
+   similar to the proof in Schafer's thesis
  *)
 Definition wbounded_def:
   wbounded b = (BIGINTER {FUNPOW b n UNIV | n | T} SUBSET gfp b)
@@ -1175,14 +1178,17 @@ Proof
     rfs[] >> gvs[]) >>
   qexists_tac ‘$LEAST (λn. ~(X SUBSET FUNPOW b n UNIV)) - 1’ >>
   rw[] >-
-   (subgoal ‘!n. n < $LEAST (λk. ~(X SUBSET FUNPOW b k UNIV)) ==> ~~(X SUBSET FUNPOW b n UNIV)’
-    >- (ho_match_mp_tac (cj 2 (iffLR LEAST_EXISTS)) >> metis_tac[LEAST_EXISTS]) >>
+   (subgoal ‘!n. n < $LEAST (λk. ~(X SUBSET FUNPOW b k UNIV))
+                 ==> ~~(X SUBSET FUNPOW b n UNIV)’
+    >- (ho_match_mp_tac (cj 2 (iffLR LEAST_EXISTS)) >>
+        metis_tac[LEAST_EXISTS]) >>
     fs[]) >>
   spose_not_then strip_assume_tac >>
   fs[NOT_LE] >>
   Cases_on ‘m’ >>
   fs[GSYM LE_LT1] >>
-  ‘!k. (LEAST n. ~(X SUBSET FUNPOW b n univ(:'a))) <= k ==> ~(X SUBSET FUNPOW b k UNIV)’
+  ‘!k. (LEAST n. ~(X SUBSET FUNPOW b n univ(:'a))) <= k
+       ==> ~(X SUBSET FUNPOW b k UNIV)’
     suffices_by metis_tac[] >>
   rw[] >>
   qspec_then ‘λn. ~(X SUBSET FUNPOW b n UNIV)’ strip_assume_tac
@@ -1212,7 +1218,8 @@ Proof
   (* why is this companion compatible? it's all about invalid deductions x ⊊ gfp *)
   irule set_compatible_enhance >> rw[] >>
   qexists_tac ‘λY. if (Y SUBSET gfp b) then {}
-                   else BIGINTER { FUNPOW b k UNIV | k | Y SUBSET FUNPOW b k UNIV }’ >>
+                   else BIGINTER { FUNPOW b k UNIV | k |
+                                   Y SUBSET FUNPOW b k UNIV }’ >>
   rw[] (* we need k to upper bound stuff in the BIGINTER *)
   >- (rw[SUBSET_BIGINTER] >>
       ‘k' <= k’ by metis_tac[] >>
@@ -1255,7 +1262,8 @@ Proof
   drule_all wbounded_companion_final_sequence >> rw[] >>
   first_assum $ qspec_then ‘X’ strip_assume_tac >>
   first_assum $ qspec_then ‘Y’ strip_assume_tac >>
-  Cases_on ‘X SUBSET gfp b’ >> Cases_on ‘Y SUBSET gfp b’ >> fs[gfp_below_funpow] >>
+  Cases_on ‘X SUBSET gfp b’ >> Cases_on ‘Y SUBSET gfp b’ >>
+  fs[gfp_below_funpow] >>
   Cases_on ‘k' <= k’
   >- (metis_tac[FUNPOW_UNIV_ord])
   >- (‘k <= k'’ by fs[LE_CASES] >>
@@ -1463,6 +1471,89 @@ Proof
   irule singleton_subset >>
   irule set_param_coind_done >>
   rw[]
+QED
+
+(*
+  example: inductive companion using duality
+ *)
+
+Definition nat_functional_def:
+  nat_functional X = λn. n = 0 ∨ ∃k. k ∈ X ∧ n = SUC k
+End
+
+Theorem nat_functional_mono:
+  monotonic (UNIV,λa b. b ⊆ a) nat_functional
+Proof
+  rw[monotonic_def, nat_functional_def, SUBSET_DEF]
+QED
+
+Theorem nat_functional_lfp:
+  po_gfp (UNIV,λa b. b ⊆ a) nat_functional UNIV
+Proof
+  rw[gfp_def, nat_functional_def] >-
+   (rw[FUN_EQ_THM] >> Cases_on ‘n’ >> rw[]) >>
+  rw[FUN_EQ_THM] >>
+  qid_spec_tac ‘x’ >> Induct >>
+  fs[SUBSET_DEF, IN_DEF]
+QED
+
+Theorem super_poset:
+  poset (UNIV,λa b. b ⊆ a)
+Proof
+  rw[poset_def, nat_functional_def, SET_EQ_SUBSET] >>
+  metis_tac[SUBSET_TRANS]
+QED
+
+Theorem superset_companion:
+  companion (UNIV,λa b. b ⊆ a) b
+  (λx. BIGINTER { f x | f | compatible (UNIV,λa b. b ⊆ a) b f })
+Proof
+  rw[companion_def] >- (rw[function_def]) >>
+  rw[lub_def, compatible_def, nat_functional_def] >-
+   (rw[BIGINTER, Once SUBSET_DEF] >> metis_tac[]) >>
+  rw[SUBSET_BIGINTER]
+QED
+
+Theorem nat_companion:
+  companion (UNIV,λa b. b ⊆ a) nat_functional
+  (λx. BIGINTER { f x | f | compatible (UNIV,λa b. b ⊆ a) nat_functional f })
+Proof
+  metis_tac[superset_companion]
+QED
+
+Theorem completeinduct_compatible:
+  compatible (UNIV,λa b. b ⊆ a) nat_functional (λP. (λn. ∀k. k ≤ n ⇒ k ∈ P))
+Proof
+  rw[compatible_def, function_def] >-
+   (rw[monotonic_def, SUBSET_DEF] >> metis_tac[]) >>
+  rw[lift_rel, SUBSET_DEF, nat_functional_def] >> rw[] >>
+  Cases_on ‘k'’ >> rw[]
+QED
+
+Theorem COMPLETE_INDUCTION':
+  (∀n. (∀m. m < n ⇒ P m) ⇒ P n) ⇒ ∀n. P n
+Proof
+  ‘(∀n. (∀m. m < n ⇒ P m) ⇒ P n) ⇒ UNIV ⊆ P’
+    suffices_by rw[UNIV_DEF, SUBSET_DEF] >>
+  strip_tac >>
+  ‘(λa b. b ⊆ a) P UNIV’ suffices_by rw[] >>
+  assume_tac (INST_TYPE [alpha |-> “:num”] super_poset) >>
+  drule_then ho_match_mp_tac companion_coinduct >>
+  qexistsl_tac [‘(λx. BIGINTER { f x | f | compatible (UNIV,λa b. b ⊆ a)
+                                                      nat_functional f })’,
+                ‘nat_functional’] >>
+  rw[nat_functional_mono,function_def, superset_companion, nat_functional_lfp] >>
+  match_mp_tac SUBSET_TRANS >>
+  qexists_tac ‘nat_functional (λn. ∀k. k ≤ n ⇒ k ∈ P)’ >> rw[] >-
+   (assume_tac nat_functional_mono >>
+    fs[monotonic_def] >> pop_assum irule >>
+    assume_tac nat_companion >>
+    assume_tac completeinduct_compatible >>
+    drule_all compatible_below_companion >>
+    fs[lift_rel]) >>
+  rw[SUBSET_DEF, IN_DEF] >>
+  last_x_assum irule >> rw[] >>
+  fs[nat_functional_def]
 QED
 
 (* open itreeTauTheory; *)
