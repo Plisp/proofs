@@ -1,31 +1,14 @@
 open arithmeticTheory;
-open relationTheory;
-open fixedPointTheory;
 open pred_setTheory;
-open pairTheory;
+open fixedPointTheory;
 open posetTheory;
 
 val _ = new_theory "upto";
 
-(* TODO put in fixedpointtheory *)
-Theorem monotone_comp:
-  monotone f /\ monotone g ==> monotone (f o g)
-Proof
-  rw[monotone_def]
-QED
-
-(* TODO posetTheory? *)
-Theorem po_gfp_coinduct:
-  po_gfp (s,r) b gfix /\ s x /\ r x (b x)
-  ==> r x gfix
-Proof
-  rw[gfp_def]
-QED
-
 Theorem glb_unique:
   poset (s,r) /\
-  glb (s,r) p a /\ glb (s,r) p b
-  ==> a = b
+  glb (s,r) P x /\ glb (s,r) P y
+  ==> x = y
 Proof
   rw[glb_def] >>
   drule_then irule poset_antisym >> simp[]
@@ -40,37 +23,20 @@ Proof
   drule_then irule poset_antisym >> simp[]
 QED
 
-Theorem gfp_lub_postfix:
+Theorem lub_is_gfp:
   poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
   lub (s,r) { x | r x (f x) } l
-  ⇒ po_gfp (s,r) f l
+  ⇒ gfp (s,r) f l
 Proof
   rw[lub_def, gfp_def, monotonic_def, function_def] >>
   subgoal ‘r l (f l)’ >-
    (first_x_assum irule >> rw[] >>
     drule_then irule poset_trans >>
-    first_assum $ irule_at Any >> rw[] >>
-    metis_tac[]) >>
+    first_assum $ irule_at Any >> rw[]) >>
   drule_then irule poset_antisym >> rw[]
 QED
 
-Theorem gfp_unique:
-  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
-  po_gfp (s,r) f u ∧ po_gfp (s,r) f v
-  ⇒ u = v
-Proof
-  rw[function_def, monotonic_def, gfp_def] >>
-  drule_then irule poset_antisym >>
-  metis_tac[poset_refl]
-QED
-
-Theorem function_in:
-  function s s t /\ s x ==> s (t x)
-Proof
-  rw[function_def]
-QED
-
-(* general *)
+(* core *)
 
 Definition lift_rel:
   lift_rel (s,r) f g = !x. s x ==> r (f x) (g x)
@@ -98,10 +64,10 @@ QED
 
 Theorem compatible_const_gfp:
   poset (s,r) /\ function s s b /\ monotonic (s,r) b /\
-  po_gfp (s,r) b fp
+  gfp (s,r) b fp
   ==> compatible (s,r) b (K fp)
 Proof
-  rw[compatible_def, monotone_def, gfp_def, poset_def, monotonic_def,
+  rw[compatible_def, gfp_def, poset_def, monotonic_def,
      function_def, lift_rel]
 QED
 
@@ -199,16 +165,9 @@ Proof
    (metis_tac[companion_def, function_def, companion_gt])
 QED
 
-Theorem monotonic_comp:
-  monotonic (s,r) f /\ monotonic (s,r) g /\ function s s g
-  ==> monotonic (s,r) (f o g)
-Proof
-  rw[monotonic_def, function_def]
-QED
-
 Theorem companion_bot_gfp:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
-  bottom (s,r) bot /\ po_gfp (s,r) b gfix /\
+  bottom (s,r) bot /\ gfp (s,r) b gfix /\
   companion (s,r) b t
   ==> t bot = gfix
 Proof
@@ -217,7 +176,7 @@ Proof
   >- (fs[companion_def, function_in, bottom_def])
   >- (fs[gfp_def])
   (* t⊥ <= tb⊥ <= bt⊥ *)
-  >- (match_mp_tac po_gfp_coinduct >>
+  >- (match_mp_tac gfp_coinduct >>
       ‘function s s t’ by fs[companion_def] >>
       fs[function_in, bottom_def] >>
       drule_then match_mp_tac poset_trans >>
@@ -238,7 +197,7 @@ QED
 Theorem companion_coinduct:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
   companion (s,r) b t /\
-  po_gfp (s,r) b gfix /\
+  gfp (s,r) b gfix /\
   s x /\ r x ((b o t) x) ==> r x gfix
 Proof
   rw[] >>
@@ -247,7 +206,7 @@ Proof
   qexists_tac ‘t x’ >> rw[function_in]
   >- (fs[gfp_def])
   >- (ho_match_mp_tac companion_gt >> rw[]) >>
-  match_mp_tac po_gfp_coinduct >>
+  match_mp_tac gfp_coinduct >>
   rw[function_in] >>
   drule_all compatible_companion >> strip_tac >>
   drule_then match_mp_tac poset_trans >>
@@ -261,7 +220,7 @@ QED
 Theorem lt_gfp_companion:
   poset (s,r) /\ bottom (s,r) bot /\
   function s s b /\ monotonic (s,r) b /\
-  po_gfp (s,r) b fp /\
+  gfp (s,r) b fp /\
   companion (s,r) b t /\
   s x /\ r x fp
   ==> t x = fp
@@ -282,8 +241,8 @@ QED
 
 Theorem enhanced_gfp:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
-  po_gfp (s,r) b gfix /\
-  companion (s,r) b t /\ po_gfp (s,r) (b o t) efix
+  gfp (s,r) b gfix /\
+  companion (s,r) b t /\ gfp (s,r) (b o t) efix
   ==> efix = gfix
 Proof
   rw[] >>
@@ -294,7 +253,7 @@ Proof
   >- (drule_then match_mp_tac companion_coinduct >>
       qexistsl_tac [‘t’,‘b’] >>
       fs[gfp_def, poset_def]) >>
-  irule po_gfp_coinduct >>
+  irule gfp_coinduct >>
   qexistsl_tac [‘(b o t)’, ‘s’] >>
   fs[gfp_def] >>
   metis_tac[monotonic_def, function_def, companion_gt]
@@ -306,7 +265,7 @@ QED
 
 Theorem param_coind_init:
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
-  bottom (s,r) bot /\ po_gfp (s,r) b gfix /\
+  bottom (s,r) bot /\ gfp (s,r) b gfix /\
   companion (s,r) b t
   ==> r x (t bot) ==> r x gfix
 Proof
@@ -392,7 +351,7 @@ Theorem param_coind':
   poset (s,r) /\ monotonic (s,r) b /\ function s s b /\
   companion (s,r) b t /\
   (!x y. s x /\ s y ==> r (t x) (t y) \/ r (t y) (t x)) /\
-  po_gfp (s,r) b gfix /\
+  gfp (s,r) b gfix /\
   s x /\ s y /\
   lub (s,r) { x; y } xy
   ==> r y (b (t xy)) ==> r y (t x)
@@ -409,7 +368,7 @@ Proof
   drule_all companion_triv_join >> rw[] >>
   fs[] >> pop_assum kall_tac >>
   subgoal ‘r (t y) gfix’ >-
-   (drule_then irule po_gfp_coinduct >> rw[function_in] >>
+   (drule_then irule gfp_coinduct >> rw[function_in] >>
     ‘r (t y) (t (b (t y)))’
       by metis_tac[companion_mono, monotonic_def, function_in] >>
     drule_then irule poset_trans >> rw[function_in] >>
@@ -494,15 +453,6 @@ Proof
   metis_tac[endo_in, monotonic_def, function_def]
 QED
 
-Theorem lub_is_gfp:
-  poset (s,r) ∧ function s s f ∧ monotonic (s,r) f ∧
-  lub (s,r) { x | r x (f x) } l ∧
-  t = l
-  ⇒ po_gfp (s,r) f t
-Proof
-  metis_tac[gfp_lub_postfix, gfp_unique]
-QED
-
 Theorem endo_function:
   endo (s,r) f ⇒ function s s f
 Proof
@@ -513,7 +463,7 @@ Theorem B_greatest_fixpoint_is_companion:
   poset (s,r) /\ endo (s,r) b /\
   endo (s,r) t ∧ companion (s,r) b t ∧
   B_join (s,r) b B
-  ⇒ po_gfp (endo_lift (s,r)) B t
+  ⇒ gfp (endo_lift (s,r)) B t
 Proof
   rw[EQ_IMP_THM] >>
   drule endo_poset >> rw[] >>
@@ -715,7 +665,7 @@ Theorem param_coind:
   poset (s,r) /\ endo (s,r) b /\
   companion (s,r) b t /\ endo (s,r) t ∧
   B_join (s,r) b B ∧ companion (endo_lift (s,r)) B T' ∧
-  po_gfp (s,r) b gfix /\
+  gfp (s,r) b gfix /\
   s x /\ s y /\
   lub (s,r) { x; y } xy
   ==> r y (b (t xy)) ==> r y (t x)
@@ -1284,7 +1234,7 @@ End
 Theorem monotone_llist_functional[simp]:
   monotone llist_functional
 Proof
-  rw[monotone_def, llist_functional,pred_setTheory.SUBSET_DEF]
+  rw[monotone_def, llist_functional, pred_setTheory.SUBSET_DEF]
 QED
 
 Theorem llist_wbounded:
@@ -1481,7 +1431,7 @@ Proof
 QED
 
 Theorem nat_functional_lfp:
-  po_gfp (UNIV,λa b. b ⊆ a) nat_functional UNIV
+  gfp (UNIV,λa b. b ⊆ a) nat_functional UNIV
 Proof
   rw[gfp_def, nat_functional_def] >-
    (rw[FUN_EQ_THM] >> Cases_on ‘n’ >> rw[]) >>
@@ -1548,12 +1498,3 @@ Proof
   last_x_assum irule >> rw[] >>
   fs[nat_functional_def]
 QED
-
-(* open itreeTauTheory; *)
-(* Definition itree_wbisim_functional: *)
-(*   itree_wbisim_functional R = *)
-(*   ({ (t,t') | ?r. strip_tau t (Ret r) /\ strip_tau t' (Ret r)} *)
-(*  UNION { (t,t') | ?e k k'. strip_tau t (Vis e k) /\ strip_tau t' (Vis e k') /\ *)
-(*                        !r. (k r, k' r) IN R } *)
-(*  UNION { (Tau t, Tau t') | (t,t') IN R }) *)
-(* End *)
