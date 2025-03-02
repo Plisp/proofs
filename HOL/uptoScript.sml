@@ -136,7 +136,7 @@ Proof
   metis_tac[function_in]
 QED
 
-Theorem companion_gt:
+Theorem companion_expansive:
   poset (s,r) ∧ function s s b ∧ monotonic (s,r) b ∧
   companion (s,r) b t ∧
   s x ⇒ r x (t x)
@@ -162,7 +162,7 @@ Proof
     rw[function_def, GSYM combinTheory.o_DEF] >>
     irule compatible_compose >>
     rw[compatible_companion]) >-
-   (metis_tac[companion_def, function_def, companion_gt])
+   (metis_tac[companion_def, function_def, companion_expansive])
 QED
 
 Theorem companion_bot_gfp:
@@ -205,7 +205,7 @@ Proof
   drule_then match_mp_tac poset_trans >>
   qexists_tac ‘t x’ >> rw[function_in]
   >- (fs[gfp_def])
-  >- (ho_match_mp_tac companion_gt >> rw[]) >>
+  >- (ho_match_mp_tac companion_expansive >> rw[]) >>
   match_mp_tac gfp_coinduct >>
   rw[function_in] >>
   drule_all compatible_companion >> strip_tac >>
@@ -256,7 +256,7 @@ Proof
   irule gfp_coinduct >>
   qexistsl_tac [‘(b ∘ t)’, ‘s’] >>
   fs[gfp_def] >>
-  metis_tac[monotonic_def, function_def, companion_gt]
+  metis_tac[monotonic_def, function_def, companion_expansive]
 QED
 
 (*
@@ -281,7 +281,7 @@ Proof
   ‘function s s t’ by fs[companion_def] >>
   drule_then match_mp_tac poset_trans >>
   qexists_tac ‘x’ >> rw[function_in] >>
-  metis_tac[companion_gt]
+  metis_tac[companion_expansive]
 QED
 
 Theorem param_coind_upto_f:
@@ -313,7 +313,7 @@ Proof
   reverse (rw[glb_def, function_in]) >-
    (first_x_assum irule >>
     rw[function_in] >>
-    metis_tac[companion_gt]) >>
+    metis_tac[companion_expansive]) >>
   metis_tac[monotonic_def, function_in, companion_mono, companion_idem]
 QED
 
@@ -339,7 +339,7 @@ Proof
   fs[lub_def] >>
   ‘r x (t z)’ suffices_by metis_tac[function_in] >>
   drule_then irule poset_trans >> rw[function_in] >>
-  drule_all_then (irule_at (Pos (el 2))) companion_gt >> rw[function_in] >>
+  drule_all_then (irule_at (Pos (el 2))) companion_expansive >> rw[function_in] >>
   drule_then irule poset_trans >> rw[function_in] >>
   first_x_assum $ irule_at (Pos (el 2)) >> rw[function_in] >>
   ‘r (t y) (t (t z))’ by metis_tac[companion_mono, monotonic_def, function_in] >>
@@ -360,7 +360,7 @@ Proof
   ‘function s s t’ by fs[companion_def] >>
   first_x_assum $ qspecl_then [‘x’, ‘y’] strip_assume_tac >>
   reverse (rfs[]) >-
-   (metis_tac[poset_trans, function_in, companion_gt]) >>
+   (metis_tac[poset_trans, function_in, companion_expansive]) >>
   (* t(x∨y) = ty when tx ≤ ty so y ≤ bt(x∨y) ≤ bty
      ty ≤ tbty = b(ty) which means y ≤ (ty ≤ gfp)
      gfp ≤ tx ≤ ty ≤ gfp so tx = gfp
@@ -381,7 +381,7 @@ Proof
   (* finally y ≤ ty ≤ gfp = tx *)
   ‘s gfix’ by fs[gfp_def] >>
   ‘t x = gfix’
-    suffices_by metis_tac[companion_gt, poset_trans, function_in] >>
+    suffices_by metis_tac[companion_expansive, poset_trans, function_in] >>
   drule_then irule poset_antisym >> rw[function_in] >-
    (metis_tac[poset_trans, function_in]) >>
   drule_all compatible_const_gfp >> rw[] >>
@@ -653,7 +653,7 @@ Proof
     drule_then irule poset_trans >> rw[] >-
      (metis_tac[companion_def, function_def, endo_def]) >>
     qexists_tac ‘t x’ >> rw[SF SFY_ss, endo_in] >>
-    drule_then irule companion_gt >>
+    drule_then irule companion_expansive >>
     metis_tac[function_def, endo_def])
 QED
 
@@ -784,7 +784,7 @@ Proof
          (metis_tac[companion_def, function_def, endo_def]) >-
          (metis_tac[companion_def, function_def, endo_def]) >-
          (metis_tac[companion_def, function_def, endo_def]) >-
-         (irule companion_gt >>
+         (irule companion_expansive >>
           qexistsl_tac [‘B’, ‘endo (s,r)’] >> rw[] >>
           metis_tac[endo_poset, endo_lift_def]) >-
          (rw[lift_rel] >>
@@ -1153,7 +1153,7 @@ Proof
   >- (‘set_companion b X ⊆ set_companion b (FUNPOW b k UNIV)’
         by metis_tac[set_companion_compatible, set_compatible_def, monotone_def] >>
       metis_tac[set_companion_funpow_lemma]) >>
-  (* why is this companion compatible∃ it's all about invalid deductions x ⊊ gfp *)
+  (* why is this companion compatible? it's all about invalid deductions x ⊊ gfp *)
   irule set_compatible_enhance >> rw[] >>
   qexists_tac ‘λY. if (Y ⊆ gfp b) then {}
                    else BIGINTER { FUNPOW b k UNIV | k | Y ⊆ FUNPOW b k UNIV }’ >>
@@ -1181,6 +1181,7 @@ Proof
   metis_tac[FUNPOW_UNIV_ord, SUBSET_BIGINTER, monotone_def]
 QED
 
+(* alternatively, gfp is the least companion value *)
 Triviality gfp_below_funpow:
   monotone b ⇒
   ∀n. gfp b ⊆ FUNPOW b n UNIV
@@ -1309,6 +1310,7 @@ Proof
   simp[ones_def] >> simp[Once LUNFOLD]
 QED
 
+(* buffered producer, 3 at a time *)
 Theorem ones'_thm:
   ones' = 1:::1:::1:::ones'
 Proof
@@ -1383,7 +1385,31 @@ Proof
   rw[cons_rel_def, SUBSET_DEF]
 QED
 
+(* incremental accumulation *)
 Theorem ones_eq_ones':
+  ones = ones'
+Proof
+  ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>
+  rewrite_tac[GSYM llist_functional_gfp] >>
+  irule set_param_coind_init >> rw[] >>
+  irule singleton_subset >> irule set_param_coind >> rw[] >>
+  rw[Once ones'_thm, Once ones_thm] >>
+  rw[llist_functional] >>
+  (* try again *)
+  irule singleton_subset >> irule set_param_coind >> rw[] >>
+  rw[Once ones_thm] >>
+  rw[llist_functional] >>
+  (* almost there! ones has taken 2 steps *)
+  irule singleton_subset >> irule set_param_coind >> rw[] >>
+  rw[Once ones_thm] >>
+  rw[llist_functional] >>
+  (* the companion is expansive *)
+  irule singleton_subset >>
+  irule set_param_coind_done >>
+  rw[]
+QED
+
+Theorem ones_eq_ones'':
   ones = ones'
 Proof
   ‘{(ones,ones')} ⊆ UNCURRY $=’ suffices_by rw[SUBSET_DEF] >>

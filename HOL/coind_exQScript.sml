@@ -117,7 +117,7 @@ CoInductive even_llist:
 End
 
 (* What theorems does this gives you?
-* How is this different from the inductive version? *)
+ * How is this different from the inductive version? *)
 
 (* 3 ways to think about CoInductive sets.
 * 1. the greatest fixed point such that X=F(X)
