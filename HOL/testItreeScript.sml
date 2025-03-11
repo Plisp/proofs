@@ -99,7 +99,7 @@ Definition echo:
 End
 
 Theorem echo_unfold:
-  echo = Vis Input (λ n. Vis (Output n) (λx. echo))
+  echo = Vis Input (λ n. Vis (Output n) (λ_. echo))
 Proof
   rw[echo,       Once itree_unfold] >>
   rw[FUN_EQ_THM, Once itree_unfold]
