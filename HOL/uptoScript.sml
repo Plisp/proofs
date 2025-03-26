@@ -426,6 +426,14 @@ Proof
   >- (metis_tac[])
 QED
 
+(* what join functionals B are impredicative?
+ * Bg = ⋁ f | P(f) where P(Bg)
+ *
+ * for P = - ∘ p ≤ Rg,
+ * h < Bg ⇒ hp ≤ (Bg)p ≤ Rg, since all f in Bg have f(p x) ≤ Rg
+ * so all (Bg ∘ p)x = Bg(p x) ≤ Rg
+ *)
+
 Definition B_join_def:
   B_join (s,r) b B =
   (function (endo (s,r)) (endo (s,r)) B ∧ monotonic (endo_lift (s,r)) B ∧

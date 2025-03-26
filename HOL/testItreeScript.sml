@@ -40,7 +40,6 @@
  * note: look into how to execute coinductive programs with progress?
  *)
 
-open HolKernel boolLib bossLib BasicProvers; (* recommended by Magnus *)
 open stringLib; (* parsing, text examples etc. *)
 open itreeTauTheory;
 
@@ -81,7 +80,7 @@ val or2_tac = disj2_tac >> disj1_tac;
 val or3_tac = disj2_tac >> disj2_tac;
 
 (*/ basic examples of itree definition
-   itree_unfold f is the final (coinductive) arrow to the capital algebra
+   itree_unfold f is the final (coinductive) arrow to the final coalgebra
    where f = structure map (into primed itree), seed = itree algebra instance
  *)
 
@@ -105,9 +104,7 @@ Proof
   rw[FUN_EQ_THM, Once itree_unfold]
 QED
 
-(*/ misc abstract nonsense
-   just to have a richer equational theory for wbisim
- *)
+(* simple stuff *)
 
 Theorem itree_bind_emit:
   (emit e) >>= k = Vis e k
@@ -137,10 +134,6 @@ QED
 
 val vis_tac = irule itree_wbisim_vis >> Cases;
 
-(*/ coinduction
-   for greater structural variation
- *)
-
 (* finite on all paths: generates backwards coind & forwards cases *)
 CoInductive itree_fin:
   (∀t. itree_fin t ⇒ itree_fin (Tau t)) ∧
@@ -164,6 +157,7 @@ QED
 Definition vis_spin_def:
   vis_spin = itree_unfold (λs. Vis' s I) 0
 End
+
 Theorem vis_spin_inf:
   itree_inf vis_spin
 Proof
@@ -179,278 +173,6 @@ Definition iterate_def:
   iterate emit succ zero =
   itree_unfold (λs'. Vis' (emit s') (λ_. (succ s'))) zero
 End
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-open panItreeSemTheory;
-
-(*/ equational theorems for mrec
-   mrec expresses a recursive computation by iterating Vis INL
-
-   iiter (Ret INL) → Tau (itree_unfold (iiter_cb (mrec_cb h_prog))
-                              (mrec_cb h_prog (bind (rh state_res) k))) to continue
-   mrec: Vis (INL (prog × newstate)) k → Ret (INL (h_prog prog bind k))
-   mrec: Vis (INR (svis_ev × result->itree)) k → Ret (INL (h_prog prog bind k))
- *)
-
-Theorem mrec_iter_body_thm[simp]:
-  iter (mrec_iter_body rh) (Ret x) = Ret x ∧
-  iter (mrec_iter_body rh) (Tau t) = Tau (iter (mrec_iter_body rh) t) ∧
-  iter (mrec_iter_body rh) (Vis (INL s) g)
-  = Tau (iter (mrec_iter_body rh) (rh s >>= g)) ∧
-  iter (mrec_iter_body rh) (Vis (INR e) k)
-  = Vis e (λx. Tau (iter (mrec_iter_body rh) (k x)))
-Proof
-  rw[Once itree_iter_thm, mrec_iter_body_def] >>
-  rw[Once itree_iter_thm, mrec_iter_body_def]
-QED
-
-Theorem mrec_iter_ret_inv:
-  mrec_iter_body rh t = Ret (INR r) ⇒ t = (Ret r)
-Proof
-  rw[mrec_iter_body_def] >>
-  Cases_on ‘t’ >> fs[] >-
-   (Cases_on ‘a’ >> fs[])
-QED
-
-Definition itree_mrec_def:
-  itree_mrec rh seed =
-  itree_iter (mrec_iter_body rh) (rh seed)
-End
-
-(* mrec iterates sequentially on its seed *)
-Theorem itree_mrec_bind:
-  iter (mrec_iter_body rh) (t >>= k) =
-  (iter (mrec_iter_body rh) t) >>= (λx. iter (mrec_iter_body rh) (k x))
-Proof
-  rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λa b. ∃ps. a = iter (mrec_iter_body rh) (ps >>= k) ∧
-                          b = (iter (mrec_iter_body rh) ps)
-                              >>= (λx. iter (mrec_iter_body rh) (k x))’ >>
-  rw[] >-
-   (metis_tac[]) >-
-   (‘mrec_iter_body rh (ps >>= k)
-     >>= (λx. case x of INL a => Tau (iter (mrec_iter_body rh) a) | INR b => Ret b)
-     = Ret x’ by gvs[Once itree_iter_thm] >>
-    qpat_x_assum ‘Ret x = iter _ _’ kall_tac >>
-    drule itree_bind_ret_inv >> pop_assum kall_tac >> strip_tac >>
-    Cases_on ‘r'’ >> gvs[] >>
-    drule_then strip_assume_tac mrec_iter_ret_inv >>
-    drule_then strip_assume_tac itree_bind_ret_inv >>
-    rw[]) >-
-   (Cases_on ‘ps’ >-
-     (fs[] >> metis_tac[]) >-
-     (fs[] >> metis_tac[]) >-
-     (Cases_on ‘a’ >> fs[GSYM itree_bind_assoc] >> metis_tac[])) >-
-   (Cases_on ‘ps’ >> fs[] >-
-     (metis_tac[]) >-
-     (Cases_on ‘a'’ >> fs[] >>
-      strip_tac >> disj1_tac >>
-      qexists_tac ‘Tau (g s)’ >>
-      rw[]))
-QED
-
-(*/ pancake theorems
-   syntax directed rewrites
- *)
-
-Inductive leaf:
-  (leaf r (Ret r)) ∧
-  (leaf r t ⇒ leaf r (Tau t)) ∧
-  (∀a. leaf r (f a) ⇒ leaf r (Vis e f))
-End
-
-Theorem seq_thm:
-  itree_mrec h_prog (Seq p p2, s) =
-  Tau (itree_mrec h_prog (p, s)
-                  >>= (λ(res,s').
-                         if res = NONE
-                         then Tau (itree_mrec h_prog (p2, s'))
-                         else (Ret (res, s'))))
-Proof
-  rw[itree_mrec_def] >>
-  rw[h_prog_def, h_prog_seq_def] >>
-  rw[itree_mrec_bind] >>
-  AP_TERM_TAC >>
-  rw[FUN_EQ_THM] >>
-  Cases_on ‘x’ >> rw[]
-QED
-
-(* Theorem seq_lift0: *)
-(*   ∀p s. *)
-(*   leaf (NONE, s') (itree_mrec h_prog (p, s)) ⇒ *)
-(*   to_ffi (itree_mrec h_prog (Seq p p2, s)) *)
-(*          ≈ (to_ffi (itree_mrec h_prog (p, s)) >>= *)
-(*             (λ_. to_ffi (itree_mrec h_prog (p2, s')))) *)
-(* Proof *)
-(*   Induct_on ‘leaf’ >> *)
-(*   rw[] >- *)
-(*    (fs[seq_thm, itree_wbisim_refl]) >- *)
-(*    (rename1 ‘to_ffi t >>= _’ >> *)
-(*     rw[ξ] *)
-(*    ) *)
-(* QED *)
-
-Definition revert_binding_def:
-  revert_binding name old_s
-  = (λ(res,s').
-       Ret
-       (res,
-        s' with locals :=
-        res_var s'.locals (name,FLOOKUP old_s.locals name)))
-End
-
-Theorem h_prog_dec_alt:
-  h_prog_dec vname e p s =
-  case eval (reclock s) e of
-    NONE => Ret (SOME Error,s)
-  | SOME value =>
-      Vis (INL (p,s with locals := s.locals |+ (vname,value)))
-          (revert_binding vname s)
-Proof
-  rw[h_prog_dec_def, revert_binding_def]
-QED
-
-(* f, f' type vars instantiated differently smh *)
-(* relies on mrec_cb h_prog rev -> only Ret INR, so can't prolong iteration *)
-Theorem itree_mrec_bind_ret:
-  ∀f f'.
-    (∀a. ∃r. (f a) = (Ret r) ∧ (f' a) = (Ret r)) ⇒
-    ∀t. iter (mrec_iter_body h_prog) (t >>= f)
-        = (iter (mrec_iter_body h_prog) t) >>= f'
-Proof
-  rpt strip_tac >>
-  rw[itree_mrec_bind] >>
-  AP_TERM_TAC >> rw[FUN_EQ_THM] >>
-  pop_assum $ qspec_then ‘x’ strip_assume_tac >> fs[]
-QED
-
-Theorem dec_thm:
-  (eval (reclock s) e = SOME k) ⇒
-  (itree_mrec h_prog (Dec name e p,s))
-  = Tau (itree_mrec h_prog (p,s with locals := s.locals |+ (name,k))
-      >>= (revert_binding name s))
-Proof
-  rw[itree_mrec_def] >>
-  rw[h_prog_def, h_prog_dec_def] >>
-  rw[GSYM revert_binding_def] >>
-  irule itree_mrec_bind_ret >>
-  rw[revert_binding_def] >>
-  Cases_on ‘a’ >> rw[]
-QED
-
-(*/ massaging into FFItree
-   fix merged!
- *)
-
-Theorem to_stree_simps[simp]:
-  to_stree ((Ret x) : (β, α) mtree) = Ret x ∧
-  to_stree ((Tau t) : (β, α) mtree) = Tau (to_stree t) ∧
-  to_stree ((Vis eg k) : (β, α) mtree) = Vis (FST eg) (to_stree ∘ k ∘ SND eg)
-Proof
-  rw[to_stree_def] >>
-  rw[Once itree_unfold] >>
-  Cases_on ‘eg’ >> gvs[]
-QED
-
-Theorem to_stree_seq:
-  to_stree t ≈ (Ret (SOME v, s))
-  ⇒ to_stree
-    (t >>= (λ(res,s'). if res = NONE then f NONE s' else Ret (res,s'))) ≈
-    (Ret (SOME v, s))
-Proof
-  rw[Once itree_wbisim_cases] >>
-  pop_assum mp_tac >> qid_spec_tac ‘t’ >>
-  Induct_on ‘strip_tau’ >> rw[] >>
-  gvs[Once $ DefnBase.one_line_ify NONE to_stree_simps, AllCaseEqs(),
-      itree_wbisim_refl]
-QED
-
-Theorem pull_ffi_case[simp]:
-  f (ffi_result_CASE ffi ret final) =
-  ffi_result_CASE ffi (λ x y. f (ret x y)) (f ∘ final)
-Proof
-  Cases_on ‘ffi’ >> simp[]
-QED
-
-
-
-
-
-
-
-(*/ lifted versions
-   not sure how to do seq? I guess internal lemmas are fine
-*)
-
-Theorem to_ffi_revert_bind:
-  to_stree (t >>= revert_binding name s) = to_stree t
-Proof
-  cheat >>
-  rw[Once itree_strong_bisimulation] >>
-  qexists_tac ‘λa b. ∃t. a = to_stree (t >>= revert_binding name s) ∧
-                         b = to_stree t’ >>
-  rw[] >-
-   (metis_tac[]) >-
-   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
-     (fs[revert_binding_def] >> Cases_on ‘x'’ >> fs[]) >- (* impossible *)
-     (Cases_on ‘a’ >> fs[])) >-
-   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
-     (fs[revert_binding_def] >> Cases_on ‘x’ >> fs[]) >-
-     (metis_tac[]) >-
-     (Cases_on ‘a’ >> fs[])) >-
-   (Cases_on ‘t'’ >> fs[itree_bind_thm] >-
-     (fs[revert_binding_def] >> Cases_on ‘x’ >> fs[]) >>
-    Cases_on ‘a'’ >> fs[] >>
-    metis_tac[])
-QED
-
-Theorem dec_lifted:
-  to_stree (itree_mrec h_prog (Dec name e p,s))
-  = let res = eval (reclock s) e in
-      if (res = NONE)
-      then Ret ((SOME Error),s)
-      else Tau (to_stree
-                (itree_mrec h_prog
-                            (p, s with locals := s.locals |+ (name,THE res))))
-Proof
-  rw[] >-
-   (rw[itree_mrec_def, h_prog_def, h_prog_dec_def]) >-
-   (Cases_on ‘eval (reclock s) e’ >> fs[] >>
-    drule dec_thm >> rw[to_ffi_revert_bind])
-QED
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 (*/ recursive specifications
    testing
@@ -523,25 +245,3 @@ Proof
   qspec_then ‘0’ mp_tac even_spec_plus2 >>
   rw[]
 QED
-
-(* open ASCIInumbersTheory; *)
-
-Definition even_prog_def:
-  even_prog =
-  Vis "hi, input nuber:"
-      (λk. iter (λs. Vis (if EVEN s then "even" else "odd") (λ_. Ret (INL (s+1))))
-                k)
-End
-
-(* even is a constraint on event responses *)
-(* should use do notation later for clarity *)
-(* Theorem even_prog_spec: *)
-(*   ∃prelude loop coda. even_prog = bind (bind prelude loop) coda *)
-(*   ∧ prelude = emit "hi, input nuber:" *)
-(*   ∧ EVEN k ⇒ loop k ≈ (if (k = 100) *)
-(*                        then (Ret r) *)
-(*                        else (Vis "even" (λ_. Vis "odd" (λ_. loop k)))) *)
-(*   ∧ coda r = emit (CONCAT [(n2s r) , "bye"]) *)
-(* Proof *)
-(*   cheat *)
-(* QED *)
