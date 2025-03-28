@@ -175,34 +175,35 @@ Proof
   rw[Once silent_cases]
 QED
 
-Theorem mrec_sem_monad_law:
-  mrec_sem (ht >>= k)  =  (mrec_sem ht) >>= mrec_sem o k
-Proof
-  cheat
-QED
+(* ummm counterexample by Johannes *)
+CoInductive silent':
+  silent' (Ret (SOME (Return (ValWord 2w)))) ∧
+  (silent' t ⇒ silent' (Tau t))
+End
 
-Theorem join_safe:
-  triple ^silent (p1,s) (λrs. if FST rs = NONE then post1 rs else post2 rs) ∧
-  (∀rs. post1 rs ⇒ triple ^silent (p2,SND rs) post2)
-  ⇒
-  triple ^silent (Seq p1 p2,s) post2
+Theorem satisfied:
+  triple silent' (panLang$Return (Const 1w),s)
+  (λ(r,s). r = SOME (Return (ValWord (1w : word32))))
 Proof
-  strip_tac >>
   rw[triple] >>
-  rw[h_prog_def, h_prog_seq_def] >>
-  rw[mrec_sem_monad_law] >>
-  fs[triple] >>
-  rw[itree_bind_assoc] >>
-  last_assum irule >>
-  Cases >> rename1 ‘post1 (res,s')’ >>
-  rw[] >>
-  metis_tac[FST,SND]
+  simp[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def] >>
+  pop_assum irule >>
+  (* this cannot happen in an infinite case since we must prove pred
+   * holds of (inf >>= k) = inf given pred (k r) for some arbitrary function k
+   * which is only possible if the itree domain is very small *)
+  rw[]
 QED
 
 (*
  * example!
  * but first I need to prove some nonsense :/
  *)
+
+Theorem mrec_sem_monad_law:
+  mrec_sem (ht >>= k)  =  (mrec_sem ht) >>= mrec_sem o k
+Proof
+  cheat
+QED
 
 Definition del_annot_def:
   del_annot (Seq (Annot _ _) (p : 'a panLang$prog)) = del_annot p ∧
@@ -242,7 +243,33 @@ Proof
   rw[]
 QED
 
-open pred_setTheory set_relationTheory companionTheory;
+open pred_setTheory set_relationTheory companionTheory fixedPointTheory;
+
+(* this is surely true since no output is ever mapped above the error level
+ * of its greatest 'element' in X, yet it is certainly not compatible
+ * TODO maybe expand to: X ↦ ⋁ b^n X
+ * note this is smaller than t ^, it does not approximate 'upwards'
+ *)
+(* Theorem big_step_in_companion: *)
+(*   ∀X. *)
+(*     (λX. (λ(t,t'). *)
+(*             ∃h1 h2. *)
+(*               h1 ≈ h2 ∧ *)
+(*               t = h1 >>= k ∧ t' = h2 >>= k' ∧ *)
+(*               ∀a. (k a,k' a) ∈ X)) X *)
+(*     ⊆ set_companion wbisim_functional X *)
+(* Proof *)
+(*   strip_tac >> *)
+(*   irule set_compatible_enhance >> *)
+(*   qmatch_goalsub_abbrev_tac ‘f _ ⊆ _’ >> rw[] >> *)
+(*   qexists_tac ‘f’ >> *)
+(*   rw[set_compatible_def, monotone_def, Abbr ‘f’, SUBSET_DEF] >> *)
+(*   Cases_on ‘x’ >> fs[IN_DEF] >- (metis_tac[]) >> *)
+(*   fs[wbisim_functional_def] >> *)
+(*   (* h1 >>= k can branch to (Ret r) outside X? *) *)
+(*   rw[] *)
+(* QED *)
+
 Theorem whilebody_eq_corres:
   (∀(s :(α, β) bstate). mrec_sem (h_prog (p,s)) ≈ mrec_sem (h_prog (p',s)))
   ⇒ mrec_sem (h_prog (While e p,(s :(α, β) bstate)))
@@ -291,8 +318,7 @@ Proof
       by metis_tac[itree_bind_vis_strip_tau] >>
     ‘strip_tau (t' >>= mrec_sem ∘ k') (Vis e' (λx. k'³' x >>= mrec_sem ∘ k'))’
       by metis_tac[itree_bind_vis_strip_tau] >>
-    qexistsl_tac [‘e'’,‘(λx. k'' x >>= mrec_sem ∘ k)’,
-                  ‘(λx. k'³' x >>= mrec_sem ∘ k')’] >>
+    qexistsl_tac[‘e'’,‘λx. k'' x >>= mrec_sem ∘ k’,‘λx. k'³' x >>= mrec_sem ∘ k'’]>>
     rw[] >>
     irule singleton_subset >>
     irule set_param_coind_done >> rw[Abbr ‘target’] >>
@@ -380,11 +406,47 @@ Proof
     rw[])
 QED
 
+val P = “P :(32, β) stree -> bool”;
+Theorem seq_triple:
+  (∀t. P (Tau t) = (P t)) ∧
+  triple ^P (p1,s) (λrs. if FST rs = NONE then post1 rs else post2 rs) ∧
+  (∀rs. post1 rs ⇒ triple ^P (p2,SND rs) post2)
+  ⇒
+  triple ^P (Seq p1 p2,s) post2
+Proof
+  rw[triple] >>
+  rw[h_prog_def, h_prog_seq_def] >>
+  rw[mrec_sem_monad_law] >>
+  fs[triple] >>
+  rw[itree_bind_assoc] >>
+  last_assum irule >>
+  Cases >> rename1 ‘post1 (res,s')’ >>
+  rw[] >>
+  metis_tac[FST,SND]
+QED
+
+Theorem dec_triple:
+  (∀t. P (Tau t) = (P t)) ∧
+  eval (reclock s) e = SOME val ∧
+  triple ^P (p,s with locals := s.locals |+ (vname,val))
+         (λ(r,s'). post (r, s' with locals :=
+                            res_var s'.locals (vname,FLOOKUP s.locals vname)))
+  ⇒
+  triple ^P (Dec vname e p,s) post
+Proof
+  rw[triple] >>
+  rw[h_prog_def, h_prog_dec_def] >>
+  rw[mrec_sem_monad_law] >>
+  rw[itree_bind_assoc] >>
+  last_assum irule >>
+  Cases >> rw[]
+QED
+
 (* program *)
 
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
 val while_ast = parse_pancake ‘
-fun fn(1 i) {
+fun tri(1 i) {
   var n = 0;
   while(i > 0) {
     n = n + i;
@@ -400,11 +462,94 @@ Definition while_sem_def:
   mrec_sem (h_prog (^while_noannot,s))
 End
 
-Theorem test:
-  while_sem s = ARB
+Definition tri:
+  tri 0 = 0 ∧
+  tri (SUC n) = SUC n + (tri n)
+End
+
+Inductive correct:
+  correct i ((Ret (SOME (Return (ValWord (n2w (tri i)))) , s)) : (32, 'b) stree) ∧
+  (correct i t ⇒ correct i (Tau t))
+End
+
+Theorem correct_wf[simp]:
+  correct i (Tau t) ⇔ correct i t
 Proof
-  rw[while_sem_def, fun_ast] >>
+  rw[Once correct_cases]
+QED
+
+Theorem while_body_triple:
+  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
+  triple (correct i)
+         (While (Cmp Less (Const 0w) (Var «i»))
+                (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
+                     (Assign «i» (Op Sub [Var «i»; Const 1w]))),
+          s with locals := s.locals |+ («n»,ValWord 0w))
+         (λrs.
+            if FST rs = NONE then
+              (λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i))))
+              rs
+            else F)
+Proof
+  rw[triple] >>
+  Induct_on ‘i’ >-
+   (rw[]
+   )
+QED
+
+Theorem while_seq_triple:
+  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
+  triple (correct i)
+         (Seq
+          (While (Cmp Less (Const 0w) (Var «i»))
+                 (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
+                      (Assign «i» (Op Sub [Var «i»; Const 1w]))))
+          (Return (Var «n»)), s with locals := s.locals |+ («n»,ValWord 0w))
+         (λ(r,s). r = SOME (Return (ValWord (n2w (tri i)))))
+Proof
+  rw[] >>
+  irule seq_triple >> rw[] >>
+  qexists_tac ‘λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i)))’ >>
+  rw[] >-
+   (Cases_on ‘rs’ >> fs[triple] >>
+    rw[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def]) >>
+  drule_all while_body_triple >>
+  rw[triple]
+QED
+
+Theorem while_triple:
+  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
+  triple (correct i)
+         (Dec «n» (Const 0w)
+              (Seq
+               (While (Cmp Less (Const 0w) (Var «i»))
+                      (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
+                           (Assign «i» (Op Sub [Var «i»; Const 1w]))))
+               (Return (Var «n»))),s)
+         (λ(r,s). r = SOME (Return (ValWord (n2w (tri i)))))
+Proof
+  rw[] >>
+  irule dec_triple >> rw[eval_def] >>
+  drule_all while_seq_triple >>
   rw[]
+QED
+
+Theorem while_correct:
+  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
+  correct i (while_sem (s with locals := s.locals |+ («i», ValWord (n2w i))))
+Proof
+  rw[while_sem_def] >>
+  drule_all while_triple >>
+  rw[triple] >>
+  pop_assum $ qspec_then ‘Ret’ strip_assume_tac >> fs[] >>
+  subgoal ‘s with locals := s.locals |+ («i»,ValWord (n2w i)) = s’ >-
+   (rw[finite_mapTheory.fmap_eq_flookup, finite_mapTheory.FLOOKUP_UPDATE,
+       bstate_component_equality] >>
+    rw[]) >>
+  pop_assum $ fs o single >>
+  pop_assum irule >>
+  rw[Once correct_cases, ELIM_UNCURRY] >>
+  Cases_on ‘a’ >> fs[]
 QED
 
 
