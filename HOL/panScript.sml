@@ -12,8 +12,10 @@ open itreeTauTheory;
 open panItreeSemTheory;
 open panSemTheory; (* eval_def, byte stuff *)
 open panLangTheory; (* size_of_shape_def *)
-open set_sepTheory;
+open panPtreeConversionTheory; (* parse_funs_to_ast *)
 
+open pred_setTheory set_relationTheory fixedPointTheory companionTheory;
+(* open set_sepTheory; *)
 
 (* can only load from here XXX bug? *)
 
@@ -121,82 +123,7 @@ val assign_tac = gvs[Once h_prog_def, h_prog_assign_def, eval_def];
 val strb_tac = rw[Once h_prog_def, h_prog_store_byte_def];
 
 (*
-   test
- *)
-
-Definition triple:
-  triple inv (p,s) post =
-  (∀k. (∀a. post a ⇒ inv (k a))
-       ⇒
-       inv (mrec_sem (h_prog (p,s)) >>= k))
-End
-
-CoInductive silent:
-  silent (Ret r) ∧
-  (silent t ⇒ silent (Tau t))
-End
-
-Theorem silent_tau[simp]:
-  silent (Tau t) ⇔ silent t
-Proof
-  rw[Once silent_cases]
-QED
-
-val silent = “silent :(32, β) stree -> bool”
-Theorem part1:
-  triple ^silent (panLang$While (Const 1w) Skip,s) (K F)
-Proof
-  rw[triple] >>
-  irule silent_coind >>
-  qexists_tac ‘λt. t = (mrec_sem (h_prog (While (Const 1w) Skip,s))) >>= k ∨
-                   t = Tau (mrec_sem (h_prog (While (Const 1w) Skip,s)) >>= k)’ >>
-  rw[Once h_prog_def] >>
-  disj2_tac >>
-  simp[SimpL “$=”, h_prog_while_def, eval_def] >>
-  ‘1 ≠ 0 MOD dimword (:32)’ by EVAL_TAC >>
-  rw[]
-QED
-
-Theorem part2:
-  triple ^silent (panLang$Return (Const 1w),s)
-  (λ(r,s). r = SOME (Return (ValWord (1w : word32))))
-Proof
-  rw[triple] >>
-  simp[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def]
-QED
-
-Theorem satisfied:
-  ^silent (mrec_sem $ h_prog (panLang$Return (Const (1w : word32)),s))
-Proof
-  assume_tac part2 >>
-  fs[triple] >>
-  pop_assum $ qspec_then ‘Ret’ strip_assume_tac >> fs[] >>
-  pop_assum irule >> rw[] >>
-  rw[Once silent_cases]
-QED
-
-(* ummm counterexample by Johannes *)
-CoInductive silent':
-  silent' (Ret (SOME (Return (ValWord 2w)))) ∧
-  (silent' t ⇒ silent' (Tau t))
-End
-
-Theorem satisfied:
-  triple silent' (panLang$Return (Const 1w),s)
-  (λ(r,s). r = SOME (Return (ValWord (1w : word32))))
-Proof
-  rw[triple] >>
-  simp[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def] >>
-  pop_assum irule >>
-  (* this cannot happen in an infinite case since we must prove pred
-   * holds of (inf >>= k) = inf given pred (k r) for some arbitrary function k
-   * which is only possible if the itree domain is very small *)
-  rw[]
-QED
-
-(*
- * example!
- * but first I need to prove some nonsense :/
+ * TODO put this metatheorem in props after miki converts the proofs
  *)
 
 Theorem mrec_sem_monad_law:
@@ -242,8 +169,6 @@ Proof
               strip_assume_tac (cj 1 prog_induction) >>
   rw[]
 QED
-
-open pred_setTheory set_relationTheory companionTheory fixedPointTheory;
 
 (* this is surely true since no output is ever mapped above the error level
  * of its greatest 'element' in X, yet it is certainly not compatible
@@ -406,6 +331,83 @@ Proof
     rw[])
 QED
 
+(*
+ * predicate for backwards proof:
+ * if inv holds in all branches satisfying the postcondition, then it holds here
+ *
+ * problem: if post can be made to hold in all Ret branches, then it holds here
+ *)
+
+Definition triple:
+  triple inv (p,s) post =
+  (∀k. (∀a. post a ⇒ inv (k a))
+       ⇒
+       inv (mrec_sem (h_prog (p,s)) >>= k))
+End
+
+CoInductive silent:
+  silent (Ret r) ∧
+  (silent t ⇒ silent (Tau t))
+End
+
+Theorem silent_tau[simp]:
+  silent (Tau t) ⇔ silent t
+Proof
+  rw[Once silent_cases]
+QED
+
+val silent = “silent :(32, β) stree -> bool”
+Theorem part1:
+  triple ^silent (panLang$While (Const 1w) Skip,s) (K F)
+Proof
+  rw[triple] >>
+  irule silent_coind >>
+  qexists_tac ‘λt. t = (mrec_sem (h_prog (While (Const 1w) Skip,s))) >>= k ∨
+                   t = Tau (mrec_sem (h_prog (While (Const 1w) Skip,s)) >>= k)’ >>
+  rw[Once h_prog_def] >>
+  disj2_tac >>
+  simp[SimpL “$=”, h_prog_while_def, eval_def] >>
+  ‘1 ≠ 0 MOD dimword (:32)’ by EVAL_TAC >>
+  rw[]
+QED
+
+Theorem part2:
+  triple ^silent (panLang$Return (Const 1w),s)
+  (λ(r,s). r = SOME (Return (ValWord (1w : word32))))
+Proof
+  rw[triple] >>
+  simp[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def]
+QED
+
+Theorem satisfied:
+  ^silent (mrec_sem $ h_prog (panLang$Return (Const (1w : word32)),s))
+Proof
+  assume_tac part2 >>
+  fs[triple] >>
+  pop_assum $ qspec_then ‘Ret’ strip_assume_tac >> fs[] >>
+  pop_assum irule >> rw[] >>
+  rw[Once silent_cases]
+QED
+
+(* counterexample by Johannes
+ * this cannot happen in an infinite case since we must prove the invariant
+ * holds of (inf >>= k) = inf given pred (k r) for some arbitrary function k
+ * which is only possible if the itree domain is very small *)
+
+CoInductive silent':
+  silent' (Ret (SOME (Return (ValWord 2w)))) ∧
+  (silent' t ⇒ silent' (Tau t))
+End
+
+Theorem satisfied:
+  triple silent' (panLang$Return (Const 1w),s)
+  (λ(r,s). r = SOME (Return (ValWord (1w : word32))))
+Proof
+  rw[triple] >>
+  simp[h_prog_def, h_prog_return_def, eval_def] >>
+  rw[size_of_shape_def]
+QED
+
 val P = “P :(32, β) stree -> bool”;
 Theorem seq_triple:
   (∀t. P (Tau t) = (P t)) ∧
@@ -442,9 +444,6 @@ Proof
   Cases >> rw[]
 QED
 
-(* program *)
-
-open panPtreeConversionTheory; (* parse_funs_to_ast *)
 val while_ast = parse_pancake ‘
 fun tri(1 i) {
   var n = 0;
@@ -462,7 +461,7 @@ Definition while_sem_def:
   mrec_sem (h_prog (^while_noannot,s))
 End
 
-Definition tri:
+Definition tri_def:
   tri 0 = 0 ∧
   tri (SUC n) = SUC n + (tri n)
 End
@@ -479,12 +478,14 @@ Proof
 QED
 
 Theorem while_body_triple:
-  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
   triple (correct i)
-         (While (Cmp Less (Const 0w) (Var «i»))
+         (While (Cmp Less (Const (0w : word32)) (Var «i»))
                 (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
                      (Assign «i» (Op Sub [Var «i»; Const 1w]))),
-          s with locals := s.locals |+ («n»,ValWord 0w))
+          s with locals :=
+          s.locals
+           |+ («i»,ValWord (n2w (i - k)))
+           |+ («n»,ValWord (n2w (tri i - tri (i - k)))))
          (λrs.
             if FST rs = NONE then
               (λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i))))
@@ -492,61 +493,55 @@ Theorem while_body_triple:
             else F)
 Proof
   rw[triple] >>
-  Induct_on ‘i’ >-
-   (rw[]
-   )
+  Induct_on ‘i - k’ >> rw[] >-
+   (‘i - k = 0’ by rw[] >>
+    pop_assum $ rw o single >>
+    rw[tri_def] >>
+    rw[h_prog_def, h_prog_while_def, eval_def, asmTheory.word_cmp_def]) >>
+  rw[]
 QED
 
 Theorem while_seq_triple:
-  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
   triple (correct i)
          (Seq
-          (While (Cmp Less (Const 0w) (Var «i»))
+          (While (Cmp Less (Const (0w : word32)) (Var «i»))
                  (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
                       (Assign «i» (Op Sub [Var «i»; Const 1w]))))
-          (Return (Var «n»)), s with locals := s.locals |+ («n»,ValWord 0w))
+          (Return (Var «n»)),
+          (s with locals := s.locals |+ («i», ValWord (n2w i)) |+ («n»,ValWord 0w)))
          (λ(r,s). r = SOME (Return (ValWord (n2w (tri i)))))
 Proof
-  rw[] >>
   irule seq_triple >> rw[] >>
   qexists_tac ‘λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i)))’ >>
   rw[] >-
    (Cases_on ‘rs’ >> fs[triple] >>
     rw[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def]) >>
-  drule_all while_body_triple >>
-  rw[triple]
+  assume_tac while_body_triple >>
+  fs[triple]
 QED
 
 Theorem while_triple:
-  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
   triple (correct i)
-         (Dec «n» (Const 0w)
+         (Dec «n» (Const (0w : word32))
               (Seq
                (While (Cmp Less (Const 0w) (Var «i»))
                       (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
                            (Assign «i» (Op Sub [Var «i»; Const 1w]))))
-               (Return (Var «n»))),s)
+               (Return (Var «n»))),
+          (s with locals := s.locals |+ («i», ValWord (n2w i))))
          (λ(r,s). r = SOME (Return (ValWord (n2w (tri i)))))
 Proof
-  rw[] >>
   irule dec_triple >> rw[eval_def] >>
-  drule_all while_seq_triple >>
-  rw[]
+  assume_tac while_seq_triple >> rw[]
 QED
 
 Theorem while_correct:
-  FLOOKUP s.locals «i» = SOME (ValWord (n2w i)) ⇒
   correct i (while_sem (s with locals := s.locals |+ («i», ValWord (n2w i))))
 Proof
   rw[while_sem_def] >>
-  drule_all while_triple >>
-  rw[triple] >>
+  assume_tac while_triple >>
+  fs[triple] >>
   pop_assum $ qspec_then ‘Ret’ strip_assume_tac >> fs[] >>
-  subgoal ‘s with locals := s.locals |+ («i»,ValWord (n2w i)) = s’ >-
-   (rw[finite_mapTheory.fmap_eq_flookup, finite_mapTheory.FLOOKUP_UPDATE,
-       bstate_component_equality] >>
-    rw[]) >>
-  pop_assum $ fs o single >>
   pop_assum irule >>
   rw[Once correct_cases, ELIM_UNCURRY] >>
   Cases_on ‘a’ >> fs[]
