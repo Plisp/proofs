@@ -479,18 +479,18 @@ QED
 
 Theorem while_body_triple:
   triple (correct i)
-         (While (Cmp Less (Const (0w : word32)) (Var «i»))
-                (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
-                     (Assign «i» (Op Sub [Var «i»; Const 1w]))),
-          s with locals :=
-          s.locals
-           |+ («i»,ValWord (n2w (i - k)))
-           |+ («n»,ValWord (n2w (tri i - tri (i - k)))))
-         (λrs.
-            if FST rs = NONE then
-              (λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i))))
-              rs
-            else F)
+  (While (Cmp Less (Const (0w : word32)) (Var «i»))
+         (Seq (Assign «n» (Op Add [Var «n»; Var «i»]))
+              (Assign «i» (Op Sub [Var «i»; Const 1w]))),
+   s with locals :=
+   s.locals
+    |+ («i»,ValWord (n2w (i - k)))
+    |+ («n»,ValWord (n2w (tri i - tri (i - k)))))
+  (λrs.
+     if FST rs = NONE then
+       (λ(r,s). FLOOKUP s.locals «n» = SOME (ValWord (n2w (tri i))))
+       rs
+     else F)
 Proof
   rw[triple] >>
   Induct_on ‘i - k’ >> rw[] >-
@@ -498,7 +498,21 @@ Proof
     pop_assum $ rw o single >>
     rw[tri_def] >>
     rw[h_prog_def, h_prog_while_def, eval_def, asmTheory.word_cmp_def]) >>
-  rw[]
+  ‘(0w : word32) < n2w (i − k)’ by cheat >>
+  rw[h_prog_def, h_prog_while_def, eval_def, asmTheory.word_cmp_def] >>
+  rw[h_prog_seq_def] >>
+  rw[h_prog_def, h_prog_assign_def, eval_def, wordLangTheory.word_op_def] >>
+  ‘n2w (i - k) + (-1w : word32) = n2w (i - (k + 1))’ by cheat >>
+  pop_assum $ rw o single >>
+  ‘(n2w (i − k) : word32) + n2w (tri i − tri (i − k))
+   = n2w (tri i − tri (i − (k + 1)))’ by cheat >>
+  pop_assum $ rw o single >>
+  qmatch_goalsub_abbrev_tac ‘h_prog_while _ _ st’ >>
+  ‘st = s with locals := s.locals |+ («i»,ValWord (n2w (i − (k + 1)))) |+
+                          («n»,ValWord (n2w (tri i − tri (i − (k + 1)))))’
+    by cheat >>
+  pop_assum $ rw o single >>
+  rw[GSYM h_prog_def]
 QED
 
 Theorem while_seq_triple:
@@ -516,7 +530,9 @@ Proof
   rw[] >-
    (Cases_on ‘rs’ >> fs[triple] >>
     rw[h_prog_def, h_prog_return_def, eval_def, size_of_shape_def]) >>
-  assume_tac while_body_triple >>
+
+  assume_tac (GEN_ALL while_body_triple) >>
+  pop_assum $ qspecl_then [‘s’, ‘0’, ‘i’] strip_assume_tac >>
   fs[triple]
 QED
 
