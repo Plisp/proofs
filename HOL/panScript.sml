@@ -4,17 +4,17 @@
  Cond_rewr.stack_limit := 8
  *)
 
-open stringLib helperLib;
-open arithmeticTheory;
-open listTheory pairTheory;
+open stringLib helperLib; (* String *)
+open arithmeticTheory; (* ONE *)
+open pairTheory;
+(* open pred_setTheory set_relationTheory fixedPointTheory companionTheory; *)
 open itreeTauTheory;
 
-open panItreeSemTheory panItreePropsTheory;
+open ffiTheory; (* ffiname *)
 open panSemTheory; (* eval_def, byte stuff *)
 open panLangTheory; (* size_of_shape_def *)
 open panPtreeConversionTheory; (* parse_funs_to_ast *)
-
-open pred_setTheory set_relationTheory fixedPointTheory companionTheory;
+open panItreeSemTheory panItreePropsTheory;
 (* open set_sepTheory; *)
 
 (* can only load from here XXX bug? *)
@@ -108,13 +108,6 @@ Proof
 QED
 
 Theorem h_prog_skip[simp] = cj 1 h_prog_def;
-Theorem pull_ffi_case[simp]:
-  f (ffi_result_CASE ffi ret final) =
-  ffi_result_CASE ffi (λ x y. f (ret x y)) (f ∘ final)
-Proof
-  Cases_on ‘ffi’ >> simp[]
-QED
-
 Theorem mrec_sem_simps[simp] = panItreeSemTheory.mrec_sem_simps;
 
 val assign_tac = gvs[Once h_prog_def, h_prog_assign_def, eval_def];
@@ -257,6 +250,7 @@ fun tri(1 i) {
 }’;
 
 val while_annot = rhs $ concl $ SRULE[] $ EVAL “(fun_ast ^while_ast)”;
+val while_noannot = rhs $ concl $ SRULE[] $ EVAL “del_annot (fun_ast ^while_ast)”;
 
 Definition while_sem_def:
   while_sem (s:('a,'ffi) panItreeSem$bstate) =
@@ -363,7 +357,6 @@ Proof
   assume_tac while_seq_triple >> rw[]
 QED
 
-val while_noannot = rhs $ concl $ SRULE[] $ EVAL “del_annot (fun_ast ^while_ast)”;
 Theorem while_correct:
   correct i (while_sem (s with locals := s.locals |+ («i», ValWord (n2w i))))
 Proof
@@ -382,13 +375,68 @@ QED
 
 (* coinductive example *)
 
+val echo_ast = parse_pancake ‘
+fun echo() {
+  while(1) {
+    @read(0,0,@base,1);
+    @write(@base,1,0,0);
+  }
+}’;
 
+val echo_annot = rhs $ concl $ SRULE[]
+                     $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “(fun_ast ^echo_ast)”;
+val echo_noannot =
+  rhs $ concl $ SRULE[]
+      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^echo_ast)”;
 
+(* transition relation describing valid device returns, currently stateless *)
+Inductive devstate:
+  ∀b f. devstate () (FFI_call (ffi$ExtCall "write") [b] [], FFI_return f [b]) ()
+End
 
+Definition eval_path:
+  k (FFI_return)
+End
 
+CoInductive echo_spec:
+  (echo_spec (t : (32,'b) stree) ∧
+   (∀b.
+      k (FFI_return ARB [b])
+        ≈ Vis (FFI_call (ffi$ExtCall "write") [b] []) (λ_. t))
+   ⇒
+   echo_spec (Vis (FFI_call (ffi$ExtCall "read") [] [a]) k))
+  ∧
+  (echo_spec t ⇒ echo_spec (Tau t))
+End
 
+Theorem echo_spec_tau[simp]:
+  echo_spec (Tau t) ⇔ echo_spec t
+Proof
+  rw[Once echo_spec_cases]
+QED
 
-
+Theorem test:
+  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
+  echo_spec (mrec_sem (h_prog (^echo_noannot,s)))
+Proof
+  rw[h_prog_def, h_prog_while_def, eval_def] >>
+  rw[h_prog_seq_def] >>
+  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
+  rw[Once echo_spec_cases] >>
+  qexists_tac ‘ARB’ >>
+  rw[FUN_EQ_THM] >- cheat >>
+  (rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
+   qabbrev_tac ‘e = mem_load_byte
+                  (write_bytearray (s :(32, α) bstate).base_addr [(w :word8)]
+                     s.memory s.memaddrs s.be) s.memaddrs s.be s.base_addr’ >>
+   ‘e = SOME w’ by cheat >>
+   rw[] >>
+   irule itree_wbisim_vis >> rw[] >>
+   Cases_on ‘r’ >> rw[] >-
+    (cheat
+    )
+  )
+QED
 
 
 
