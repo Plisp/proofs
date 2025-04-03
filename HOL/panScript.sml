@@ -373,56 +373,76 @@ Proof
   Cases_on ‘a’ >> fs[]
 QED
 
-(* coinductive example *)
+(*
+ * coinductive example: random register
+ *)
 
-val echo_ast = parse_pancake ‘
-fun echo() {
+val reg_ast = parse_pancake ‘
+fun reg() {
   while(1) {
     @read(0,0,@base,1);
     @write(@base,1,0,0);
   }
 }’;
 
-val echo_annot = rhs $ concl $ SRULE[]
-                     $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “(fun_ast ^echo_ast)”;
-val echo_noannot =
+val reg_annot = rhs $ concl $ SRULE[]
+                    $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “(fun_ast ^reg_ast)”;
+val reg_noannot =
   rhs $ concl $ SRULE[]
-      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^echo_ast)”;
+      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^reg_ast)”;
 
-(* transition relation describing valid device returns, currently stateless *)
-Inductive devstate:
-  ∀b f. devstate () (FFI_call (ffi$ExtCall "write") [b] [], FFI_return f [b]) ()
+(* LTS describing valid device returns, currently no silent transitions *)
+Inductive rand:
+  rand b (FFI_call (ffi$ExtCall "read") [] [_], FFI_return f [b]) b' ∧
+  rand b (FFI_call (ffi$ExtCall "write") [a] [], FFI_return f []) a
 End
 
-Definition eval_path:
-  k (FFI_return)
-End
+(* NONE means end the interaction *)
+(* Definition resp_def: *)
+(*   resp "read" [b] = SOME (FFI_call (ffi$ExtCall "write") [b] []) ∧ *)
+(*   resp _ _ = NONE *)
+(* End *)
 
-CoInductive echo_spec:
-  (echo_spec (t : (32,'b) stree) ∧
+CoInductive reg_spec:
+  (reg_spec (t : (32,'b) stree) ∧
    (∀b.
-      k (FFI_return ARB [b])
-        ≈ Vis (FFI_call (ffi$ExtCall "write") [b] []) (λ_. t))
+      t' ≈ (Vis (FFI_call (ffi$ExtCall "read") [] [a]) k) ∧
+      k (FFI_return ffi [b]) = Vis (FFI_call (ffi$ExtCall "write") [b] [])
+                                   (λ_. t))
    ⇒
-   echo_spec (Vis (FFI_call (ffi$ExtCall "read") [] [a]) k))
+   reg_spec t')
   ∧
-  (echo_spec t ⇒ echo_spec (Tau t))
+  (reg_spec t ⇒ reg_spec (Tau t))
 End
 
-Theorem echo_spec_tau[simp]:
-  echo_spec (Tau t) ⇔ echo_spec t
+Theorem reg_spec_tau:
+  ∀t. reg_spec (Tau t) = reg_spec t
 Proof
-  rw[Once echo_spec_cases]
+  rw[Once reg_spec_cases]
 QED
 
 Theorem test:
   mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
-  echo_spec (mrec_sem (h_prog (^echo_noannot,s)))
+  reg_spec (mrec_sem (h_prog (^reg_noannot,s)))
 Proof
-  rw[h_prog_def, h_prog_while_def, eval_def] >>
-  rw[h_prog_seq_def] >>
+  assume_tac reg_spec_tau >> strip_tac >>
+  rw[h_prog_def, h_prog_while_def, eval_def, h_prog_seq_def] >>
   rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
-  rw[Once echo_spec_cases] >>
+  irule reg_spec_coind >>
+
+  qexists_tac ‘λt.
+                 ∃s'. t = untau $ mrec_sem
+                          (h_prog
+                           (While (Const 1w)
+                                  (Seq
+                                   (ExtCall «read» (Const 0w) (Const 0w) BaseAddr
+                                            (Const 1w))
+                                   (ExtCall «write» BaseAddr (Const 1w) (Const 0w)
+                                            (Const 0w))),s'))’ >>
+  rw[] >- (rw[h_prog_def, h_prog_while_def, eval_def, untau] >> metis_tac[]) >>
+  disj1_tac >>
+  rw[h_prog_def, h_prog_while_def, eval_def, untau, h_prog_seq_def] >>
+  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
   qexists_tac ‘ARB’ >>
   rw[FUN_EQ_THM] >- cheat >>
   (rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
