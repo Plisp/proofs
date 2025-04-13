@@ -108,6 +108,194 @@ QED
 Theorem mrec_sem_simps[simp] = panItreeSemTheory.mrec_sem_simps;
 
 (*
+ * TODO
+ *)
+
+val ffi_ast = parse_pancake ‘
+fun f() {
+  @read(0,0,@base,1);
+  @write(@base,1,0,0);
+}’;
+
+val ffi_noannot =
+  rhs $ concl $ SRULE[]
+      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^ffi_ast)”;
+
+(* box modality *)
+Definition next_def:
+  next tr (dev,s) (array_ptr,e)
+          (post :γ -> 32 result option -> (32, α) bstate
+                   -> (32, α) stree -> bool)
+          (t : (32, α) stree) =
+  (∀a dev'.
+     tr dev (e,a) dev' ⇒
+     (∃(k : 'a ffi_result -> (32, α) stree).
+        strip_tau t (Vis e k) ∧
+        case a of
+          FFI_final a => ARB
+        | FFI_return ffi bytes
+          => post dev' NONE
+                  (s with <|memory := write_bytearray array_ptr bytes
+                                      s.memory s.memaddrs s.be; ffi := ffi|>)
+                  (k a)))
+End
+
+Theorem test:
+  (∀(dev : 'b) r s.
+     r = NONE ∧ mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME 0w
+     ⇒ P dev r s (Tau (k (r,s)))) ∧
+  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
+  next (λ_ (e,a) _. ∃ffi. a = FFI_return ffi [0w])
+       ((), s)
+       (s.base_addr, (FFI_call (ExtCall "read") [] [b]))
+       P
+       (Tau
+        (mrec_sem
+         (h_prog (ExtCall «read» (Const 0w) (Const 0w) BaseAddr (Const 1w),s))
+         >>= k))
+Proof
+  rw[h_prog_def, h_prog_ext_call_def, read_bytearray_1] >>
+  rw[next_def] >> rw[] >>
+  last_x_assum irule >> rw[] >>
+  cheat
+QED
+
+Theorem test2:
+  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME 0w ⇒
+  next (λ_ (e,a) _. ∃ffi. a = FFI_return ffi [0w])
+       ((), s)
+       (s.base_addr, (FFI_call (ExtCall "write") [0w] []))
+       (λdev r s t. r = NONE)
+       (Tau (Tau (mrec_sem
+        (h_prog (ExtCall «write» BaseAddr (Const 1w) (Const 0w) (Const 0w),
+                 (s : (32,'a) bstate))))))
+Proof
+  rw[h_prog_def, h_prog_ext_call_def, read_bytearray_1] >>
+  rw[next_def] >> rw[]
+QED
+
+Theorem testseq:
+  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
+  next (λ_ (e,a) _. ∃ffi b. a = FFI_return ffi [0w])
+       ((), s)
+       (s.base_addr, (FFI_call (ExtCall "read") [] [b]))
+       (λdev' r s' t.
+          next (λ_ (e,a) _. ∃ffi. a = FFI_return ffi [0w])
+               ((), s')
+               (s'.base_addr, (FFI_call (ExtCall "write") [0w] []))
+               (λdev r _ _. r = NONE)
+               t)
+       (mrec_sem (h_prog (^ffi_noannot,s)))
+Proof
+  rw[Once h_prog_def, h_prog_seq_def] >>
+  qmatch_goalsub_abbrev_tac ‘next _ _ _ P’ >>
+  rw[mrec_sem_monad_law] >>
+  qmatch_goalsub_abbrev_tac ‘mrec_sem _ >>= k’ >>
+  irule test >> rw[Abbr ‘P’, Abbr ‘k’] >>
+  irule test2 >> rw[]
+QED
+
+(* coinductive example: random register
+ *
+ * note: Devices may make silent transitions and may race with the driver,
+ *       so then composition of driver and device is not then a deterministic
+ *       function of the env and so cannot represented as an itree.
+ *
+ * let's split the proof into
+ * 1) the program follows the protocol (all events have a valid device answer)
+ *    - implicit in specification, needs to be proved separately
+ * 2) the program is correct on all traces assuming the device follows protocol
+ *)
+
+val reg_ast = parse_pancake ‘
+fun reg() {
+  while(1) {
+    @read(0,0,@base,1);
+    @write(@base,1,0,0);
+  }
+}’;
+
+val reg_annot = rhs $ concl $ SRULE[]
+                    $ INST_TYPE [alpha |-> ``:32``] $ EVAL “(fun_ast ^reg_ast)”;
+val reg_noannot =
+  rhs $ concl $ SRULE[]
+      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^reg_ast)”;
+
+(* LTS describing valid device returns, currently no silent transitions *)
+Inductive rand:
+  rand b (FFI_call (ffi$ExtCall "read") [] [_], FFI_return f [b]) b' ∧
+  rand b (FFI_call (ffi$ExtCall "write") [a] [], FFI_return f []) a
+End
+
+CoInductive reg_spec:
+  (reg_spec dev (t : (32,'b) stree) ∧
+   (∀b.
+      t' ≈ (Vis e1 k) ∧ e1 = (FFI_call (ffi$ExtCall "read") [] [a]) ∧
+      ∀ans. rand dev (e1,ans) dev'
+            ⇒
+            k ans = Vis e2 (λ_. t) ∧ e2 = (FFI_call (ffi$ExtCall "write") [b] []) ∧
+            rand dev' (e2,ans2) dev''
+   )
+   ⇒
+   reg_spec dev'' t')
+  ∧
+  (reg_spec dev t ⇒ reg_spec dev (Tau t))
+End
+
+Theorem reg_spec_tau:
+  ∀t. reg_spec (Tau t) = reg_spec t
+Proof
+  rw[Once reg_spec_cases]
+QED
+
+Theorem test:
+  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
+  reg_spec (mrec_sem (h_prog (^reg_noannot,s)))
+Proof
+  assume_tac reg_spec_tau >> strip_tac >>
+  rw[h_prog_def, h_prog_while_def, eval_def, h_prog_seq_def] >>
+  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
+  irule reg_spec_coind >>
+
+  qexists_tac ‘λt.
+                 ∃s'. t = untau $ mrec_sem
+                          (h_prog
+                           (While (Const 1w)
+                                  (Seq
+                                   (ExtCall «read» (Const 0w) (Const 0w) BaseAddr
+                                            (Const 1w))
+                                   (ExtCall «write» BaseAddr (Const 1w) (Const 0w)
+                                            (Const 0w))),s'))’ >>
+  rw[] >- (rw[h_prog_def, h_prog_while_def, eval_def, untau] >> metis_tac[]) >>
+  disj1_tac >>
+  rw[h_prog_def, h_prog_while_def, eval_def, untau, h_prog_seq_def] >>
+  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
+  qexists_tac ‘ARB’ >>
+  rw[FUN_EQ_THM] >- cheat >>
+  (rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
+   qabbrev_tac ‘e = mem_load_byte
+                  (write_bytearray (s :(32, α) bstate).base_addr [(w :word8)]
+                     s.memory s.memaddrs s.be) s.memaddrs s.be s.base_addr’ >>
+   ‘e = SOME w’ by cheat >>
+   rw[] >>
+   irule itree_wbisim_vis >> rw[] >>
+   Cases_on ‘r’ >> rw[] >-
+    (cheat
+    )
+  )
+QED
+
+
+
+
+
+
+
+
+
+
+
+(*
  * hmm, this is suitable for global invariants but not quite
  *)
 
@@ -369,185 +557,6 @@ Proof
   pop_assum irule >>
   rw[Once correct_cases, ELIM_UNCURRY] >>
   Cases_on ‘a’ >> fs[]
-QED
-
-(*
- * interesting, but we should try a better suited definition
- * for describing finite trace properties of a program (fragment)
- *)
-
-Definition next_def:
-  next tr (dev,s) (array_ptr,e)
-          (post :γ -> 32 result option -> (32, α) bstate
-                   -> (32, α) stree -> bool)
-          (t : (32, α) stree) =
-  (∀a dev'.
-     tr dev (e,a) dev' ⇒
-     (∃(k : 'a ffi_result -> (32, α) stree).
-        strip_tau t (Vis e k) ∧
-        case a of
-          FFI_final a => ARB
-        | FFI_return ffi bytes
-          => post dev' NONE
-                  (s with <|memory := write_bytearray array_ptr bytes
-                                      s.memory s.memaddrs s.be; ffi := ffi|>)
-                  (k a)))
-End
-
-val ffi_ast = parse_pancake ‘
-fun f() {
-  @read(0,0,@base,1);
-  @write(@base,1,0,0);
-}’;
-
-val ffi_noannot =
-  rhs $ concl $ SRULE[]
-      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^ffi_ast)”;
-
-Theorem test:
-  (∀(dev : 'b) r s. mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME 0w
-             ⇒ P dev r s (Tau (k (r,s)))) ∧
-  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
-  next (λ_ (e,a) _. ∃ffi. a = FFI_return ffi [0w])
-       ((), s)
-       (s.base_addr, (FFI_call (ExtCall "read") [] [b]))
-       P
-       (Tau
-        (mrec_sem
-         (h_prog (ExtCall «read» (Const 0w) (Const 0w) BaseAddr (Const 1w),s))
-         >>= k))
-Proof
-  rw[h_prog_def, h_prog_ext_call_def, read_bytearray_1] >>
-  rw[next_def] >> rw[] >>
-  last_x_assum irule >> rw[] >>
-  cheat
-QED
-
-Theorem test2:
-  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME 0w ⇒
-  next (λ_ (e,a) _. ∃ffi b. a = FFI_return ffi [0w])
-       ((), s)
-       (s.base_addr, (FFI_call (ExtCall "write") [0w] []))
-       (λdev r s t. r = NONE)
-       (mrec_sem
-        (h_prog (ExtCall «write» BaseAddr (Const 1w) (Const 0w) (Const 0w),
-                 (s : (32,'a) bstate))))
-Proof
-  rw[h_prog_def, h_prog_ext_call_def, read_bytearray_1] >>
-  rw[next_def] >> rw[]
-QED
-
-Theorem testseq:
-  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
-  next (λ_ (e,a) _. ∃ffi b. a = FFI_return ffi [0w])
-       ((), s)
-       (s.base_addr, (FFI_call (ExtCall "read") [] [b]))
-       (λdev' r s' t.
-          mem_load_byte s'.memory s'.memaddrs s'.be s'.base_addr = SOME 0w ⇒
-          next (λ_ (e,a) _. ∃ffi b. a = FFI_return ffi [0w])
-               ((), s')
-               (s'.base_addr, (FFI_call (ExtCall "write") [0w] []))
-               (λdev r _ _. r = NONE)
-               t)
-       (mrec_sem (h_prog (^ffi_noannot,s)))
-Proof
-  rw[Once h_prog_def, h_prog_seq_def] >>
-  qmatch_goalsub_abbrev_tac ‘next _ _ _ P’ >>
-  rw[mrec_sem_monad_law] >>
-  qmatch_goalsub_abbrev_tac ‘mrec_sem _ >>= k’ >>
-  irule test >> simp[Abbr ‘P’, Abbr ‘k’] >>
-
-  irule test2
-QED
-
-(* coinductive example: random register
- *
- * note: Devices may make silent transitions and may race with the driver,
- *       so then composition of driver and device is not then a deterministic
- *       function of the env and so cannot represented as an itree.
- *
- * let's split the proof into
- * 1) the program follows the protocol (all events have a valid device answer)
- *    - implicit in specification, needs to be proved separately
- * 2) the program is correct on all traces assuming the device follows protocol
- *)
-
-val reg_ast = parse_pancake ‘
-fun reg() {
-  while(1) {
-    @read(0,0,@base,1);
-    @write(@base,1,0,0);
-  }
-}’;
-
-val reg_annot = rhs $ concl $ SRULE[]
-                    $ INST_TYPE [alpha |-> ``:32``] $ EVAL “(fun_ast ^reg_ast)”;
-val reg_noannot =
-  rhs $ concl $ SRULE[]
-      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^reg_ast)”;
-
-(* LTS describing valid device returns, currently no silent transitions *)
-Inductive rand:
-  rand b (FFI_call (ffi$ExtCall "read") [] [_], FFI_return f [b]) b' ∧
-  rand b (FFI_call (ffi$ExtCall "write") [a] [], FFI_return f []) a
-End
-
-CoInductive reg_spec:
-  (reg_spec dev (t : (32,'b) stree) ∧
-   (∀b.
-      t' ≈ (Vis e1 k) ∧ e1 = (FFI_call (ffi$ExtCall "read") [] [a]) ∧
-      ∀ans. rand dev (e1,ans) dev'
-            ⇒
-            k ans = Vis e2 (λ_. t) ∧ e2 = (FFI_call (ffi$ExtCall "write") [b] []) ∧
-            rand dev' (e2,ans2) dev''
-   )
-   ⇒
-   reg_spec dev'' t')
-  ∧
-  (reg_spec dev t ⇒ reg_spec dev (Tau t))
-End
-
-Theorem reg_spec_tau:
-  ∀t. reg_spec (Tau t) = reg_spec t
-Proof
-  rw[Once reg_spec_cases]
-QED
-
-Theorem test:
-  mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
-  reg_spec (mrec_sem (h_prog (^reg_noannot,s)))
-Proof
-  assume_tac reg_spec_tau >> strip_tac >>
-  rw[h_prog_def, h_prog_while_def, eval_def, h_prog_seq_def] >>
-  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
-  irule reg_spec_coind >>
-
-  qexists_tac ‘λt.
-                 ∃s'. t = untau $ mrec_sem
-                          (h_prog
-                           (While (Const 1w)
-                                  (Seq
-                                   (ExtCall «read» (Const 0w) (Const 0w) BaseAddr
-                                            (Const 1w))
-                                   (ExtCall «write» BaseAddr (Const 1w) (Const 0w)
-                                            (Const 0w))),s'))’ >>
-  rw[] >- (rw[h_prog_def, h_prog_while_def, eval_def, untau] >> metis_tac[]) >>
-  disj1_tac >>
-  rw[h_prog_def, h_prog_while_def, eval_def, untau, h_prog_seq_def] >>
-  rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
-  qexists_tac ‘ARB’ >>
-  rw[FUN_EQ_THM] >- cheat >>
-  (rw[h_prog_def, h_prog_ext_call_def, eval_def, read_bytearray_1] >>
-   qabbrev_tac ‘e = mem_load_byte
-                  (write_bytearray (s :(32, α) bstate).base_addr [(w :word8)]
-                     s.memory s.memaddrs s.be) s.memaddrs s.be s.base_addr’ >>
-   ‘e = SOME w’ by cheat >>
-   rw[] >>
-   irule itree_wbisim_vis >> rw[] >>
-   Cases_on ‘r’ >> rw[] >-
-    (cheat
-    )
-  )
 QED
 
 
