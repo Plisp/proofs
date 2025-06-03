@@ -122,31 +122,19 @@ idr-+ (suc n) =
     =⟨ ap suc (idr-+ n) ⟩ suc n        -- induction hypothesis
   ∎
 
-commutes-sucr-+ : (m n : ℕ) → suc (m + n) ＝ (m + suc n)
-commutes-sucr-+ zero n =
-  begin suc (0 + n)
-    =⟨⟩ suc n
-    =⟨⟩ 0 + suc n
-  ∎
-commutes-sucr-+ (suc m) n =
-  begin                               suc (suc m  + n)
-    =⟨⟩                               suc (suc (m + n))
-    =⟨ ap suc (commutes-sucr-+ m n) ⟩ suc (m + suc n)
-    =⟨⟩                               suc m  + suc n
-  ∎
+commutes-+' : ∀ m n → (suc (m + n) ＝ m + suc n) × (m + n ＝ n + m)
+commutes-+' zero n = refl (suc n) , sym＝ (idr-+ n)
+commutes-+' (suc m) n = ap suc fst-ind -- first hypothesis
+                      , ap suc snd-ind ∙ fst (commutes-+' n m)
+  where
+    fst-ind : suc (m + n) ＝ m + suc n
+    fst-ind = fst (commutes-+' m n)
+
+    snd-ind : m + n ＝ n + m
+    snd-ind = snd (commutes-+' m n)
 
 commutes-+ : commut _+_
-commutes-+ zero n =
-  begin                 0 + n
-    =⟨⟩                 n
-    =⟨ sym＝ (idr-+ n) ⟩ n + 0
-  ∎
-commutes-+ (suc m) n =
-  begin                          suc m  + n
-    =⟨⟩                          suc (m + n)
-    =⟨ ap suc (commutes-+ m n) ⟩ suc (n + m)
-    =⟨ commutes-sucr-+ n m ⟩     n + suc m
-  ∎
+commutes-+ m n = snd (commutes-+' m n)
 
 left-ac-+ = left-ac _+_ assoc-+ commutes-+
 right-ac-+ = right-ac _+_ assoc-+ commutes-+
