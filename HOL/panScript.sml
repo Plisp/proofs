@@ -108,8 +108,22 @@ QED
 Theorem mrec_sem_simps[simp] = panItreeSemTheory.mrec_sem_simps;
 
 (*
- * TODO
+ * note: the device state following computation needs branching (choice trees?)
+ *
+ * P and Q are tree predicates for talking about trace structure
+ * {pre} => P   (p,s)   Q <= {post}
+ *
+ * pre implies P for any Q-satisfying continuation k given 'post'
  *)
+
+Definition tuple:
+  comp pre P (p,dev,s) post Q ⇔
+  pre (dev,s)
+  ⇒
+  (∀k. (∀r s dev'. post dev' (r,s) ⇒ Q dev' (k (r,s)))
+       ⇒
+       P dev (mrec_sem (h_prog (p,s)) >>= k))
+End
 
 val ffi_ast = parse_pancake ‘
 fun f() {
@@ -119,9 +133,9 @@ fun f() {
 
 val ffi_noannot =
   rhs $ concl $ SRULE[]
-      $ INST_TYPE [alpha |-> ``: 32``] $ EVAL “del_annot (fun_ast ^ffi_ast)”;
+      $ INST_TYPE [alpha |-> “:32”] $ EVAL “del_annot (fun_ast ^ffi_ast)”;
 
-(* box modality *)
+(* box from μ-calculus, do we need diamond? *)
 Definition next_def:
   next tr (dev,s) (array_ptr,e)
           (post :γ -> 32 result option -> (32, α) bstate
@@ -143,12 +157,12 @@ End
 Theorem test:
   (∀(dev : 'b) r s.
      r = NONE ∧ mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME 0w
-     ⇒ P dev r s (Tau (k (r,s)))) ∧
+     ⇒ Q dev r s (Tau (k (r,s)))) ∧
   mem_load_byte s.memory s.memaddrs s.be s.base_addr = SOME b ⇒
   next (λ_ (e,a) _. ∃ffi. a = FFI_return ffi [0w])
        ((), s)
        (s.base_addr, (FFI_call (ExtCall "read") [] [b]))
-       P
+       Q
        (Tau
         (mrec_sem
          (h_prog (ExtCall «read» (Const 0w) (Const 0w) BaseAddr (Const 1w),s))

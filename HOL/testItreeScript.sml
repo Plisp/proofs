@@ -33,6 +33,23 @@
 open stringLib; (* parsing, text examples etc. *)
 open itreeTauTheory;
 
+Overload emit[local] = “itree_trigger”;
+val _ = temp_set_fixity ">>=" (Infixl 500);
+Overload ">>="[local] = “itree_bind”;
+Overload iter[local] = “itree_iter”;
+
+val _ = temp_set_fixity "≈" (Infixl 500);
+Overload "≈" = “itree_wbisim”;
+
+(* open monadsyntax; *)
+(* val _ = *)
+(*     monadsyntax.declare_monad ( *)
+(*       "itree_monad", *)
+(*       { bind = “itree_bind”, ignorebind = NONE, unit = “Ret”, *)
+(*         guard = NONE, choice = NONE, fail = NONE} *)
+(*     ) *)
+(* val _ = monadsyntax.temp_enable_monad "itree_monad"; *)
+
 (* Theorem test: *)
 (*   (∀x y. V(i(x,i(y,x)))) ∧ *)
 (*   (∀x y z. V(i(i(x,i(y,z)), i(i(x,y),i(x,z))))) ∧ *)
@@ -44,25 +61,79 @@ open itreeTauTheory;
 (*   metis_tac[] *)
 (* QED *)
 
-(* open monadsyntax; *)
-(* val _ = *)
-(*     monadsyntax.declare_monad ( *)
-(*       "itree_monad", *)
-(*       { bind = “itree_bind”, ignorebind = NONE, unit = “Ret”, *)
-(*         guard = NONE, choice = NONE, fail = NONE} *)
-(*     ) *)
-(* val _ = monadsyntax.temp_enable_monad "itree_monad"; *)
+
+
+
+
+(* state machine:
+ * states: S, S × S transition relation
+ *)
+
+Inductive future_def:
+  (P e ⇒ future P (Vis e k)) ∧
+  (future P t ⇒ future P (Tau t))
+End
+
+Definition select2_def:
+  select2 t t' = (Vis NONE (λb. if b then t else t'))
+End
+
+Definition par:
+  par com (Vis e k) (Vis e' k')
+  = (if com e e'
+     then par com (k NONE) (k' (THE e))
+     else select2 (Vis e (λa. par com (k a) (Vis e' k')))
+                  (Vis e' (λa. par com (Vis e k) (k' a))))
+  ∧
+  par com (Tau t) (Vis e k) =
+End
+
+Datatype:
+  message = Quit | Data
+End
+
+Definition dev:
+  dev = itree_unfold (λseed.
+                        if seed = NONE
+                        then Vis' NONE (λb. if b then (SOME Data) else (SOME Quit))
+                        else Vis' seed (λ_. NONE))
+                     NONE
+End
+
+Datatype:
+  status = Exited | Emit message | Read
+End
+
+Definition drv:
+  drv = itree_unfold (λstatus.
+                        case status of
+                          Read => Vis' (SOME Read) (λinput.
+                                                      if input = Quit
+                                                      then Exited
+                                                      else Emit input)
+                        | Emit input => Tau' Read
+                        | Exited => Ret' ())
+                     Read
+End
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Definition itree_trigger_def:
   itree_trigger event = Vis event Ret
 End
-Overload emit[local] = “itree_trigger”;
-val _ = temp_set_fixity ">>=" (Infixl 500);
-Overload ">>="[local] = “itree_bind”;
-Overload iter[local] = “itree_iter”;
-
-val _ = temp_set_fixity "≈" (Infixl 500);
-Overload "≈" = “itree_wbisim”;
 
 (* these are useful ONLY for bisimulation *)
 val or1_tac = disj1_tac
@@ -71,7 +142,7 @@ val or3_tac = disj2_tac >> disj2_tac;
 
 (*/ basic examples of itree definition
    itree_unfold f is the final (coinductive) arrow to the final coalgebra
-   where f = structure map (into primed itree), seed = itree algebra instance
+   where f = structure map (into primed itree), status = itree algebra instance
  *)
 
 (* echo taken from paper, a bit different with HOL unfold vs deptypes *)

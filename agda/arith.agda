@@ -123,7 +123,7 @@ idr-+ (suc n) =
   ∎
 
 commutes-+' : ∀ m n → (suc (m + n) ＝ m + suc n) × (m + n ＝ n + m)
-commutes-+' zero n = refl (suc n) , sym＝ (idr-+ n)
+commutes-+' zero n = refl (suc n) , sym＝ (idr-+ n) -- could induct
 commutes-+' (suc m) n = ap suc fst-ind -- first hypothesis
                       , ap suc snd-ind ∙ fst (commutes-+' n m)
   where
