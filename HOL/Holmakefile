@@ -1,6 +1,6 @@
-CAKEMLDIR = /home/plisp/devel/cakeml
-INCLUDES = $(CAKEMLDIR)/pancake/\
-		   $(CAKEMLDIR)/pancake/parser/\
+CAKEMLDIR = /home/plisp/Code/cakeml-private/
+INCLUDES = $(CAKEMLDIR)/pancake/ \
+		   $(CAKEMLDIR)/pancake/parser/ \
            $(CAKEMLDIR)/pancake/semantics
 
 DIRS = $(wildcard */)
