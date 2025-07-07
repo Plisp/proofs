@@ -30,11 +30,12 @@
  * than detailing implementation. but proofs should be *syntax-directed*
  *)
 
-open stringLib; (* parsing, text examples etc. *)
-open itreeTauTheory;
+(* XXX can't enable types. show_types := true *)
 
-open relationTheory bisimulationTheory;
-open pathTheory;
+open stringLib; (* parsing, text examples etc. *)
+open llistTheory itreeTauTheory;
+
+open relationTheory;
 
 Overload emit[local] = “itree_trigger”;
 val _ = temp_set_fixity ">>=" (Infixl 500);
@@ -54,25 +55,17 @@ val _ = temp_set_fixity "≈" (Infixl 500);
 Overload "≈" = “itree_wbisim”;
 
 (*
- * state predicate, transition relation, initial state, success predicate
+ * transition relation and initial state
+ * success: expressed in predicates themselves
+ * carrier: not needed, use type
  *)
-Type lts[pp] = “:((α -> bool) # (α # β option # α -> bool) # α)”;
+Type lts[pp] = “:((α # β option # α -> bool) # α)”;
 
-Definition lts_states[simp]:
-  lts_states ((c,r,i) : ('s,'a) lts) = c
-End
 Definition lts_rel[simp]:
-  lts_rel ((c,r,i) : ('s,'a) lts) = r
+  lts_rel ((r,i) : ('s,'a) lts) = r
 End
 Definition lts_init[simp]:
-  lts_init ((c,r,i) : ('s,'a) lts) = i
-End
-
-Definition curry3[simp]:
-  curry3 P = λa b c. P (a,b,c)
-End
-Definition uncurry3[simp]:
-  uncurry3 Q = λ(a,b,c). Q a b c
+  lts_init ((r,i) : ('s,'a) lts) = i
 End
 
 (* CSP || operator
@@ -91,6 +84,12 @@ Definition comm_rel_r:
   comm_rel_r com r' = { ((s,t), a, (s',t')) | a ∉ com ∧ (t,a,t') ∈ r'∧ s = s' }
 End
 
+Theorem comm_rel_r_lift:
+  ((s,t),a,(s',t')) ∈ comm_rel_r com r' ⇔ a ∉ com ∧ (t,a,t') ∈ r' ∧ s = s'
+Proof
+  rw[comm_rel_r] >> metis_tac[]
+QED
+
 Definition comm_rel_com:
   comm_rel_com com r r' = { ((s,t), a, (s',t')) | a ∉ com ∧ (t,a,t') ∈ r'∧ s = s' }
 End
@@ -100,79 +99,145 @@ Definition comm_rel:
 End
 
 Definition comm:
-  comm com ((c,r,i) : ('s,'a) lts) ((c',r',i') : ('t,'a) lts) =
-  ({ (s,s') | c s ∧ c' s'}, comm_rel com r r', (i,i'))
+  comm com ((r,i) : ('s,'a) lts) ((r',i') : ('t,'a) lts) =
+  (comm_rel com r r', (i,i'))
 End
 
 Definition par:
   par l1 l2 = comm ∅ l1 l2
 End
 
+Definition stop:
+  stop s = ({}, s)
+End
+
 Definition prefix:
-  prefix i' a ((c,r,i) : ('s,'a) lts) = (c ∪ {i'}, r ∪ {(i',a,i)},i')
+  prefix i' a ((r,i) : ('s,'a) lts) = (r ∪ {(i',a,i)},i')
 End
 
 (* this is more natural than restriction *)
 Definition hide:
-  hide ((c,r,i) : ('s,'a) lts) a =
-  (c,{ (s,NONE,s') | (s,a,s') ∈ r } ∪ { (s,a',s') | a' ≠ a ∧ (s,a',s') ∈ r }, i)
+  hide ((r,i) : ('s,'a) lts) a =
+  ({ (s,NONE,s') | (s,a,s') ∈ r } ∪ { (s,a',s') | a' ≠ a ∧ (s,a',s') ∈ r }, i)
 End
 
 Definition choice_ext:
-  choice_ext s a ((c,r,i) : ('s,'a) lts) a' ((c',r',i') : ('s,'a) lts) =
-  ({s} ∪ c ∪ c', r ∪ { (s,a,i); (s,a',i') }, s)
+  choice_ext (s : 's) (act_lts : 'a option -> ('s,'a) lts -> bool)
+  = (BIGUNION { r | ∃a i. act_lts a (r,i) } ∪ { (s,a,i) | ∃r. act_lts a (r,i) }, s)
 End
 
 Definition choice_int:
-  choice_int s l1 l2 = choice_ext s NONE l1 NONE l2
+  choice_int s ltsfam = choice_ext s (λao lts. ao = NONE ∧ lts ∈ ltsfam)
 End
 
 (* monad *)
 Definition seq:
-  seq ((c,r,i) : ('s,'a) lts) (final : 's -> bool) (next : 's -> ('s,'a) lts) =
-  (c ∪ BIGUNION { lts_states (next s) | final s },
-   r ∪ { (fs,NONE,lts_init (next fs)) | final fs }
+  seq ((r,i) : ('s,'a) lts) (final : 's -> bool) (next : 's -> ('s,'a) lts) =
+  (r ∪ { (fs,NONE,lts_init (next fs)) | final fs }
      ∪ BIGUNION { lts_rel (next s) | final s },
    i)
 End
 
 Definition fix:
-  fix ((c,r,i) : ('s,'a) lts) (final : 's -> bool)
-  = seq (c,r,i) final (K (c,r,i))
+  fix ((r,i) : ('s,'a) lts) (final : 's -> bool)
+  = seq (r,i) final (K (r,i))
 End
 
 (* the equivalence of choice: weak bisimulation, a congruence for csp
  * more fine than trace equivalence for dealing with liveness
  *)
-
-Definition curry3[simp]:
-  curry3 r = (λs a s'. (s,a,s') ∈ r)
+Definition lts_taus:
+  lts_taus r = RTC (λs t. r (s,NONE,t))
 End
 
-Definition lts_wbisim:
-  lts_wbisim r s t = WBISIM_REL (curry3 r) NONE s t
+(* ⇒ -a-> ⇒ *)
+Definition lts_wts:
+  lts_wts r a = lts_taus r O (λs t. r (s,a,t)) O lts_taus r
 End
 
-(* XXX can't enable types *)
+CoInductive lts_wbisim:
+  ((∀s' a. a ≠ NONE ∧ r (s,a,s') ⇒ ∃t'. lts_wts r' a t t' ∧ lts_wbisim r r' s' t') ∧
+   (∀t' a. a ≠ NONE ∧ r'(t,a,t') ⇒ ∃s'. lts_wts r  a s s' ∧ lts_wbisim r r' s' t') ∧
+   (∀s'. r  (s,NONE,s') ⇒ ∃t'. lts_taus r' t t' ∧ lts_wbisim r r' s' t') ∧
+   (∀t'. r' (t,NONE,t') ⇒ ∃s'. lts_taus r  s s' ∧ lts_wbisim r r' s' t')
+   ⇒ lts_wbisim r r' s t)
+End
+
 Theorem lts_wbisim_refl[simp]:
-  lts_wbisim r s s
+  lts_wbisim r r s s
 Proof
-  rw[lts_wbisim] >>
-  metis_tac[WBISIM_REL_IS_EQUIV_REL, equivalence_def, reflexive_def]
+  irule lts_wbisim_coind >>
+  qexists_tac ‘λs s'. s = s'’ >>
+  rw[] >-
+   (rw[lts_wts, relationTheory.O_DEF] >>
+    metis_tac[lts_taus, RTC_cases]) >-
+   (rw[lts_wts, relationTheory.O_DEF] >>
+    metis_tac[lts_taus, RTC_cases]) >-
+   (rw[lts_taus])
 QED
 
 Theorem lts_wbisim_sym:
-  lts_wbisim r s t ⇒ lts_wbisim r t s
+  lts_wbisim r r' s t ⇒ lts_wbisim r' r t s
 Proof
-  rw[lts_wbisim] >>
-  metis_tac[WBISIM_REL_IS_EQUIV_REL, equivalence_def, symmetric_def]
+  strip_tac >>
+  irule lts_wbisim_coind >>
+  qexists_tac ‘λt s. lts_wbisim r r' s t’ >>
+  rw[] >>
+  last_x_assum kall_tac >>
+  last_x_assum $ strip_assume_tac o SRULE[Once lts_wbisim_cases] >> fs[]
+QED
+
+fun pat_rw thms pat = qpat_assum pat $ strip_assume_tac o SRULE thms;
+
+Theorem lts_ets_to_ets:
+  lts_wbisim r' r'' t u ∧
+  lts_taus r' t t'
+  ⇒ ∃u'.
+      lts_wbisim r' r'' t' u' ∧
+      lts_taus r'' u u'
+Proof
+  (* induct on RTC of ets *)
+  cheat
+QED
+
+Theorem lts_wts_to_wts:
+  lts_wbisim r' r'' t u ∧
+  lts_wts r' a t t'
+  ⇒ ∃u'.
+      lts_wbisim r' r'' t' u' ∧
+      lts_wts r'' a u u'
+Proof
+  (* induct on RTC of wts *)
+  cheat
 QED
 
 Theorem lts_wbisim_trans:
-  lts_wbisim r s t ∧ lts_wbisim r t u ⇒ lts_wbisim r s u
+  lts_wbisim r r' s t ∧ lts_wbisim r' r'' t u ⇒ lts_wbisim r r'' s u
 Proof
-  rw[lts_wbisim] >>
-  metis_tac[WBISIM_REL_IS_EQUIV_REL, equivalence_def, transitive_def]
+  rw[] >>
+  irule lts_wbisim_coind >>
+  qexists_tac ‘λs u. ∃t. lts_wbisim r r' s t ∧ lts_wbisim r' r'' t u’ >>
+  reverse conj_tac >- (metis_tac[]) >>
+  ntac 2 (pop_assum kall_tac) >>
+  ntac 2 strip_tac >>
+  rename1 ‘_ s u ⇒ _’ >>
+  rw[] >-
+   (pat_rw[Once lts_wbisim_cases] ‘lts_wbisim r r' _ _’ >>
+    ntac 2 $ qpat_x_assum ‘∀_. _ ⇒ _’ kall_tac >>
+    first_x_assum drule_all >> rw[] >>
+    pat_rw[Once lts_wbisim_cases] ‘lts_wbisim r' r'' _ _’ >>
+    ntac 2 $ qpat_x_assum ‘∀_. _ ⇒ _’ kall_tac >>
+    drule_all lts_wts_to_wts >> rw[] >>
+    metis_tac[]) >-
+   (rename1 ‘r'' (u,a,u')’ >> cheat) >-
+   (pat_rw[Once lts_wbisim_cases] ‘lts_wbisim r r' _ _’ >>
+    ntac 2 $ qpat_x_assum ‘∀_ _. _ ⇒ _’ kall_tac >>
+    first_x_assum drule >> rw[] >>
+    pat_rw[Once lts_wbisim_cases] ‘lts_wbisim r' r'' _ _’ >>
+    ntac 2 $ qpat_x_assum ‘∀_ _. _ ⇒ _’ kall_tac >>
+    drule_all lts_ets_to_ets >> rw[] >>
+    metis_tac[]) >-
+   (rename1 ‘r'' (u,NONE,u')’ >> cheat)
 QED
 
 (*
@@ -210,30 +275,6 @@ Definition itree_sm_def:
      t)
 End
 
-(* lts predicates *)
-
-CoInductive lts_globally:
-  (∀s' a. (s,a,s') ∈ r ⇒ P (s,a,s') ∧ lts_globally r P s')
-  ⇒ lts_globally r P s
-End
-
-Inductive lts_future:
-  (∀s a. (s,a,s') ∈ r ⇒ P (s,a,s') ∨ lts_future r P s')
-  ⇒ lts_future r P s
-End
-
-(* TODO preservation under weak bisimulation
- * TODO syntax for transitions s -r-> s' and weak bisimilarity s ≈r≈ s
- * P must respect weakly bisimilar states
- *)
-
-Theorem globally_resp_wbisim:
-  lts_wbisim (r ∪ r') s s' ∧ (∀s s'. P (s,NONE,s'))
-  ⇒ lts_globally r P s ⇒ lts_globally r' P s'
-Proof
-  cheat
-QED
-
 (* the producer produces buffers (represented as numbers / pointers)
  * and can sometimes stop in the false state.
  * Meanwhile the consumer receives and sends them
@@ -243,20 +284,37 @@ Datatype:
   testev = Produce num | Recv | Send num
 End
 
-Definition prod_def:
-  prod = (K T, { (T,SOME(Recv,Produce n),T) | n < 256 } ∪ {(T,NONE,F)}, T)
-         : (bool, testev # testev) lts
+(* Definition prod'_def: *)
+(*   prod' = ({ (T,SOME(Recv,Produce n),T) | n < 256 } ∪ {(T,NONE,F)}, T) *)
+(*         : (bool, testev # testev) lts *)
+(* End *)
+
+(* (* sanity check: we can continuously produce the 0 pointer *) *)
+(* Theorem test_okpath: *)
+(*   okpath (curry3 (lts_rel prod')) *)
+(*          (unfold (λ_. T) (λ_. SOME ((),SOME (Recv,Produce 0))) ()) *)
+(* Proof *)
+(*   irule okpath_unfold >> *)
+(*   qexists_tac ‘K T’ >> *)
+(*   rw[prod'_def] *)
+(* QED *)
+
+Datatype:
+  prod_states = Start | Producing num | After num | Exit
 End
 
-(* sanity check: we can continuously produce the 0 pointer *)
-Theorem test_okpath:
-  okpath (curry3 (lts_rel prod))
-         (unfold (λ_. T) (λ_. SOME ((),SOME (Recv,Produce 0))) ())
-Proof
-  irule okpath_unfold >>
-  qexists_tac ‘K T’ >>
-  rw[prod_def]
-QED
+Definition prod_def:
+  prod = fix
+         (choice_int Start
+                     ({prefix (Producing n) (SOME (Recv,Produce n))
+                              (stop (After n)) | n | T}
+                    ∪ {stop Exit}))
+          (λs. ∃n. s = After n)
+End
+
+(*
+ * defining the consumer
+ *)
 
 Definition prod_extract[simp]:
   prod_extract (Produce n) = n
@@ -269,55 +327,300 @@ Definition csm_tree_def:
                         ()
 End
 
-(* FINAL linear correctness statement *)
+Datatype:
+  csm_states = Receiving | Sending
+End
+
+Definition csm_def:
+  csm = fix ({ (Receiving,SOME(Recv,Produce n),Sending) | n | T }
+           ∪ { (Sending, SOME(Send n,x),Receiving) | n,x | T }, Receiving)
+            (λs. s = Sending)
+End
+
+(*
+ * final linear correctness property
+ *)
+
 Definition prod_csm_com:
   prod_csm_com = { SOME (Recv,Produce n) | n < 256 }
 End
 
-Definition sys_def[simp]:
-  sys = comm prod_csm_com prod (itree_sm csm_tree)
+Definition spec_def:
+  spec = comm prod_csm_com prod csm
 End
 
-Theorem comm_rel_r_lift:
-  ((s,t),a,(s',t')) ∈ comm_rel_r com r' ⇔ a ∉ com ∧ (t,a,t') ∈ r' ∧ s = s'
-Proof
-  rw[comm_rel_r] >> metis_tac[]
-QED
+(* consider all completed, weakly fair traces *)
 
-Theorem correspondence:
-  lts_wbisim (comm_rel com r r')
-Proof
-QED
+Type path[pp] = “:'s # ('a # 's) llist”;
 
-(* XXX types are wrong *)
-Theorem correctness:
-  lts_globally sys
-  (λ(s,a,s'). prod_csm_com a
-              ⇒ (lts_future sys (λ(s,a,s'). ∃x. a = SOME (Send n,x)) s'))
-  (lts_init sys)
-Proof
-QED
-
-(* TODO can extend to statement about traces *)
-
-Definition allpaths:
-  allpaths lts P = (∀path. okpath (curry3 (lts_rel lts)) path ⇒ P path)
+CoInductive compl_trace:
+  ((¬∃s'. (s,a,s') ∈ r) ⇒ compl_trace r (s,[||])) ∧
+  ((s,a,s') ∈ r ∧ compl_trace r (s',p')
+   ⇒ compl_trace r (s,(a,s'):::p'))
 End
 
 Definition nowlike:
-  nowlike f p = ∃x. first_label p = f x
+  nowlike f (s,(a,_):::l) = ∃x. a = f x
 End
 
 CoInductive globally:
-  (P (pcons s a p) ∧ globally P p) ⇒ globally P (pcons s a p)
+  (P (s,[||]) ⇒ globally P (s,[||])) ∧
+  (P (s,(a,_):::p) ∧ globally P (s',p) ⇒ globally P (s,(a,s'):::p))
 End
 
 Inductive future:
-  (∀P p. P p ⇒ future P p) ∧
-  (∀s a P p. future P p ⇒ future P (pcons s a p))
+  (P p' ⇒ future P p') ∧
+  (future P (s',p) ⇒ future P (s,(a,s'):::p))
 End
 
+(* if s can always take transition a but does not necessarily take it *)
+Definition perp_enabled:
+  perp_enabled fairtr = globally (λp. case p of
+                                        (s,(b,_):::p') => (∃a s'. (s,a,s') ∈ fairtr)
+                                      | _ => F)
+End
 
+(* then one of the ‘fairtr’ transitions occurs *)
+Definition tr_occurs:
+  tr_occurs fairtr p = ∃s a s'. (s,a,s') ∈ fairtr ∧
+                                future (λp. ∃p'. p = (s,(a,s'):::p')) p
+End
+
+Definition wfair:
+  wfair fairtr = globally (λp. perp_enabled fairtr p ⇒ tr_occurs fairtr p)
+End
+
+Theorem wfair_T_progress:
+  compl_trace r p ⇒ wfair r p
+Proof
+  rw[wfair] >>
+  irule globally_coind >>
+  qexists_tac ‘compl_trace r’ >>
+  conj_tac >- (metis_tac[]) >>
+  pop_assum kall_tac >>
+  rw[] >>
+  Cases_on ‘a0’ >> Cases_on ‘r'’ >-
+   (fs[Once compl_trace_cases] >>
+    rw[perp_enabled, Once globally_cases]) >>
+  Cases_on ‘h’ >> rw[] >>
+  qexists_tac ‘r'’ >>
+  fs[Once compl_trace_cases] >>
+  reverse (rw[tr_occurs]) >>
+  rw[Once future_cases] >> metis_tac[]
+QED
+
+Definition fairtraces:
+  fairtraces (r,i) fairtr P =
+  (∀path. compl_trace r path ∧ FST (THE (LHD path)) = i ∧ wfair r fairtr path ⇒ P path)
+End
+
+Theorem trace_transport:
+  (∀p. compl_trace r p ⇒ compl_trace r' p)
+  ⇒ fairtraces (r',i') (K T) P
+  ⇒ fairtraces (r,i) (K T) P
+Proof
+  rw[fairtraces] >>
+  last_x_assum irule >>
+  simp[] >>
+QED
+
+(* should really use a model checker here *)
+Theorem spec_property:
+  fairtraces spec {((s,Sending), SOME(Send n,x), (s,Receiving)) | s,n,x | T}
+  (globally
+   (λl. ∀n. nowlike (λ_. SOME(Recv,Produce n)) l
+            ⇒ future (nowlike (λx. SOME(Send n,x))) l))
+Proof
+  rw[fairtraces] >>
+  irule globally_coind >>
+  qexists_tac ‘λl. ∃path. l = labels path ∧ compl_trace (lts_rel spec) path’ >>
+  rw[] >- (metis_tac[]) >>
+  last_x_assum kall_tac >>
+  Cases_on ‘labels path'’ >- (gvs[Once trace_of_cases, labels_def]) >>
+  rw[] >-
+   (fs[nowlike] >>
+    Cases_on ‘path'’ using path_cases >>
+    gvs[labels_def] >>
+    cheat
+   ) >-
+   (Cases_on ‘path'’ using path_cases >- (fs[labels_def]) >>
+    qexists_tac ‘q’ >> fs[labels_def, Once trace_of_cases])
+QED
+
+(* transporting across the weak bisimulation *)
+
+Inductive strip_NONE:
+  strip_NONE (SOME x:::l) (SOME x:::l) ∧
+  strip_NONE [||] [||] ∧
+  (strip_NONE l l' ⇒ strip_NONE (NONE:::l) l')
+End
+
+CoInductive llist_wbisim:
+  (llist_wbisim l l' ⇒ llist_wbisim (NONE:::l) (NONE:::l')) ∧
+  (strip_NONE t [||] ∧ strip_NONE t' [||] ⇒
+  llist_wbisim t t') ∧
+  (llist_wbisim l l' ∧ strip_NONE xl (SOME x:::l) ∧ strip_NONE xl' (SOME x:::l') ⇒
+  llist_wbisim xl xl')
+End
+
+Theorem strip_NONE_NONE[simp]:
+  ∀l l'. strip_NONE (NONE:::l) l' <=> strip_NONE l l'
+Proof
+  rw[EQ_IMP_THM]
+  >- last_x_assum $ strip_assume_tac o SRULE[Once strip_NONE_cases] >>
+  metis_tac[strip_NONE_rules]
+QED
+
+Theorem llist_wbisim_refl:
+  llist_wbisim l l
+Proof
+  irule llist_wbisim_coind >>
+  qexists_tac ‘$=’ >>
+  rw[] >>
+  Cases_on ‘a0’ >> rw[] >-
+   (metis_tac[strip_NONE_cases]) >>
+  Cases_on ‘h’ >> metis_tac[strip_NONE_cases]
+QED
+
+Theorem llist_wbisim_sym:
+  ∀l' l. llist_wbisim l l' ⇒ llist_wbisim l' l
+Proof
+  rw[] >>
+  irule llist_wbisim_coind >>
+  qexists_tac ‘λa b. ∃l1 l2. a = l1 ∧ b = l2 ∧ llist_wbisim l2 l1’ >>
+  rw[] >> pop_last_assum kall_tac >>
+  metis_tac[llist_wbisim_cases]
+QED
+
+Theorem llist_wbisim_upto:
+  ∀R.
+  (∀a0 a1.
+    R a0 a1 ⇒
+    (∃l l'. a0 = NONE:::l ∧ a1 = NONE:::l' ∧ (R l l' ∨ llist_wbisim l l')) ∨
+    strip_NONE a0 [||] ∧ strip_NONE a1 [||] ∨
+    ∃l l' x. (R l l' ∨ llist_wbisim l l')
+    ∧ strip_NONE a0 (SOME x:::l) ∧ strip_NONE a1 (SOME x:::l')) ⇒
+  ∀a0 a1. R a0 a1 ⇒ llist_wbisim a0 a1
+Proof
+  rw[] >>
+  irule llist_wbisim_coind >>
+  qexists_tac ‘λa b. R a b ∨ llist_wbisim a b’ >>
+  rw[] >- metis_tac[] >>
+  pop_last_assum kall_tac >> pop_last_assum kall_tac >>
+  metis_tac[llist_wbisim_cases]
+QED
+
+Theorem llist_wbisim_NONE_eq:
+  llist_wbisim (NONE:::l) l
+Proof
+  rw[] >>
+  irule llist_wbisim_upto >>
+  qexists_tac ‘λa b. ∃l. a = (NONE:::l) ∧ b = l’ >>
+  rw[] >>
+  Cases_on ‘a1’ >> rw[Once strip_NONE_cases] >>
+  Cases_on ‘h’ >> rw[Once strip_NONE_cases] >>
+  metis_tac[strip_NONE_cases, llist_wbisim_refl]
+QED
+
+Theorem IMP_llist_wbisim_NONE:
+  llist_wbisim l l' ⇒ llist_wbisim l (NONE:::l')
+Proof
+  rw[] >>
+  irule llist_wbisim_upto >>
+  qexists_tac ‘λa b. ∃l1 l2. a = l1 ∧ b = (NONE:::l2) ∧ llist_wbisim l1 l2’ >>
+  rw[] >> pop_last_assum kall_tac >>
+  metis_tac[llist_wbisim_cases]
+QED
+
+Theorem llist_wbisim_NONE:
+  (∀(l:'a option llist) l'. llist_wbisim (NONE:::l) l' <=> llist_wbisim l l') ∧
+  (∀(l:'a option llist) l'. llist_wbisim l (NONE:::l') <=> llist_wbisim l l')
+Proof
+  conj_asm1_tac >-
+   (rw[EQ_IMP_THM] >-
+     (last_x_assum $ strip_assume_tac o SRULE[Once llist_wbisim_cases] >-
+       metis_tac[IMP_llist_wbisim_NONE] >>
+      metis_tac[llist_wbisim_rules,strip_NONE_NONE]) >>
+    metis_tac[IMP_llist_wbisim_NONE,llist_wbisim_sym]) >>
+  metis_tac[llist_wbisim_sym]
+QED
+
+Theorem strip_NONE_unique:
+  ∀l l' l''. strip_NONE l l' ∧ strip_NONE l l'' ⇒ l' = l''
+Proof
+  cheat
+QED
+
+Theorem llist_wbisim_strip_NONE_nil:
+  ∀t t'. llist_wbisim t t' ∧ strip_NONE t [||] ⇒ strip_NONE t' [||]
+Proof
+  cheat
+QED
+
+Theorem llist_wbisim_strip_NONE_cons_SOME:
+  ∀t t'. llist_wbisim t t' ∧ strip_NONE t (SOME h:::l) ⇒
+  ∃l'. strip_NONE t' (SOME h:::l') ∧ llist_wbisim l l'
+Proof
+  cheat
+QED
+
+Theorem llist_wbisim_SOME_strip_NONE:
+  llist_wbisim l (SOME x:::xs) ⇒
+  ∃ls. strip_NONE l (SOME x:::ls) ∧ llist_wbisim xs ls
+Proof
+  metis_tac[llist_wbisim_strip_NONE_cons_SOME, strip_NONE_cases, llist_wbisim_sym]
+QED
+
+Theorem llist_wbisim_trans:
+  llist_wbisim l l' ∧ llist_wbisim l' l'' ⇒ llist_wbisim l l''
+Proof
+  rw[] >>
+  irule llist_wbisim_coind >>
+  qexists_tac ‘λa b. ∃l1 l2 l3. a = l1 ∧ b = l3
+                                ∧ llist_wbisim l1 l2 ∧ llist_wbisim l2 l3’ >>
+  reverse (rw[]) >- (metis_tac[]) >>
+  pop_last_assum kall_tac >> pop_last_assum kall_tac >>
+  Cases_on ‘a0’ >> Cases_on ‘a1’ >> gvs[] >-
+   (metis_tac[llist_wbisim_cases, strip_NONE_cases]) >-
+   (disj1_tac >> metis_tac[strip_NONE_cases, llist_wbisim_strip_NONE_nil]) >-
+   (disj1_tac >> metis_tac[strip_NONE_cases, llist_wbisim_strip_NONE_nil,
+                           llist_wbisim_sym]) >>
+  Cases_on ‘h’ >> Cases_on ‘h'’ >> fs[llist_wbisim_NONE] >-
+   (metis_tac[])
+  >-
+   (disj2_tac >>
+    ‘∃l'. strip_NONE l2 (SOME x:::l') ∧ llist_wbisim t' l' ∧
+          ∃l''. strip_NONE t (SOME x:::l'') ∧ llist_wbisim l' l''’
+      by metis_tac[llist_wbisim_strip_NONE_cons_SOME, strip_NONE_cases,
+                   llist_wbisim_sym] >>
+    qexistsl_tac [‘l''’,‘t'’,‘x’] >> metis_tac[strip_NONE_cases, llist_wbisim_sym])
+  >-
+   (disj2_tac >>
+    ‘∃l'. strip_NONE l2 (SOME x:::l') ∧ llist_wbisim t l' ∧
+          ∃l''. strip_NONE t' (SOME x:::l'') ∧ llist_wbisim l' l''’
+      by metis_tac[llist_wbisim_strip_NONE_cons_SOME, strip_NONE_cases] >>
+    metis_tac[strip_NONE_cases])
+  >-
+   (disj2_tac >>
+    ‘(∃l'. strip_NONE l2 (SOME x:::l') ∧ llist_wbisim t l') ∧
+     ∃l''. strip_NONE l2 (SOME x':::l'') ∧ llist_wbisim t' l''’
+      by metis_tac[llist_wbisim_SOME_strip_NONE, llist_wbisim_sym] >>
+    ‘(SOME x:::l') = (SOME x':::l'')’ by metis_tac[strip_NONE_unique] >> gvs[] >>
+    metis_tac[strip_NONE_cases, llist_wbisim_sym])
+QED
+
+(* requires that the predicate respects llist_wbisim *)
+Theorem llist_wbisim_preserves_globally:
+  TODO
+Proof
+QED
+
+Theorem wbisim_implies_trace_equiv:
+  lts_wbisim r r' i i' ⇒
+  allpaths (r,i) (λpath. okpath (curry3 (lts_rel (r',i'))) path)
+Proof
+  cheat
+QED
 
 
 
