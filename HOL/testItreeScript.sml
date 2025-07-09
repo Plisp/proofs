@@ -390,7 +390,7 @@ Definition wfair:
   wfair fairtr = globally (λp. perp_enabled fairtr p ⇒ tr_occurs fairtr p)
 End
 
-Theorem wfair_T_progress:
+Theorem progress_wfair_T:
   compl_trace r p ⇒ wfair r p
 Proof
   rw[wfair] >>
@@ -410,41 +410,21 @@ Proof
 QED
 
 Definition fairtraces:
-  fairtraces (r,i) fairtr P =
-  (∀path. compl_trace r path ∧ FST (THE (LHD path)) = i ∧ wfair r fairtr path ⇒ P path)
+  fairtraces (r,i) P =
+  (∀path. compl_trace r path ∧ FST path = i ∧ (∀t. t ∈ r ⇒ wfair {t} path) ⇒ P path)
 End
 
-Theorem trace_transport:
-  (∀p. compl_trace r p ⇒ compl_trace r' p)
-  ⇒ fairtraces (r',i') (K T) P
-  ⇒ fairtraces (r,i) (K T) P
-Proof
-  rw[fairtraces] >>
-  last_x_assum irule >>
-  simp[] >>
-QED
+Definition labels_def:
+  labels (s,l) = LUNFOLD (λl. case l of
+                                ((a,_):::l') => SOME (l',a)
+                              | [||] => NONE) l
+End
 
-(* should really use a model checker here *)
-Theorem spec_property:
-  fairtraces spec {((s,Sending), SOME(Send n,x), (s,Receiving)) | s,n,x | T}
-  (globally
-   (λl. ∀n. nowlike (λ_. SOME(Recv,Produce n)) l
-            ⇒ future (nowlike (λx. SOME(Send n,x))) l))
+Theorem labels_thm:
+  labels (s,[||]) = [||] ∧
+  labels (s,(a,s'):::l) = a:::(labels (ARB,l))
 Proof
-  rw[fairtraces] >>
-  irule globally_coind >>
-  qexists_tac ‘λl. ∃path. l = labels path ∧ compl_trace (lts_rel spec) path’ >>
-  rw[] >- (metis_tac[]) >>
-  last_x_assum kall_tac >>
-  Cases_on ‘labels path'’ >- (gvs[Once trace_of_cases, labels_def]) >>
-  rw[] >-
-   (fs[nowlike] >>
-    Cases_on ‘path'’ using path_cases >>
-    gvs[labels_def] >>
-    cheat
-   ) >-
-   (Cases_on ‘path'’ using path_cases >- (fs[labels_def]) >>
-    qexists_tac ‘q’ >> fs[labels_def, Once trace_of_cases])
+  rw[labels_def] >> rw[Once LUNFOLD]
 QED
 
 (* transporting across the weak bisimulation *)
@@ -609,18 +589,60 @@ Proof
     metis_tac[strip_NONE_cases, llist_wbisim_sym])
 QED
 
-(* requires that the predicate respects llist_wbisim *)
-Theorem llist_wbisim_preserves_globally:
-  TODO
+(* any predicate respects weak trace equivalence is carried by wbisim *)
+Theorem trace_transport:
+  (∀la lb. llist_wbisim (labels la) (labels lb) ⇒ P la = P lb)
+  ∧ lts_wbisim r r' i i'
+  ∧ fairtraces (r',i') P
+  ⇒ fairtraces (r,i) P
 Proof
+  rw[fairtraces] >>
+  ‘∃(path' : (β option, α) path).
+     FST path' = i' ∧ llist_wbisim (labels path) (labels path')’ by cheat >>
+  last_x_assum drule >> rw[] >>
+  pop_assum kall_tac >>
+  last_x_assum irule >>
+  rw[] >-
+   (cheat
+   ) >>
+  irule compl_trace_coind >>
+  cheat
 QED
 
-Theorem wbisim_implies_trace_equiv:
-  lts_wbisim r r' i i' ⇒
-  allpaths (r,i) (λpath. okpath (curry3 (lts_rel (r',i'))) path)
+(* should really use a model checker here *)
+
+Definition correctness:
+  correctness = (globally
+                 (λl. ∀n. nowlike (λ(_:unit). SOME(Recv,Produce n)) l
+                          ⇒ future (nowlike (λx. SOME(Send n,x))) l))
+End
+
+Theorem correctness_resp:
+  llist_wbisim (labels la) (labels lb) ⇒ correctness la = correctness lb
 Proof
   cheat
 QED
+
+Theorem spec_property:
+  fairtraces spec correctness
+Proof
+  cheat
+QED
+
+Theorem impl_has_spec_property:
+  lts_wbisim (r :(prod_states # csm_states)
+                 # (testev # testev) option # prod_states # csm_states -> bool)
+  (lts_rel spec) i (lts_init spec)
+  ⇒ fairtraces (r,i) correctness
+Proof
+  strip_tac >>
+  irule trace_transport >>
+  conj_tac >- (rw[correctness_resp]) >>
+  qexistsl_tac [‘lts_init spec’, ‘lts_rel spec’] >>
+  Cases_on ‘spec’ >>
+  gvs[lts_rel, lts_init, spec_property]
+QED
+
 
 
 
