@@ -289,20 +289,17 @@ Bool-not-subsingleton : ¬(is-subsingleton Bool)
 Bool-not-subsingleton p = true≠false (p true false)
 
 𝟙≠𝟚 : 𝟙 ≠ Bool
-𝟙≠𝟚 p = Bool-not-subsingleton (transport is-subsingleton p 𝟙-subsingleton)
+𝟙≠𝟚 p = Bool-not-subsingleton (transport is-subsingleton p 𝟙-is-subsingleton)
 
 {-
   no surjection into the powerset
 -}
 
 neg-neq : {A : Set} → A ≠ (¬ A)
-neg-neq {A} p = nnot-a not-a
+neg-neq {A} p = not-a (coerce (sym＝ p) not-a)
   where
     not-a : A → ⊥
     not-a a = (coerce p a) a
-
-    nnot-a : ¬ A → ⊥
-    nnot-a na = na (coerce (sym＝ p) na)
 
 cantor : {A : Set} → (f : A → (A → Set)) → surjective f → ⊥
 cantor {A} f p = diagonal-neq-any-n (p neg-diagonal)
@@ -409,7 +406,7 @@ neg-nequiv {A} (e , p) = not-a ((inverse e p) not-a)
 --     lemma : Σ r ∶ (Set → ((𝟙 → 𝟙) → Set)) , ext-surjective* r
 --     lemma = (λ z _ → z)
 --           , λ endo-s q → (endo-s id , λ endo →
---                                           q id endo (λ _ → 𝟙-subsingleton _ _))
+--                                           q id endo (λ _ → 𝟙-is-subsingleton _ _))
 
 {-
   compile-time nonsense
@@ -543,6 +540,57 @@ yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
              → (η : Nat (Y x) A)
              → yoneda-nat A (yoneda-elem A η) ≈ η
 yoneda-lemma {A = A} η x (refl .x) = refl (yoneda-elem A η)
+
+{-
+  involutions on universes
+-}
+
+-- negation disproves f^n = f^n+1 for all n
+endo-1-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f A ＝ A)
+endo-1-absurd f = neg-neq (sym＝ (f (¬_) 𝟙))
+
+-- this argument generalises to all f^n > 1
+endo-2-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f (f A) ＝ A)
+endo-2-absurd f = true≠false (ap (λ f → f (λ _ → true)) bad)
+  where
+    p : is-subsingleton ((𝟙 → Bool) → Bool)
+    p = transport is-subsingleton (sym＝ (f (λ X → X → Bool) 𝟙)) 𝟙-is-subsingleton
+
+    bad : (λ _ → true) ＝ (λ _ → false)
+    bad = p _ _
+
+endo-2-prop : (∀ (f : Set → Set) → (A : Set) → is-prop A → f (f A) ＝ A)
+            → lem lzero -- : is-prop X → X ＋ ¬X
+endo-2-prop f X x-is-prop = prop-dne decidable-is-prop nn-lem
+  where
+    prop-dne : ∀ {X} → is-prop X → ¬(¬ X) → X
+    prop-dne {X} x-is-prop nnp = coerce (f (¬_) X x-is-prop) nnp
+
+    nx-prop : ∀ {X} → is-prop X → is-prop (¬ X)
+    nx-prop x-is-prop nx nx' = FUNEXT (λ x → 𝟘-is-subsingleton (nx x) (nx' x))
+
+    decidable-is-prop : is-prop (X ＋ (¬ X))
+    decidable-is-prop (inl x) (inl x') = ap inl (x-is-prop x x')
+    decidable-is-prop (inr nx) (inr nx') = ap inr (nx-prop x-is-prop nx nx')
+    decidable-is-prop (inl x) (inr nx) = rec⊥ _ (nx x)
+    decidable-is-prop (inr nx) (inl x) = rec⊥ _ (nx x)
+
+-- true for all odd f^n
+endo-3-prop-absurd : ¬(∀ (f : Set → Set) → (A : Set) → is-prop A → f (f (f A)) ＝ A)
+endo-3-prop-absurd f = neg3-neq (sym＝ (f (¬_) 𝟙 𝟙-is-subsingleton))
+  where
+    neg3-neq : {A : Set} → A ≠ (¬(¬(¬ A)))
+    neg3-neq {A} p = na (coerce (sym＝ p) (proof-by-negation na))
+      where
+        test : A → ¬(¬(¬ A)) → ⊥
+        test a nnna = nnna (proof-by-negation a)
+
+        na : A → ⊥
+        na a = test a (coerce p a)
+
+-- endo-31-prop : (∀ (f : Set → Set) → (A : Set) → is-prop A → f (f (f A)) ＝ f A)
+--              → {!!}
+-- endo-31-prop f X x-prop = {!!}
 
 {-
   effective quotients

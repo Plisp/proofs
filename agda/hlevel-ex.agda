@@ -12,8 +12,8 @@ open import hlevel
 𝟙-is-singleton : is-contr 𝟙
 𝟙-is-singleton = ⋆ , ind⊤ (λ x → ⋆ ＝ x) (refl ⋆)
 
-𝟙-subsingleton : (a b : 𝟙) → a ＝ b
-𝟙-subsingleton = singletons-are-subsingletons 𝟙 𝟙-is-singleton
+𝟙-is-subsingleton : (a b : 𝟙) → a ＝ b
+𝟙-is-subsingleton = singletons-are-subsingletons 𝟙 𝟙-is-singleton
 
 𝟘-is-subsingleton : is-subsingleton 𝟘
 𝟘-is-subsingleton x y = ind⊥ (λ x → (x ＝ y)) x
