@@ -166,7 +166,7 @@ surj-wepi {A = A}{B} f p g h gf~hf x
     lemma : Σ a ∶ A , f a ＝ x
     lemma = p x
 
--- true if you consider all sets, take non-contr codomain for g,h and differ on F
+-- wpis are surjective with the axiom of choice
 -- wepi-no-surj : Σ f ∶ (𝟙 → Bool) , wepi f × ¬ surjective f
 -- wepi-no-surj = (λ z → true) , (λ g h p b → {!!}) , {!!}
 

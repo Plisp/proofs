@@ -29,10 +29,9 @@ postulate
   -- refl is the only element
   AX-K : {X : Set ℓ} {x : X} (C : (x ＝ x) → Set ℓ₁)
        → C (refl x) → (p : x ＝ x) → C p
-  AX-Kc : {X : Set ℓ} {x : X} (C : (x ＝ x) → Set ℓ₁)
-        → (p : C (refl x))
-        → AX-K C p (refl x) ＝ p
---{-# REWRITE K-comp #-}
+  AX-K-comp : {X : Set ℓ} {x : X} (C : (x ＝ x) → Set ℓ₁)
+            → (p : C (refl x))
+            → AX-K C p (refl x) ＝ p
 
 UIP : {A : Set ℓ} (x : A)
     → (p q : x ＝ x) → p ＝ q
@@ -44,122 +43,6 @@ AX-K-rec x p = UIP x p (refl x)
 
 AX-K-rec-eq : {X : Set ℓ} (x : X) → AX-K-rec x (refl x) ＝ refl (refl x)
 AX-K-rec-eq x = AX-K-rec (refl x) (AX-K-rec x (refl x))
-
--- unpack and repack alg until lift bottoms out (ignores its argument)
--- (inl ⋆ : (1+ℕ)) --⋆--> (inl ⋆)
---       ^                   v
---     Z : ℕ       - - -> alg-zero
---
--- if X is a coalgebra, this may not terminate as iso will
--- unwrap indefinitely
---
--- init : {A X : Set} {P : Set → Set}
---      → (∀{A B : Set} → (A → B) → (P A → P B))
---      → (P A → A) → (X → P X) → (X → A)
--- init lift alg iso = alg ∘ (lift (init lift alg iso)) ∘ iso
-
-ackermann : ℕ → ℕ → ℕ
-ackermann = recℕ mzero msucc
-  where
-    mzero : ℕ → ℕ
-    mzero = λ n → suc n
-    -- from ackermann m _, produce ackermann (suc m) _
-    msucc : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
-    msucc = λ m am → recℕ (am 1) (λ n a-sm-n → am a-sm-n)
-
-ind≤ : (A : {n m : ℕ} → (p : n ≤ m) → Set)
-     → (∀ {n : ℕ} → (p : zero ≤ n) → A p)
-     → (∀ {m n : ℕ} → (p : m ≤ n) → A p → A (s≤s p))
-     → (m n : ℕ) → (p : m ≤ n) → A p
-ind≤ A zn ss n m z≤n = zn z≤n
-ind≤ A zn ss n m (s≤s p) = ss p (ind≤ A zn ss (pred n) (pred m) p)
-
-trans'-≤ : (l m n : ℕ) → (l ≤ m) → (m ≤ n) → (l ≤ n)
-trans'-≤ l m n lm mn = ind-lm n mn
-  where
-    ≤-dest : ∀ {m n} → suc m ≤ suc n → m ≤ n -- uniqueness is inversion
-    ≤-dest {m} {n} (s≤s p) = p
-
-    ind-mn : {l m : ℕ} → (l ≤ m)
-           → (∀ n → (m ≤ n) → (l ≤ n))
-           → (n : ℕ) → (suc m ≤ n) → (suc l ≤ n)
-    -- definitional match  vvv
-    ind-mn {l} {m} _ mnln (suc n) sm≤n = s≤s (mnln n (≤-dest sm≤n))
-
-    ind-lm : (n : ℕ) → (m ≤ n) → (l ≤ n)
-    ind-lm = ind≤ (λ {l' m' : ℕ} → λ (lm : l' ≤ m') -- need forall n
-                                 → ∀ (n : ℕ) → (m' ≤ n) → (l' ≤ n))
-                  (λ _ → λ _ _ → z≤n) ind-mn l m lm
-
-reindex : {J I : Set} {A : I → Set} (α : J → I)
-        → Σ j ∶ J , A (α j) → Σ i ∶ I , A i
-reindex α (p1 , p2) = (α p1 , p2)
-
-{-
-  what models this?
--}
-
-data infalg : Set where
-  leaf : infalg
-  branch : (ℕ → infalg) → infalg
-
-{- (ℕ→A)→A can only peek at finitely many subtrees by calling ℕ→A -}
-infalg-ind : {A : Set} → A → ((ℕ → A) → A) → infalg → A
-infalg-ind la ba leaf = la
-infalg-ind la ba (branch nb) = ba (λ n → infalg-ind la ba (nb n))
-
-{-
-  an empty initial algebra
--}
-
-data Badalg : Set where
-  co : (𝟙 → Badalg) → Badalg
-
-badalg-rec : {A : Set} → ((𝟙 → A) → A) → Badalg → A
-badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
-
-badalg-absurd : ¬ Badalg
-badalg-absurd (co f) = badalg-rec (λ f → f ⋆) (co f)
-
-{-
-  isabelle is weird, review if this needs univalence
--}
-
-isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
-              → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
-isabelle-cong {P = P}{P'}{Q}{Q'} univalence p＝ q＝
-  = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
-  where
-    qmap : (P' → Q) → (P' → Q')
-    qmap pq p' = subst id (q＝ p') (pq p')
-    qmap⁻¹ : (P' → Q') → (P' → Q)
-    qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
-
-    l : (f : P' → Q') (p : P')
-      → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
-    l f p = let qq = (q＝ p) in
-              (transport∙ (sym＝ qq) _ _)
-            ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
-
-    g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
-    g f p = let qq = (q＝ p) in
-              (transport∙ qq (sym＝ qq) (f p))
-            ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
-
-    hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
-    hom f p' = g f p'
-
-    left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
-    left f = FUNEXT (hom f)
-
-    qmap-is-invertible : invertible qmap
-    qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
-
-    pq-equiv : (P' → Q) ≃ (P' → Q')
-    pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
-
-    p-cong : (P' → Q) ＝ (P' → Q')
-    p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
 
 {-
   uniqueness: intro on elim thing = thing
@@ -216,6 +99,179 @@ wrec (false ◂ _) z _ = z
 wrec (true  ◂ f) z s = s (f (wright ⋆)) (wrec (f (wright ⋆)) z s)
 
 {-
+  compile-time nonsense
+-}
+
+test-len : 1 + 1 ＝ 2
+test-len = refl 2
+
+equal : ℕ → ℕ → Bool
+equal zero    zero    = true
+equal (suc x) zero    = false
+equal zero    (suc y) = false
+equal (suc x) (suc y) = equal x y
+
+-- bad definition, cannot compute on open term n
+-- p : ∀ n → (equal n n) ＝ true
+-- p n = refl true
+
+Ctx = Vec ℕ
+
+lookup : {n : ℕ} → Ctx n → Fin n → ℕ
+lookup Γ n = Γ !! n
+
+data Expr (n : ℕ) : Set where
+  pls : Expr n → Expr n → Expr n
+  var : Fin n → Expr n
+
+norm : {n : ℕ} → Expr n → Expr n
+norm (pls a b) = pls (norm b) (norm a)
+norm (var n) = var n
+
+norm-test : norm (pls (var fz) (var (fs (fz {2})))) ＝ (pls (var (fs fz)) (var fz))
+norm-test = refl _
+
+eval : {n : ℕ} → Ctx n → Expr n → ℕ
+eval Γ (pls a b) = eval Γ a + eval Γ b
+eval Γ (var n) = lookup Γ n
+
+silly-lemma : {a b c d : ℕ} → (a ＝ b) → (c ＝ d) → (a + c ＝ d + b)
+silly-lemma {a}{b}{c}{d} p q = transport (λ x → a + c ＝ x + c) p (refl (a + c))
+                             ∙ transport (λ x → b + c ＝ b + x) q (refl (b + c))
+                             ∙ commutes-+ b d
+
+norm-pres : {n : ℕ} → (Γ : Ctx n) → (e : Expr n) → eval Γ e ＝ eval Γ (norm e)
+norm-pres Γ (pls a b) = silly-lemma (norm-pres Γ a) (norm-pres Γ b)
+norm-pres Γ (var x) = refl _
+
+test-commut : (x y z : ℕ) → (x + y) + z ＝ z + (y + x)
+test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
+                              (pls (pls (var fz) (var (fs fz))) (var (fs (fs fz))))
+
+{-
+  isabelle is weird, review if this needs univalence
+-}
+
+isabelle-cong : {P P' Q Q' : Set ℓ} → is-univalent ℓ
+              → P ＝ P' → (P' → Q ＝ Q') → (P → Q) ＝ (P' → Q')
+isabelle-cong {P = P}{P'}{Q}{Q'} univalence p＝ q＝
+  = transport (λ t → (t → Q) ＝ (P' → Q')) (sym＝ p＝) p-cong
+  where
+    qmap : (P' → Q) → (P' → Q')
+    qmap pq p' = subst id (q＝ p') (pq p')
+    qmap⁻¹ : (P' → Q') → (P' → Q)
+    qmap⁻¹ pq p' = subst id (sym＝ (q＝ p')) (pq p')
+
+    l : (f : P' → Q') (p : P')
+      → subst id (q＝ p) (subst id (sym＝ (q＝ p)) (f p)) ＝ (f p)
+    l f p = let qq = (q＝ p) in
+              (transport∙ (sym＝ qq) _ _)
+            ∙ (ap (λ t → transport id t _) (iv∙p＝refl qq))
+
+    g : (f : P' → Q) → (p : P') → (qmap⁻¹ ∘ qmap) f p ＝ f p
+    g f p = let qq = (q＝ p) in
+              (transport∙ qq (sym＝ qq) (f p))
+            ∙ (ap (λ t → transport id t (f p)) (p∙iv＝refl qq))
+
+    hom : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ~ f
+    hom f p' = g f p'
+
+    left : (f : P' → Q) → (qmap⁻¹ ∘ qmap) f ＝ id f
+    left f = FUNEXT (hom f)
+
+    qmap-is-invertible : invertible qmap
+    qmap-is-invertible = qmap⁻¹ , (left , (λ f → FUNEXT (λ p' → l f p')))
+
+    pq-equiv : (P' → Q) ≃ (P' → Q')
+    pq-equiv = qmap , invertibles-are-equivalences qmap qmap-is-invertible
+
+    p-cong : (P' → Q) ＝ (P' → Q')
+    p-cong = ua univalence (P' → Q) (P' → Q') pq-equiv
+
+{-
+  every projection map induces a fibration
+-}
+
+fib-proj : {A : Set} → (A → Set) → Σ B ∶ Set , (B → A)
+fib-proj {A} fib = (Σ a ∶ A , fib a) , pr₁
+
+proj-fib : {A : Set} → (Σ B ∶ Set , (B → A)) → (A → Set)
+proj-fib {A} (B , pr) = λ a → Σ b ∶ B , pr b ＝ a
+
+-- apply extensionality, fibers equal
+fib-proj-iso : {A : Set} → (fib : (A → Set)) → (a : A)
+             → proj-fib (fib-proj fib) a → fib a
+fib-proj-iso fib a ((a' , afib) , a'＝a) = transport fib a'＝a afib
+
+fib-proj-equiv : {A : Set} → (fib : (A → Set)) → (a : A)
+               → proj-fib (fib-proj fib) a ≃ fib a
+fib-proj-equiv fib a = iso , invertibles-are-equivalences iso proof
+  where -- Σ b ∶ (Σ a' ∶ A , fib a') , a' ＝ a*
+    iso : proj-fib (fib-proj fib) a → fib a
+    iso = fib-proj-iso fib a
+
+    proof : invertible iso
+    proof = (λ fa → (a , fa) , refl a) , (λ {(_ , refl _) → refl _}) , refl
+
+-- proj-fib-eq : {is-univalent lzero} → {A : Set}
+--             → (proj : (Σ B ∶ Set , (B → A)))
+--             → fib-proj (proj-fib proj) ＝ proj
+-- -- transport (λ B₁ → B₁ → A) eq pr₁ = pr, doesn't compute
+-- proj-fib-eq {uv} {A} (B , pr) = Σ＝ (eq , {!!})
+--   where
+--     iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
+--     iso (_ , b , _) = b
+
+--     iv : invertible iso
+--     iv = (λ b → pr b , b , refl _) , (λ {(_ , _ , refl _) → refl _}) , refl
+
+--     equiv : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ≃ B
+--     equiv = iso , invertibles-are-equivalences iso iv
+
+--     eq : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ＝ B
+--     eq = ua uv _ _ equiv
+
+-- fib-pr-equiv : {is-univalent lzero} → {A : Set}
+--              → (Σ B ∶ Set , (B → A)) ≃ (A → Set)
+-- fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
+--   where
+--     proof : invertible proj-fib
+--     proof = fib-proj , proj-fib-eq {uv}
+--           , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
+
+{-
+  yoneda
+-}
+
+Hom = _＝_
+
+Y : {X : Set ℓ} (x : X) → (y : X) → Set ℓ
+Y x = λ y → Hom y x
+
+Id : {X : Set ℓ} → (x : X) → Hom x x
+Id = refl
+
+-- Nat A B = ∀ x → A x → B x
+_≈_ : {X : Set ℓ} {y : X} {A : X → Set ℓ₁}
+    → Nat (Y y) A → Nat (Y y) A → Set (ℓ ⊔ ℓ₁)
+η ≈ θ = ∀ x → ∀ Yxy → η x Yxy ＝ θ x Yxy
+
+yoneda-elem : {X : Set ℓ} {x : X} (A : X → Set ℓ₁)
+            → Nat (Y x) A → A x
+yoneda-elem {x = x} A η = η x (Id x)
+
+-- lifting Hom(x,y) to presheaf A → Set (arrows = maps) is transport
+yoneda-nat : {X : Set ℓ} {y : X} (A : X → Set ℓ₁)
+           → A y → Nat (Y y) A           -- A p : A y → A x
+yoneda-nat {y = y} A a = λ x (p : Y y x) → (transport A (sym＝ p)) a
+
+-- holds definitionally
+yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
+             → (η : Nat (Y x) A)
+             → yoneda-nat A (yoneda-elem A η) ≈ η
+yoneda-lemma {A = A} η x (refl .x) = refl (yoneda-elem A η)
+
+{-
   propositional
 -}
 
@@ -229,7 +285,8 @@ triple-elim : {P : Set} → (((P → ⊥) → ⊥) → ⊥) → (P → ⊥)
 triple-elim = contravariance proof-by-negation
 
 lem→dne : {P : Set} → (P ＋ (P → ⊥)) → ((P → ⊥) → ⊥) → P
-lem→dne {P} lem nnp = ind＋ (λ _ → P) id lemma lem
+lem→dne {P} (inl p) nnp = p
+lem→dne {P} (inr p) nnp = lemma p
   where
     lemma : (P → ⊥) → P
     lemma = λ np → ind⊥ (λ _ → P) (nnp np)
@@ -240,6 +297,57 @@ dne→lem p {P} = p nn-lem
 -- other direction is easy
 pierce→dne : (P : Set) → (∀ (Q : Set) → ((P → Q) → P) → P) → (¬ (¬ P) → P)
 pierce→dne P p nnp = p ⊥ (λ np → rec⊥ P (nnp np))
+
+lem→dgp : ∀ {P Q : Set} → (P ＋ (P → ⊥)) → (P → Q) ＋ (Q → P)
+lem→dgp (inl p) = inr (λ z → p)
+lem→dgp (inr np) = inl (λ p → rec⊥ _ (np p))
+
+two-valued : (∀ (P Q R : Set) → (P → Q) × (Q → P)
+                              ＋ (Q → R) × (R → Q)
+                              ＋ (R → P) × (P → R))
+           → ∀ (P : Set) → ¬ (¬ P) → P
+two-valued f P with f P (¬ P) (¬ (¬ P))
+...            | inl (np , npp) = λ _ → npp (λ p → np p p)
+...            | inr (inl (_ , x)) = λ nnp → rec⊥ _ (nnp (λ p → x (λ np → np p) p))
+...            | inr (inr (dne , _)) = dne
+
+-- ω-valued : (∀ (f : ℕ → Set) → Σ n ∶ ℕ , Σ m ∶ ℕ ,
+--                                 f n → f m × f m → f n)
+
+{-
+  algebras
+-}
+
+-- unpack and repack alg until lift bottoms out (ignores its argument)
+-- (inl ⋆ : (1+ℕ)) --⋆--> (inl ⋆)
+--       ^                   v
+--     Z : ℕ       - - -> alg-zero
+--
+-- if X is a coalgebra, this may not terminate as iso will
+-- unwrap indefinitely
+--
+-- init : {A X : Set} {P : Set → Set}
+--      → (∀{A B : Set} → (A → B) → (P A → P B))
+--      → (P A → A) → (X → P X) → (X → A)
+-- init lift alg iso = alg ∘ (lift (init lift alg iso)) ∘ iso
+
+data infalg : Set where
+  leaf : infalg
+  branch : (ℕ → infalg) → infalg
+
+{- (ℕ→A)→A can only peek at finitely many subtrees by calling ℕ→A -}
+infalg-ind : {A : Set} → A → ((ℕ → A) → A) → infalg → A
+infalg-ind la ba leaf = la
+infalg-ind la ba (branch nb) = ba (λ n → infalg-ind la ba (nb n))
+
+data Badalg : Set where
+  co : (𝟙 → Badalg) → Badalg
+
+badalg-rec : {A : Set} → ((𝟙 → A) → A) → Badalg → A
+badalg-rec alg (co f) = alg (λ b → badalg-rec alg (f b))
+
+badalg-absurd : ¬ Badalg
+badalg-absurd (co f) = badalg-rec (λ f → f ⋆) (co f)
 
 {-
   contradiction leads to bottom, since type families are able to
@@ -310,6 +418,29 @@ cantor {A} f p = diagonal-neq-any-n (p neg-diagonal)
     diagonal-neq-any-n : ¬ (Σ n ∶ A , f n ＝ neg-diagonal)
     diagonal-neq-any-n (n , p) = neg-neq (ap (λ f → f n) p)
 
+data ⊤₁ : Set₁ where
+  ⋆ : ⊤₁
+
+a-not-powerset : {A : Set} → (⊤₁ × A) ≠ (A → Set)
+a-not-powerset {A} p = no-surj
+                       (transport (λ T → (Σ f ∶ (⊤₁ × A → T) , surjective f))
+                                  p (id , id-surjective))
+  where
+    id-surjective : surjective id
+    id-surjective = retraction-surj _ (invertible-retraction _ id-invertible)
+
+    no-surj : ¬(Σ f ∶ (⊤₁ × A → (A → Set)) , surjective f)
+    no-surj (f , p) = cantor s s-surj
+      where
+        s : A → (A → Set)
+        s a = f (⋆ , a)
+
+        s-is-f : ∀ x → s (snd x) ＝ f x
+        s-is-f (⋆ , x) = refl _
+
+        s-surj : surjective s
+        s-surj a = snd (pr₁ (p a)) , s-is-f _ ∙ pr₂ (p a)
+
 {-
   no injection the other way
 -}
@@ -346,7 +477,7 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
     ...    | inl _ | inl eq = eq
     ...    | inr elim | inl eq = rec⊥ _ (elim (f , refl _ , sym＝ eq))
     ...    | inl (g , (sg＝sf , gx＝t)) | inr eq = sym＝ gx＝t
-                                               ∙ ap (λ f → f x) (p g f sg＝sf)
+                                                 ∙ ap (λ f → f x) (p g f sg＝sf)
 
 -- size issues?
 -- cantor' : {A : Set} → (f : (A → Set) → A) → injective f → ⊥
@@ -373,191 +504,36 @@ neg-nequiv {A} (e , p) = not-a ((inverse e p) not-a)
     not-a : A → ⊥
     not-a a = e a a
 
--- ext-surjective* : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂}
---                 → (f : A → ((B → C) → Set))
---                 → Set (lsuc lzero ⊔ ℓ ⊔ ℓ₁ ⊔ ℓ₂)
--- ext-surjective* {A = A}{B}{C} f = ∀ (g : (B → C) → Set) -- extensional g
---                                   → (∀ bc bc' → bc ~ bc' → g bc ≃ g bc')
---                                   → Σ a ∶ A , ∀ bc → f a bc ≃ g bc
-
--- surj-ext-surj : {A : Set ℓ} {B : Set ℓ₁} {C : Set ℓ₂} → (f : A → (B → C))
---               → surjective f → ext-surjective f
--- surj-ext-surj f p x = Σ.p1 (p x) , id~ (Σ.p2 (p x))
-
--- cantor-ext : {A : Set} → (f : (A → A) → ((A → A) → Set))
---            → ext-surjective* f → ⊥
--- cantor-ext {A} f p = diagonal-neq-any-n (p neg-diagonal equiv)
---   where
---     neg-diagonal : (A → A) → Set
---     neg-diagonal n = ¬(f n n)
-
---     equiv : ∀ (bc bc' : A → A) → bc ~ bc' → neg-diagonal bc ≃ neg-diagonal bc'
---     equiv bc bc' p = invertible≃ {!!} {!!}
-
---     diagonal-neq-any-n : ¬ (Σ n ∶ (A → A) , ∀ aa → f n aa ≃ neg-diagonal aa)
---     diagonal-neq-any-n (n , p) = neg-nequiv (p n)
-
--- 𝟙-endo-cantor : (f : (𝟙 → 𝟙) → ((𝟙 → 𝟙) → Set)) → ext-surjective* f → ⊥
--- 𝟙-endo-cantor f p = cantor-ext f p
-
--- 𝟙-endo-small : (f : (𝟙 → 𝟙) → Set) → surjective f → ⊥
--- 𝟙-endo-small f p = {!!}
---   where
---     lemma : Σ r ∶ (Set → ((𝟙 → 𝟙) → Set)) , ext-surjective* r
---     lemma = (λ z _ → z)
---           , λ endo-s q → (endo-s id , λ endo →
---                                           q id endo (λ _ → 𝟙-is-subsingleton _ _))
-
-{-
-  compile-time nonsense
--}
-
-test-len : 1 + 1 ＝ 2
-test-len = refl 2
-
-equal : ℕ → ℕ → Bool
-equal zero    zero    = true
-equal (suc x) zero    = false
-equal zero    (suc y) = false
-equal (suc x) (suc y) = equal x y
-
--- bad definition, cannot compute on open term n
--- p : ∀ n → (equal n n) ＝ true
--- p n = refl true
-
-Ctx = Vec ℕ
-
-lookup : {n : ℕ} → Ctx n → Fin n → ℕ
-lookup Γ n = Γ !! n
-
-data Expr (n : ℕ) : Set where
-  pls : Expr n → Expr n → Expr n
-  var : Fin n → Expr n
-
-norm : {n : ℕ} → Expr n → Expr n
-norm (pls a b) = pls (norm b) (norm a)
-norm (var n) = var n
-
-norm-test : norm (pls (var fz) (var (fs (fz {2})))) ＝ (pls (var (fs fz)) (var fz))
-norm-test = refl _
-
-eval : {n : ℕ} → Ctx n → Expr n → ℕ
-eval Γ (pls a b) = eval Γ a + eval Γ b
-eval Γ (var n) = lookup Γ n
-
-silly-lemma : {a b c d : ℕ} → (a ＝ b) → (c ＝ d) → (a + c ＝ d + b)
-silly-lemma {a}{b}{c}{d} p q = transport (λ x → a + c ＝ x + c) p (refl (a + c))
-                             ∙ transport (λ x → b + c ＝ b + x) q (refl (b + c))
-                             ∙ commutes-+ b d
-
-norm-pres : {n : ℕ} → (Γ : Ctx n) → (e : Expr n) → eval Γ e ＝ eval Γ (norm e)
-norm-pres Γ (pls a b) = silly-lemma (norm-pres Γ a) (norm-pres Γ b)
-norm-pres Γ (var x) = refl _
-
-test-commut : (x y z : ℕ) → (x + y) + z ＝ z + (y + x)
-test-commut x y z = norm-pres (x ∷ y ∷ z ∷ []) -- need better syntax zzz
-                              (pls (pls (var fz) (var (fs fz))) (var (fs (fs fz))))
-
-{-
-  every projection map induces a fibration
--}
-
-fib-proj : {A : Set} → (A → Set) → Σ B ∶ Set , (B → A)
-fib-proj {A} fib = (Σ a ∶ A , fib a) , pr₁
-
-proj-fib : {A : Set} → (Σ B ∶ Set , (B → A)) → (A → Set)
-proj-fib {A} (B , pr) = λ a → Σ b ∶ B , pr b ＝ a
-
--- apply extensionality, fibers equal
-fib-proj-iso : {A : Set} → (fib : (A → Set)) → (a : A)
-             → proj-fib (fib-proj fib) a → fib a
-fib-proj-iso fib a ((a' , afib) , a'＝a) = transport fib a'＝a afib
-
-fib-proj-equiv : {A : Set} → (fib : (A → Set)) → (a : A)
-               → proj-fib (fib-proj fib) a ≃ fib a
-fib-proj-equiv fib a = iso , invertibles-are-equivalences iso proof
-  where -- Σ b ∶ (Σ a' ∶ A , fib a') , a' ＝ a*
-    iso : proj-fib (fib-proj fib) a → fib a
-    iso = fib-proj-iso fib a
-
-    proof : invertible iso
-    proof = (λ fa → (a , fa) , refl a) , (λ {(_ , refl _) → refl _}) , refl
-
--- proj-fib-eq : {is-univalent lzero} → {A : Set}
---             → (proj : (Σ B ∶ Set , (B → A)))
---             → fib-proj (proj-fib proj) ＝ proj
--- -- TODO univalence → extensionality, does this compute?
--- proj-fib-eq {uv} {A} (B , pr) = Σ＝ (eq , {!!})
---   where
---     iso : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) → B
---     iso (_ , b , _) = b
-
---     iv : invertible iso
---     iv = (λ b → pr b , b , refl _) , (λ {(_ , _ , refl _) → refl _}) , refl
-
---     equiv : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ≃ B
---     equiv = iso , invertibles-are-equivalences iso iv
-
---     eq : (Σ a ∶ A , Σ b ∶ B , pr b ＝ a) ＝ B
---     eq = ua uv _ _ equiv
-
--- fib-pr-equiv : {is-univalent lzero} → {A : Set}
---              → (Σ B ∶ Set , (B → A)) ≃ (A → Set)
--- fib-pr-equiv {uv} {A} = proj-fib , invertibles-are-equivalences proj-fib proof
---   where
---     proof : invertible proj-fib
---     proof = fib-proj , proj-fib-eq {uv}
---           , λ fib → FUNEXT (λ a → ua uv _ _ (fib-proj-equiv fib a))
-
-{-
-  yoneda
--}
-
-Hom = _＝_
-
-Y : {X : Set ℓ} (x : X) → (y : X) → Set ℓ
-Y x = λ y → Hom y x
-
-Id : {X : Set ℓ} → (x : X) → Hom x x
-Id = refl
-
--- Nat A B = ∀ x → A x → B x
-_≈_ : {X : Set ℓ} {y : X} {A : X → Set ℓ₁}
-    → Nat (Y y) A → Nat (Y y) A → Set (ℓ ⊔ ℓ₁)
-η ≈ θ = ∀ x → ∀ Yxy → η x Yxy ＝ θ x Yxy
-
-yoneda-elem : {X : Set ℓ} {x : X} (A : X → Set ℓ₁)
-            → Nat (Y x) A → A x
-yoneda-elem {x = x} A η = η x (Id x)
-
--- lifting Hom(x,y) to presheaf A → Set (arrows = maps) is transport
-yoneda-nat : {X : Set ℓ} {y : X} (A : X → Set ℓ₁)
-           → A y → Nat (Y y) A           -- A p : A y → A x
-yoneda-nat {y = y} A a = λ x (p : Y y x) → (transport A (sym＝ p)) a
-
--- holds definitionally
-yoneda-lemma : {X : Set ℓ} {x : X} {A : X → Set ℓ₁}
-             → (η : Nat (Y x) A)
-             → yoneda-nat A (yoneda-elem A η) ≈ η
-yoneda-lemma {A = A} η x (refl .x) = refl (yoneda-elem A η)
-
 {-
   involutions on universes
 -}
 
 -- negation disproves f^n = f^n+1 for all n
-endo-1-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f A ＝ A)
-endo-1-absurd f = neg-neq (sym＝ (f (¬_) 𝟙))
+all-auto-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f A ＝ A)
+all-auto-absurd f = neg-neq (sym＝ (f (¬_) 𝟙))
 
 -- this argument generalises to all f^n > 1
-endo-2-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f (f A) ＝ A)
-endo-2-absurd f = true≠false (ap (λ f → f (λ _ → true)) bad)
+all-invol-absurd : ¬(∀ (f : Set → Set) → (A : Set) → f (f A) ＝ A)
+all-invol-absurd f = true≠false (ap (λ f → f (λ _ → true)) bad)
   where
     p : is-subsingleton ((𝟙 → Bool) → Bool)
     p = transport is-subsingleton (sym＝ (f (λ X → X → Bool) 𝟙)) 𝟙-is-subsingleton
 
     bad : (λ _ → true) ＝ (λ _ → false)
     bad = p _ _
+
+-- true for all odd f^n
+auto3-prop-absurd : ¬(∀ (f : Set → Set) → (A : Set) → is-prop A → f (f (f A)) ＝ A)
+auto3-prop-absurd f = neg3-neq (sym＝ (f (¬_) 𝟙 𝟙-is-subsingleton))
+  where
+    neg3-neq : {A : Set} → A ≠ (¬(¬(¬ A)))
+    neg3-neq {A} p = na (coerce (sym＝ p) (proof-by-negation na))
+      where
+        test : A → ¬(¬(¬ A)) → ⊥
+        test a nnna = nnna (proof-by-negation a)
+
+        na : A → ⊥
+        na a = test a (coerce p a)
 
 endo-2-prop : (∀ (f : Set → Set) → (A : Set) → is-prop A → f (f A) ＝ A)
             → lem lzero -- : is-prop X → X ＋ ¬X
@@ -575,22 +551,13 @@ endo-2-prop f X x-is-prop = prop-dne decidable-is-prop nn-lem
     decidable-is-prop (inl x) (inr nx) = rec⊥ _ (nx x)
     decidable-is-prop (inr nx) (inl x) = rec⊥ _ (nx x)
 
--- true for all odd f^n
-endo-3-prop-absurd : ¬(∀ (f : Set → Set) → (A : Set) → is-prop A → f (f (f A)) ＝ A)
-endo-3-prop-absurd f = neg3-neq (sym＝ (f (¬_) 𝟙 𝟙-is-subsingleton))
-  where
-    neg3-neq : {A : Set} → A ≠ (¬(¬(¬ A)))
-    neg3-neq {A} p = na (coerce (sym＝ p) (proof-by-negation na))
-      where
-        test : A → ¬(¬(¬ A)) → ⊥
-        test a nnna = nnna (proof-by-negation a)
-
-        na : A → ⊥
-        na a = test a (coerce p a)
-
+-- what about even differences?
 -- endo-31-prop : (∀ (f : Set → Set) → (A : Set) → is-prop A → f (f (f A)) ＝ f A)
---              → {!!}
--- endo-31-prop f X x-prop = {!!}
+--              → lem lzero
+-- endo-31-prop f X x-is-prop = {!!}
+--   where
+--     test : {!!}
+--     test = f (λ X → {!!}) X x-is-prop
 
 {-
   effective quotients
