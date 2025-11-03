@@ -12,8 +12,10 @@ variable ℓ ℓ₁ ℓ₂ ℓ₃ ℓ₄ : Level
   𝟙 (true)
 -}
 
-data ⊤ : Set where
-  ⋆ : ⊤
+record ⊤ : Set where
+
+⋆ : ⊤
+⋆ = record {}
 𝟙 = ⊤
 
 ind⊤ : (A : ⊤ → Set ℓ) → A ⋆ → ((x : ⊤) → A x)

@@ -419,7 +419,7 @@ cantor {A} f p = diagonal-neq-any-n (p neg-diagonal)
     diagonal-neq-any-n (n , p) = neg-neq (ap (λ f → f n) p)
 
 data ⊤₁ : Set₁ where
-  ⋆ : ⊤₁
+  ⋆' : ⊤₁
 
 a-not-powerset : {A : Set} → (⊤₁ × A) ≠ (A → Set)
 a-not-powerset {A} p = no-surj
@@ -433,10 +433,10 @@ a-not-powerset {A} p = no-surj
     no-surj (f , p) = cantor s s-surj
       where
         s : A → (A → Set)
-        s a = f (⋆ , a)
+        s a = f (⋆' , a)
 
         s-is-f : ∀ x → s (snd x) ＝ f x
-        s-is-f (⋆ , x) = refl _
+        s-is-f (⋆' , x) = refl _
 
         s-surj : surjective s
         s-surj a = snd (pr₁ (p a)) , s-is-f _ ∙ pr₂ (p a)
@@ -495,6 +495,9 @@ rcantor {A} s p = cantor' r (ext-retraction-surj r (s , pf))
   so we can talk about big function spaces, but not small (nonempty) ones?
 -}
 
+auto-subsingleton : ∀ (A : Set) → is-subsingleton A → (f g : A → A) → f ＝ g
+auto-subsingleton A p f g = FUNEXT (λ a → p (f a) (g a))
+
 1→0-subsingleton : is-subsingleton (𝟙 → 𝟘)
 1→0-subsingleton f g = rec⊥ (f ＝ g) (f ⋆)
 
@@ -503,6 +506,34 @@ neg-nequiv {A} (e , p) = not-a ((inverse e p) not-a)
   where
     not-a : A → ⊥
     not-a a = e a a
+
+-- tseq : ℕ → Set
+-- tseq zero = 𝟘
+-- tseq (suc n) = 𝟙 ＋ tseq n
+
+-- tfinite : Set ℓ → Set ℓ
+-- tfinite X = Σ n ∶ ℕ , Σ f ∶ (X → Fin n) , injective f
+
+-- inj-nat-tseq : Σ f ∶ (ℕ → Set) , injective f
+-- inj-nat-tseq = tseq , test
+--   where
+--     test : injective tseq
+--     test zero zero p = refl zero
+--     test zero (suc m) p = rec⊥ _ (transport (λ A → A → 𝟘) p id (inl ⋆))
+--     test (suc n) zero p = rec⊥ _ (transport (λ A → A → 𝟘) (sym＝ p) id (inl ⋆))
+--     test (suc n) (suc m) p = {!(test n m)!} -- not provable
+
+-- no-surj-fin-nat : ¬(Σ n ∶ ℕ , Σ f ∶ (ℕ → Fin n) , injective f)
+-- no-surj-fin-nat = {!!}
+
+-- no-fin-surj-set : ¬(tfinite Set)
+-- no-fin-surj-set (n , f , p) = no-surj-fin-nat (n , _ , test)
+--   where
+--     test : injective (f ∘ pr₁ inj-nat-tseq)
+--     test = inj-comp (pr₁ inj-nat-tseq) (pr₂ inj-nat-tseq) f p
+
+-- 𝟙-endo-small : (f : (𝟙 → 𝟙) → Set) → surjective f → ⊥
+-- 𝟙-endo-small f p = {!!}
 
 {-
   involutions on universes

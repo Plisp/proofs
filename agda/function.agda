@@ -21,7 +21,7 @@ fiber-id : {X : Set ℓ} {Y : Set ℓ₁} {f : X → Y} {y : Y}
          → (w : fiber f y) → f (fiber-base w) ＝ y
 fiber-id (x , p) = p
 
-surjective :{A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
+surjective : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
 surjective {A = A}{B} f = ∀ (y : B) → fiber f y
 
 injective : {A : Set ℓ} {B : Set ℓ₁} → (f : A → B) → Set (ℓ ⊔ ℓ₁)
