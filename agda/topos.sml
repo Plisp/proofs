@@ -1,8 +1,3 @@
-fun inter s f [] = ""
-  | inter s f [v] = f v
-  | inter s f (v::vs) = f v ^ s ^ inter s f vs
-fun csv f = inter "," f;
-
 fun the (a : 'a option) : 'a
     = case a of
           NONE => raise Fail "THE failed"
@@ -81,9 +76,61 @@ fun eq (s : ''a obj) t : psub obj
                           else test (j+1)
          in test 1 end;
 
-(* pstr -> psub *)
-val zeroed = fix (fn recf => toObj (fn str => land (lhdSat str (fn n => n = 0))
-                                               (lift (lapp recf (ltl str)))))
+(* tree drawing *)
+fun pad depth = if depth = 0 then "" else "  " ^ pad (depth-1);
+fun printTree alphabet P maxDepth =
+    let
+        fun subtree pstr depth =
+            if depth >= maxDepth then ()
+            else (map (fn c =>
+                          (print ((if c = hd alphabet
+                                   then "-"
+                                   else "\n"^pad depth^"\\-")
+                                  ^ Int.toString c);
+                           if P (depth + 1) (pstr @ [c]) = depth+1
+                           then subtree (pstr @ [c]) (depth + 1)
+                           else print "-x"))
+                      alphabet ; ())
+    in print "\\" ; subtree [] 0 ; print "\n"
+    end;
 
-val zerod = fix (fn recf => toObj (fn str => land (eq (lhd str) bot)
-                                              (lift (lapp recf (ltl str)))))
+(*
+ * examples
+ *)
+
+val alternating = unfold 0 (fn i => (i mod 2, i+1));
+fun const n = unfold 0 (fn s => (n, s));
+fun ascending from by = unfold from (fn i => (i, i+by));
+
+(* strict positive test *)
+val onlyEvens = fix (fn recf => toObj (fn str => land (lhdSat str (fn n => n mod 2 = 0))
+                                                  (lift (lapp recf (ltl str)))));
+val s1 = ascending 0 2;
+val d1 = take 5 s1;
+val p1 = take 5 (toFn onlyEvens s1);
+
+val onlyZerod = fix (fn recf => toObj (fn str => land (eq (lhd str) bot)
+                                                  (lift (lapp recf (ltl str)))));
+val s2 = unfold 0 (fn n => if n >= 3 then (1,0) else (0,n+1));
+val d2 = take 5 s1;
+val p2 = take 5 (toFn onlyZerod s2);
+
+(* |> r(tl s) => hd s = 0
+ *   starts with zero
+ *)
+val startsWithZero : (pstr -> psub) obj =
+    fix (fn recf => toObj (fn str =>
+        limp (lift (lapp recf (ltl str)))
+             (eq (lhd str) bot)));
+
+(* |> (r (tl s)) ⇒ (later hd s ≥ hd (tl s))
+ * ??
+ *)
+val test : (pstr -> psub) obj =
+    fix (fn recf => toObj (fn str =>
+                            limp (lift (lapp recf (ltl str)))
+                                 (fn i => if i = 1 then 1
+                                        else if hd (str i) >= hd (tl (str i))
+                                        then i else 0)));
+
+val _ = printTree [0,1,2] test 4;
