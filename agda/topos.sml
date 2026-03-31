@@ -1,7 +1,5 @@
-fun the (a : 'a option) : 'a
-    = case a of
-          NONE => raise Fail "THE failed"
-        | SOME m => m;
+fun the NONE = raise Fail "THE failed"
+  | the (SOME m) = m;
 
 (*
  * tree predicate calculator
@@ -47,11 +45,11 @@ fun toFn (objF : ('a -> 'b) obj) : 'a obj -> 'b obj
     = fn objA => fn i => objF i (objA i);
 
 (* calculate a guarded fixed-point *)
-fun fix (later : ('a -> 'b) option obj -> ('a -> 'b) obj) : ('a -> 'b) obj
+fun fix (func : 'a option obj -> 'a obj) : 'a obj
     = let fun fixpoint' i =
-              if (i = 1)
-              then later (fn _ => NONE) 1
-              else later (fn i => SOME (fixpoint' (i - 1))) i
+              if i = 1
+              then func (fn _ => NONE) 1
+              else func (fn i => SOME (fixpoint' (i - 1))) i
       in fixpoint' end;
 
 (*
@@ -62,9 +60,7 @@ type pstr = int list;
 fun lhd (s : pstr obj) : int obj = fn i => hd (s i);
 
 fun ltl (s : pstr obj) : pstr option obj
-    = fn i => if i = 1
-            then NONE
-            else SOME (tl (s i));
+    = fn i => if i = 1 then NONE else SOME (tl (s i));
 
 fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj
     = if P (hd (s 1)) then top else bot;
@@ -75,24 +71,6 @@ fun eq (s : ''a obj) t : psub obj
                           else if j = i then i
                           else test (j+1)
          in test 1 end;
-
-(* tree drawing *)
-fun pad depth = if depth = 0 then "" else "  " ^ pad (depth-1);
-fun printTree alphabet P maxDepth =
-    let
-        fun subtree pstr depth =
-            if depth >= maxDepth then ()
-            else (map (fn c =>
-                          (print ((if c = hd alphabet
-                                   then "-"
-                                   else "\n"^pad depth^"\\-")
-                                  ^ Int.toString c);
-                           if P (depth + 1) (pstr @ [c]) = depth+1
-                           then subtree (pstr @ [c]) (depth + 1)
-                           else print "-x"))
-                      alphabet ; ())
-    in print "\\" ; subtree [] 0 ; print "\n"
-    end;
 
 (*
  * examples
@@ -133,4 +111,32 @@ val test : (pstr -> psub) obj =
                                         else if hd (str i) >= hd (tl (str i))
                                         then i else 0)));
 
-val _ = printTree [0,1,2] test 4;
+(* tree drawing *)
+fun printTree alphabet P maxDepth =
+    let fun subtree pstr =
+            let val depth = List.length pstr
+                fun pad start [] = ""
+                  | pad start (i :: is) =
+                    (if i = start then "\226\148\130 " else "  ") ^ pad start is;
+            in
+                if depth >= maxDepth then ()
+                else (map (fn c =>
+                              (print ((if c = hd alphabet
+                                       then (if depth > 0 then "-"
+                                             else "\226\149\180")
+                                       else "\n" ^ pad (hd alphabet) pstr ^
+                                            (if c = List.last alphabet
+                                             then "\226\149\176"
+                                             else "\226\148\156") ^
+                                            "\226\149\180")
+                                      ^ Int.toString c);
+                               if P (depth + 1) (pstr @ [c]) = depth+1 (* true *)
+                               then subtree (pstr @ [c])
+                               else print "x"))
+                          alphabet
+                     ; ())
+            end
+    in print "\226\148\140" ; subtree [] ; print "\n"
+    end;
+
+val _ = printTree [0,1,2] onlyEvens 4;
