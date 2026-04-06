@@ -90,19 +90,19 @@ val p1 = take 5 (toFn onlyEvens s1);
 val onlyZerod = fix (fn recf => toObj (fn str => land (eq (lhd str) bot)
                                                   (lift (lapp recf (ltl str)))));
 val s2 = unfold 0 (fn n => if n >= 3 then (1,0) else (0,n+1));
-val d2 = take 5 s1;
+val d2 = take 5 s2;
 val p2 = take 5 (toFn onlyZerod s2);
 
 (* |> r(tl s) => hd s = 0
- *   starts with zero
+ * trivial since classical
  *)
 val startsWithZero : (pstr -> psub) obj =
     fix (fn recf => toObj (fn str =>
         limp (lift (lapp recf (ltl str)))
              (eq (lhd str) bot)));
 
-(* |> (r (tl s)) ⇒ (later hd s ≥ hd (tl s))
- * ??
+(* |> (r (tl s)) ⇒ later hd s ≥ hd (tl s)
+ * also trivial
  *)
 val test : (pstr -> psub) obj =
     fix (fn recf => toObj (fn str =>
@@ -115,17 +115,19 @@ val test : (pstr -> psub) obj =
 fun printTree alphabet P maxDepth =
     let fun subtree pstr =
             let val depth = List.length pstr
-                fun pad start [] = ""
-                  | pad start (i :: is) =
-                    (if i = start then "\226\148\130 " else "  ") ^ pad start is;
+                val last = List.last alphabet
+                fun pad last [] = ""
+                  | pad last (i :: is) =
+                    (if i <> last then "\226\148\130 " else "  ")
+                    ^ pad last is;
             in
                 if depth >= maxDepth then ()
                 else (map (fn c =>
                               (print ((if c = hd alphabet
                                        then (if depth > 0 then "-"
                                              else "\226\149\180")
-                                       else "\n" ^ pad (hd alphabet) pstr ^
-                                            (if c = List.last alphabet
+                                       else "\n" ^ pad last pstr ^
+                                            (if c = last
                                              then "\226\149\176"
                                              else "\226\148\156") ^
                                             "\226\149\180")
@@ -139,4 +141,4 @@ fun printTree alphabet P maxDepth =
     in print "\226\148\140" ; subtree [] ; print "\n"
     end;
 
-val _ = printTree [0,1,2] onlyEvens 4;
+val _ = printTree [0,1,2] test 3;
