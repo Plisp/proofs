@@ -112,33 +112,47 @@ val test : (pstr -> psub) obj =
                                         then i else 0)));
 
 (* tree drawing *)
+val horLine = "\226\149\180";
+val teeRight = "\226\148\156";
+val vertLine = "\226\148\130";
+val downRight = "\226\149\176";
 fun printTree alphabet P maxDepth =
-    let fun subtree pstr =
+    let val last = List.last alphabet
+        fun allTrue pstr =
             let val depth = List.length pstr
-                val last = List.last alphabet
+            in
+                if List.length pstr >= maxDepth then true
+                else List.all (fn t => t)
+                              (map (fn c =>
+                                       if P (depth + 1) (pstr @ [c]) = depth+1
+                                       then allTrue (pstr @ [c])
+                                       else false)
+                                   alphabet)
+            end
+        fun drawSub pstr =
+            let val depth = List.length pstr
                 fun pad last [] = ""
                   | pad last (i :: is) =
-                    (if i <> last then "\226\148\130 " else "  ")
-                    ^ pad last is;
+                    (if i <> last then vertLine ^ " " else "  ") ^ pad last is;
             in
                 if depth >= maxDepth then ()
-                else (map (fn c =>
-                              (print ((if c = hd alphabet
-                                       then (if depth > 0 then "-"
-                                             else "\226\149\180")
+                else if not (allTrue pstr)
+                then (map (fn c =>
+                              (print ((if c = hd alphabet then horLine
                                        else "\n" ^ pad last pstr ^
-                                            (if c = last
-                                             then "\226\149\176"
-                                             else "\226\148\156") ^
-                                            "\226\149\180")
-                                      ^ Int.toString c);
-                               if P (depth + 1) (pstr @ [c]) = depth+1 (* true *)
-                               then subtree (pstr @ [c])
-                               else print "x"))
-                          alphabet
-                     ; ())
+                                            (if c <> last then teeRight
+                                             else downRight) ^
+                                            horLine)
+                                      ^ Int.toString c)
+                              ; if P (depth + 1) (pstr @ [c]) = depth+1 (* true *)
+                                then drawSub (pstr @ [c])
+                                else print "F"))
+                          alphabet ; ())
+                else if depth > 0
+                then print "T"
+                else ()
             end
-    in print "\226\148\140" ; subtree [] ; print "\n"
+    in print "\226\148\140" ; drawSub [] ; print "\n"
     end;
 
 val _ = printTree [0,1,2] test 3;
