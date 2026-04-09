@@ -187,17 +187,16 @@ fun printTree alphabet P maxDepth =
                 print (Int.toString (#last node))
               ; if #allTrue node then print "?"
                 else if #allFalse node then print "F"
-                else (map (fn (Node ch) =>
-                              (print (if #last ch = firstSym then horLine
-                                      else "\n" ^ pad backward ^
-                                           (if #last ch <> lastSym then teeRight
-                                            else downRight) ^
-                                           horLine)
-                              ; drawSub (Node ch) (#last ch :: backward) (depth+1)))
-                          (#children node)
-                     ; ())
-              ; () end
-    in map (fn node => (drawSub node [] 0 ; print "\n"))
+                else app (fn (Node ch) =>
+                             (print (if #last ch = firstSym then horLine
+                                     else "\n" ^ pad backward ^
+                                          (if #last ch <> lastSym then teeRight
+                                           else downRight) ^
+                                          horLine)
+                             ; drawSub (Node ch) (#last ch :: backward) (depth+1)))
+                         (#children node)
+            end
+    in app (fn node => (drawSub node [] 0 ; print "\n"))
            (buildTree alphabet P maxDepth)
      ; print "\n"
     end;
