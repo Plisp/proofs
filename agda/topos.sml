@@ -27,14 +27,9 @@ fun lift (s : psub option obj) : psub obj
                 NONE => 1
               | SOME k => k + 1;
 
-fun unfold (seed : 'a) (f : 'a -> 'b * 'a) =
-    let fun unfold' i seed
-            = if i = 0 then []
-              else case f seed of (n,newSeed) => n :: unfold' (i - 1) newSeed
-    in fn i => unfold' i seed end;
-
 fun take n (a : 'a obj) : 'a list
-    = if n = 0 then [] else take (n - 1) a @ [a n];
+    = let fun take' i acc = if i = 0 then acc else take' (i-1) (a i :: acc)
+      in take' n [] end;
 
 fun next (a : 'a obj) : ('a option) obj
     = fn i => if i = 1 then NONE else SOME (a (i - 1));
@@ -47,8 +42,8 @@ fun lapp (f : ('a -> 'b) option obj) (a : 'a option obj) : 'b option obj
 (* morphisms from int->a to int->b are int->(a->b)
  * we need a restriction map to correctly simulate earlier stages of an object
  *)
-fun toObj (rest : ('a * int) -> 'a) (f : 'a obj -> 'b obj) : ('a -> 'b) obj
-    = fn i => fn a => f (fn j => if j <= i then rest (a,j)
+fun toObj (restr : ('a * int) -> 'a) (f : 'a obj -> 'b obj) : ('a -> 'b) obj
+    = fn i => fn a => f (fn j => if j <= i then restr (a,j)
                            else raise Fail "non causal")
                     i;
 
@@ -68,6 +63,12 @@ fun fix (func : 'a option obj -> 'a obj) : 'a obj
  *)
 type pstr = int list;
 
+fun unfold (seed : 'a) (f : 'a -> 'b * 'a) =
+    let fun unfold' i seed
+            = if i = 0 then []
+              else case f seed of (n,newSeed) => n :: unfold' (i - 1) newSeed
+    in fn i => unfold' i seed end;
+
 fun lhd (s : pstr obj) : int obj = fn i => hd (s i);
 
 fun ltl (s : pstr obj) : pstr option obj
@@ -85,21 +86,22 @@ val toStrPred : (pstr obj -> psub obj) -> (pstr -> psub) obj = toObj List.take;
 val alternating = unfold 0 (fn i => (i mod 2, i+1));
 fun const n = unfold 0 (fn s => (n, s));
 fun ascending from by = unfold from (fn i => (i, i+by));
+fun constUntil n = unfold 0 (fn k => if k >= n then (0,k) else (1,k+1));
 
 (* strict positive test *)
 val onlyEvens = fix (fn recf =>
                         toStrPred (fn str => land (lhdSat str (fn n => n mod 2 = 0))
                                                 (lift (lapp recf (ltl str)))));
 val s1 = ascending 0 2;
-val d1 = take 5 s1;
+val _ = take 5 s1;
 val p1 = take 5 (toFn onlyEvens s1);
 
-val onlyZerod = fix (fn recf =>
-                        toStrPred (fn str => land (eq (lhd str) bot)
-                                                (lift (lapp recf (ltl str)))));
-val s2 = unfold 0 (fn n => if n >= 3 then (1,0) else (0,n+1));
-val d2 = take 5 s2;
-val p2 = take 5 (toFn onlyZerod s2);
+val onlyOnes = fix (fn recf =>
+                       toStrPred (fn str => land (eq (lhd str) (later bot))
+                                               (lift (lapp recf (ltl str)))));
+val s2 = constUntil 3;
+val _ = take 5 s2;
+val p2 = take 5 (toFn onlyOnes s2);
 
 (* later r(tl s) => hd s = 0
  * trivial since 'classical'
@@ -120,7 +122,7 @@ val firstGeqSecond : (pstr -> psub) obj =
                                             then i else 0)));
 
 (* later (r (tl s)) => hd s = 0 /\ hd (tl s) = 0
- * ?
+ * TODO
  *)
 val firstSecondZero : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
@@ -144,40 +146,68 @@ val teeRight = "\226\148\156";
 val vertLine = "\226\148\130";
 val downRight = "\226\149\176";
 val upLeft = "\226\148\140";
+
+datatype node = Node of {last: int, children : node list,
+                         allTrue : bool, allFalse : bool};
+
+(* barely improves performance over stateless computation,
+ * but it'll be needed later anyways *)
+fun buildTree alphabet P maxDepth =
+    let fun build pstr depth = (* depth > 0 *)
+            let val truth = P depth pstr = depth
+                val last = List.last pstr
+            in
+                if depth = maxDepth
+                then Node {last = last, children = [],
+                           allTrue = truth, allFalse = not truth}
+                else if truth
+                then let val children = map (fn c => build (pstr @ [c]) (depth+1))
+                                            alphabet
+                     in (* release some memory if children not needed *)
+                         if List.all (fn (Node ch) => #allTrue ch) children
+                         then Node {last = last, allTrue = true,
+                                    children = [], allFalse = false}
+                         else Node {last = last, allFalse = false,
+                                    children = children, allTrue = false}
+                     end (* inclusive *)
+                else Node {last = last, children = [],
+                           allTrue = false, allFalse = true}
+            end
+    in if maxDepth = 0 then []
+       else map (fn c => build [c] 1) alphabet end;
+
 fun printTree alphabet P maxDepth =
-    let val last = List.last alphabet
-        fun allTrue pstr =
-            let val depth = List.length pstr
+    let val firstSym = hd alphabet
+        val lastSym = List.last alphabet
+        fun drawSub (Node node) backward depth =
+            let fun pad [] = ""
+                  | pad (i :: is) =
+                    pad is ^ (if i <> lastSym then vertLine ^ " " else "  ");
             in
-                if List.length pstr >= maxDepth then true
-                else List.all (fn t => t)
-                              (map (fn c => if P (depth + 1) (pstr @ [c]) = depth+1
-                                          then allTrue (pstr @ [c])
-                                          else false)
-                                   alphabet)
-            end
-        fun drawSub pstr =
-            let val depth = List.length pstr
-                fun pad last [] = ""
-                  | pad last (i :: is) =
-                    (if i <> last then vertLine ^ " " else "  ") ^ pad last is;
-            in
-                if depth >= maxDepth then ()
-                else if not (allTrue pstr)
-                then (map (fn c =>
-                              (print ((if c = hd alphabet then horLine
-                                       else "\n" ^ pad last pstr ^
-                                            (if c <> last then teeRight
-                                             else downRight) ^
-                                            horLine)
-                                      ^ Int.toString c)
-                              ; if P (depth + 1) (pstr @ [c]) = depth+1 (* true *)
-                                then drawSub (pstr @ [c])
-                                else print "F"))
-                          alphabet ; ())
-                else if depth > 0
-                then print "T"
-                else ()
-            end
-    in print upLeft ; drawSub [] ; print "\n"
+                print (Int.toString (#last node))
+              ; if #allTrue node then print "?"
+                else if #allFalse node then print "F"
+                else (map (fn (Node ch) =>
+                              (print (if #last ch = firstSym then horLine
+                                      else "\n" ^ pad backward ^
+                                           (if #last ch <> lastSym then teeRight
+                                            else downRight) ^
+                                           horLine)
+                              ; drawSub (Node ch) (#last ch :: backward) (depth+1)))
+                          (#children node)
+                     ; ())
+              ; () end
+    in map (fn node => (drawSub node [] 0 ; print "\n"))
+           (buildTree alphabet P maxDepth)
+     ; print "\n"
     end;
+
+fun test n : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (eq str (constUntil n))));
+
+val _ = printTree [0,1] (test 1) 10;
+val _ = printTree [0,1] (test 2) 10;
+val _ = printTree [0,1] (test 3) 10;
+val _ = printTree [0,1] (test 4) 10;
