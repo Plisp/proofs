@@ -79,67 +79,6 @@ fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj
 
 val toStrPred : (pstr obj -> psub obj) -> (pstr -> psub) obj = toObj List.take;
 
-(*
- * examples
- *)
-
-val alternating = unfold 0 (fn i => (i mod 2, i+1));
-fun const n = unfold 0 (fn s => (n, s));
-fun ascending from by = unfold from (fn i => (i, i+by));
-fun constUntil n = unfold 0 (fn k => if k >= n then (0,k) else (1,k+1));
-
-(* strict positive test *)
-val onlyEvens = fix (fn recf =>
-                        toStrPred (fn str => land (lhdSat str (fn n => n mod 2 = 0))
-                                                (lift (lapp recf (ltl str)))));
-val s1 = ascending 0 2;
-val _ = take 5 s1;
-val p1 = take 5 (toFn onlyEvens s1);
-
-val onlyOnes = fix (fn recf =>
-                       toStrPred (fn str => land (eq (lhd str) (later bot))
-                                               (lift (lapp recf (ltl str)))));
-val s2 = constUntil 3;
-val _ = take 5 s2;
-val p2 = take 5 (toFn onlyOnes s2);
-
-(* later r(tl s) => hd s = 0
- * trivial since 'classical'
- *)
-val startsWithZero : (pstr -> psub) obj =
-    fix (fn recf => toStrPred (fn str =>
-                                limp (lift (lapp recf (ltl str)))
-                                     (eq (lhd str) bot)));
-
-(* later (r (tl s)) => later hd s >= hd (tl s)
- * also trivial, since the consequent predicate is 'classical'
- *)
-val firstGeqSecond : (pstr -> psub) obj =
-    fix (fn recf => toStrPred (fn str =>
-                                limp (lift (lapp recf (ltl str)))
-                                     (fn i => if i = 1 then 1
-                                            else if hd (str i) >= hd (tl (str i))
-                                            then i else 0)));
-
-(* later (r (tl s)) => hd s = 0 /\ hd (tl s) = 0
- * TODO
- *)
-val firstSecondZero : (pstr -> psub) obj =
-    fix (fn recf => toStrPred (fn str =>
-                                limp (lift (lapp recf (ltl str)))
-                                     (land (eq (lhd str) bot)
-                                           (fn i => if i = 1 then 1
-                                                  else if hd (tl (str i)) = 1
-                                                  then i else 1))));
-
-(* later (r (tl s)) => s = 0*
- * an alternation sequence
- *)
-val oddZeroPrefix : (pstr -> psub) obj =
-    fix (fn recf => toStrPred (fn str =>
-                                limp (lift (lapp recf (ltl str)))
-                                     (eq str (const 0))));
-
 (* tree drawing *)
 val horLine = "\226\149\180";
 val teeRight = "\226\148\156";
@@ -147,6 +86,7 @@ val vertLine = "\226\148\130";
 val downRight = "\226\149\176";
 val upLeft = "\226\148\140";
 
+(* allTrue and allFalse are inclusive *)
 datatype node = Node of {last: int, children : node list,
                          allTrue : bool, allFalse : bool};
 
@@ -169,7 +109,7 @@ fun buildTree alphabet P maxDepth =
                                     children = [], allFalse = false}
                          else Node {last = last, allFalse = false,
                                     children = children, allTrue = false}
-                     end (* inclusive *)
+                     end
                 else Node {last = last, children = [],
                            allTrue = false, allFalse = true}
             end
@@ -201,12 +141,76 @@ fun printTree alphabet P maxDepth =
      ; print "\n"
     end;
 
+(*
+ * examples
+ *)
+
+val alternating = unfold 0 (fn i => (i mod 2, i+1));
+fun const n = unfold 0 (fn s => (n, s));
+fun ascending from by = unfold from (fn i => (i, i+by));
+fun constUntil n = unfold 0 (fn k => if k >= n then (0,k) else (1,k+1));
+
+(* strict positive test *)
+val onlyEvens = fix (fn recf =>
+                        toStrPred (fn str => land (lhdSat str (fn n => n mod 2 = 0))
+                                                (lift (lapp recf (ltl str)))));
+val s1 = ascending 0 2;
+val _ = take 5 s1;
+val p1 = take 5 (toFn onlyEvens s1);
+val _ = printTree [0,1,2] onlyEvens 3;
+
+val onlyOnes = fix (fn recf =>
+                       toStrPred (fn str => land (eq (lhd str) (later bot))
+                                               (lift (lapp recf (ltl str)))));
+val _ = printTree [0,1] onlyOnes 3;
+
+(* later r(tl s) => hd s = 0
+ * trivial since 'classical'
+ *)
+val startsWithZero : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (eq (lhd str) bot)));
+val _ = printTree [0,1] startsWithZero 2;
+
+(* later (r (tl s)) => later hd s >= hd (tl s)
+ * also trivial, since the consequent predicate is 'classical'
+ *)
+val firstGeqSecond : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (fn i => if i = 1 then 1
+                                            else if hd (str i) >= hd (tl (str i))
+                                            then i else 0)));
+val _ = printTree [0,1,2] firstGeqSecond 3;
+
+(* later (r (tl s)) => hd s = 0 /\ hd (tl s) = 0
+ * TODO
+ *)
+val firstSecondZero : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (land (eq (lhd str) bot)
+                                           (fn i => if i = 1 then 1
+                                                  else if hd (tl (str i)) = 1
+                                                  then i else 1))));
+val _ = printTree [0,1] firstSecondZero 5;
+
+(* later (r (tl s)) => s = 0*
+ * an alternation sequence
+ *)
+val oddZeroPrefix : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (eq str (const 0))));
+val _ = printTree [0,1] oddZeroPrefix 7;
+
 fun test n : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
                                 limp (lift (lapp recf (ltl str)))
                                      (eq str (constUntil n))));
 
-val _ = printTree [0,1] (test 1) 10;
-val _ = printTree [0,1] (test 2) 10;
-val _ = printTree [0,1] (test 3) 10;
-val _ = printTree [0,1] (test 4) 10;
+val _ = printTree [0,1] (test 1) 5;
+val _ = printTree [0,1] (test 2) 5;
+val _ = printTree [0,1] (test 3) 5;
+val _ = printTree [0,1] (test 4) 7;
