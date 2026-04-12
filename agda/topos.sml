@@ -15,48 +15,49 @@ fun lor ca cb = fn i => Int.max (ca i, cb i);
 fun later c = fn i => Int.min (i, c i + 1);
 fun limp ca cb = fn i => if ca i <= cb i then i else cb i;
 
-fun eq (s : ''a obj) t : psub obj
-    = fn i =>
-         let fun test j = if s j <> t j then j-1
-                          else if j = i then i
-                          else test (j+1)
-         in test 1 end;
+fun eq (s : ''a obj) t : psub obj =
+    fn i =>
+       let fun test j = if s j <> t j then j-1
+                        else if j = i then i
+                        else test (j+1)
+       in test 1 end;
 
-fun lift (s : psub option obj) : psub obj
-    = fn i => case s i of
-                NONE => 1
-              | SOME k => k + 1;
+fun lift (s : psub option obj) : psub obj =
+    fn i => case s i of
+              NONE => 1
+            | SOME k => k + 1;
 
-fun take n (a : 'a obj) : 'a list
-    = let fun take' i acc = if i = 0 then acc else take' (i-1) (a i :: acc)
-      in take' n [] end;
+fun take n (a : 'a obj) : 'a list =
+    let fun take' i acc = if i = 0 then acc else take' (i-1) (a i :: acc)
+    in take' n [] end;
 
-fun next (a : 'a obj) : ('a option) obj
-    = fn i => if i = 1 then NONE else SOME (a (i - 1));
+fun next (a : 'a obj) : ('a option) obj =
+    fn i => if i = 1 then NONE else SOME (a (i - 1));
 
-fun lapp (f : ('a -> 'b) option obj) (a : 'a option obj) : 'b option obj
-    = fn i => case f i of
-                NONE => NONE
-              | SOME realF => SOME (realF (the (a i)));
+fun lapp (f : ('a -> 'b) option obj) (a : 'a option obj) : 'b option obj =
+    fn i => case f i of
+              NONE => NONE
+            | SOME realF => SOME (realF (the (a i)));
 
 (* morphisms from int->a to int->b are int->(a->b)
  * we need a restriction map to correctly simulate earlier stages of an object
+ * e.g. for equality
  *)
-fun toObj (restr : ('a * int) -> 'a) (f : 'a obj -> 'b obj) : ('a -> 'b) obj
-    = fn i => fn a => f (fn j => if j <= i then restr (a,j)
-                           else raise Fail "non causal")
-                    i;
+fun toObj (restr : ('a * int) -> 'a) (f : 'a obj -> 'b obj) : ('a -> 'b) obj =
+    fn i => fn a => f (fn j => if j <= i then restr (a,j)
+                         else raise Fail "non causal")
+                  i;
 
-fun toFn (objF : ('a -> 'b) obj) : 'a obj -> 'b obj
-    = fn objA => fn i => objF i (objA i);
+fun toFn (objF : ('a -> 'b) obj) : 'a obj -> 'b obj =
+    fn objA => fn i => objF i (objA i);
 
 (* calculate a guarded fixed-point *)
-fun fix (func : 'a option obj -> 'a obj) : 'a obj
-    = let fun fixpoint' i =
-              if i = 1
-              then func (fn _ => NONE) 1
-              else func (fn i => SOME (fixpoint' (i - 1))) i
-      in fixpoint' end;
+fun fix (func : 'a option obj -> 'a obj) : 'a obj =
+    let fun fixpoint' i =
+            if i = 1
+            then func (fn _ => NONE) 1
+            else func (fn i => SOME (fixpoint' (i - 1))) i
+    in fixpoint' end;
 
 (*
  * streams
@@ -71,11 +72,13 @@ fun unfold (seed : 'a) (f : 'a -> 'b * 'a) =
 
 fun lhd (s : pstr obj) : int obj = fn i => hd (s i);
 
-fun ltl (s : pstr obj) : pstr option obj
-    = fn i => if i = 1 then NONE else SOME (tl (s i));
+fun ltl (s : pstr obj) : pstr option obj =
+    fn i => if i = 1 then NONE else SOME (tl (s i));
 
-fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj
-    = if P (hd (s 1)) then top else bot;
+fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj =
+    if P (hd (s 1)) then top else bot;
+
+fun lsuc (s : pstr obj) : pstr obj = fn i => map (fn n => 1 + n) (s i)
 
 val toStrPred : (pstr obj -> psub obj) -> (pstr -> psub) obj = toObj List.take;
 
@@ -184,17 +187,58 @@ val firstGeqSecond : (pstr -> psub) obj =
                                             then i else 0)));
 val _ = printTree [0,1,2] firstGeqSecond 3;
 
+(* later (r s) => s = [0...]
+ * trivial by fixpoint theorem
+ *)
+val eqZeroes : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (next str)))
+                                     (eq str (const 0))));
+val _ = printTree [0,1] eqZeroes 3;
+
+(* TODO note *any* with head 1 is allowed *)
+val zeroOrAny : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (next (lsuc str)))) (* 0+1 *)
+                                     (lor (eq str (const 0))
+                                          (eq str (const 1))))); (* >= 1 true *)
+val _ = printTree [0,1,2] zeroOrAny 3;
+
 (* later (r (tl s)) => hd s = 0 /\ hd (tl s) = 0
- * TODO
+ * TODO just head is enough
  *)
 val firstSecondZero : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
                                 limp (lift (lapp recf (ltl str)))
                                      (land (eq (lhd str) bot)
                                            (fn i => if i = 1 then 1
-                                                  else if hd (tl (str i)) = 1
+                                                  else if hd (tl (str i)) = 0
                                                   then i else 1))));
 val _ = printTree [0,1] firstSecondZero 5;
+
+(* later (r (tl s)) => hd s = 0 /\ hd (tl s) = 1
+ * TODO why is 02 allowed
+ *)
+val firstZeroSecondOne : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (land (eq (lhd str) bot)
+                                           (fn i => if i = 1 then 1
+                                                  else if hd (tl (str i)) = 1
+                                                  then i else 1))));
+val _ = printTree [0,1,2] firstZeroSecondOne 5;
+
+(* later (r (tl s)) => hd s = 0 \/ hd (tl s) = 0
+ * or is 'classical', as the bottom value is constant
+ *)
+val firstOrSecondZero : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (lift (lapp recf (ltl str)))
+                                     (lor (eq (lhd str) bot)
+                                          (fn i => if i = 1 then 1
+                                                 else if hd (tl (str i)) = 0
+                                                 then i else 1))));
+val _ = printTree [0,1] firstOrSecondZero 5;
 
 (* later (r (tl s)) => s = 0*
  * an alternation sequence
@@ -209,8 +253,9 @@ fun test n : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
                                 limp (lift (lapp recf (ltl str)))
                                      (eq str (constUntil n))));
-
 val _ = printTree [0,1] (test 1) 5;
 val _ = printTree [0,1] (test 2) 5;
 val _ = printTree [0,1] (test 3) 5;
 val _ = printTree [0,1] (test 4) 7;
+
+(* escardo infinite sets *)
