@@ -229,7 +229,7 @@ val firstZeroSecondOne : (pstr -> psub) obj =
 val _ = printTree [0,1,2] firstZeroSecondOne 5;
 
 (* later (r (tl s)) => hd s = 0 \/ hd (tl s) = 0
- * or is 'classical', as the bottom value is constant
+ * disjunctions are 'classical', as the bottom value is constant
  *)
 val firstOrSecondZero : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
@@ -249,13 +249,22 @@ val oddZeroPrefix : (pstr -> psub) obj =
                                      (eq str (const 0))));
 val _ = printTree [0,1] oddZeroPrefix 7;
 
-fun test n : (pstr -> psub) obj =
+fun constUntilTree n : (pstr -> psub) obj =
     fix (fn recf => toStrPred (fn str =>
                                 limp (lift (lapp recf (ltl str)))
                                      (eq str (constUntil n))));
-val _ = printTree [0,1] (test 1) 5;
-val _ = printTree [0,1] (test 2) 5;
-val _ = printTree [0,1] (test 3) 5;
-val _ = printTree [0,1] (test 4) 7;
+val _ = printTree [0,1] (constUntilTree 1) 5;
+val _ = printTree [0,1] (constUntilTree 2) 5;
+val _ = printTree [0,1] (constUntilTree 3) 5;
+val _ = printTree [0,1] (constUntilTree 4) 7;
 
-(* escardo infinite sets *)
+(* multiple recursive conjuncts rs /\ rs => x
+ * TODO
+ *)
+val conjuncts : (pstr -> psub) obj =
+    fix (fn recf => toStrPred (fn str =>
+                                limp (land (lift (lapp recf (next (lsuc str))))
+                                           (lift (lapp recf (ltl str))))
+                                     (lor (eq str (const 0))
+                                          (eq str (const 1))))); (* >= 1 true *)
+val _ = printTree [0,1,2] conjuncts 3;
