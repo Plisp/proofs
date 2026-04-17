@@ -1,6 +1,3 @@
-fun the NONE = raise Fail "THE failed"
-  | the (SOME m) = m;
-
 (*
  * tree predicate calculator
  *)
@@ -35,9 +32,18 @@ fun next (a : 'a obj) : ('a option) obj =
     fn i => if i = 1 then NONE else SOME (a (i - 1));
 
 fun lapp (f : ('a -> 'b) option obj) (a : 'a option obj) : 'b option obj =
-    fn i => case f i of
-              NONE => NONE
-            | SOME realF => SOME (realF (the (a i)));
+    fn i => if i = 1
+          then case f i of
+                   SOME _ => raise Fail "f wasn't none at stage 1"
+                 | NONE => case a i of
+                              NONE => NONE
+                            | SOME _ => raise Fail "a wasn't none at stage 1"
+          else case f i of
+                   NONE => raise Fail ("lapp fun was NONE at " ^ Int.toString i)
+                 | SOME realF =>
+                   case a i of
+                       NONE => raise Fail ("lapp arg was NONE at " ^ Int.toString i)
+                     | SOME pa => SOME (realF pa);
 
 (* morphisms from int->a to int->b are int->(a->b)
  * we need a restriction map to correctly simulate earlier stages of an object
@@ -56,7 +62,10 @@ fun fix (func : 'a option obj -> 'a obj) : 'a obj =
     let fun fixpoint' i =
             if i = 1
             then func (fn _ => NONE) 1
-            else func (fn i => SOME (fixpoint' (i - 1))) i
+            else func (fn j => if j = 1 then NONE
+                             else if j > i then raise Fail "non causal"
+                             else SOME (fixpoint' (j - 1)))
+                      i
     in fixpoint' end;
 
 (*
@@ -80,7 +89,13 @@ fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj =
 
 fun lsuc (s : pstr obj) : pstr obj = fn i => map (fn n => 1 + n) (s i)
 
-val toStrObj : (pstr obj -> psub obj) -> (pstr -> psub) obj = toObj List.take;
+fun toStrObj (obj : pstr obj -> 'a obj) : (pstr -> 'a) obj = toObj List.take obj;
+
+fun ldrop2 (s : pstr obj) : pstr option option obj =
+    lapp (next (toStrObj ltl)) (ltl s);
+fun pstrOptRestr (NONE, i) = NONE
+  | pstrOptRestr (SOME (p : pstr), i) = if i = 1 then NONE
+                                        else SOME (List.take (p, i-1) : pstr);
 
 (* tree drawing *)
 val horLine = "\226\149\180";
@@ -238,6 +253,13 @@ val oddZeroPrefix : (pstr -> psub) obj =
                                     (eq str (const 0))));
 val _ = printTree [0,1] oddZeroPrefix 7;
 
+fun psubOptRestr (NONE, i) = NONE
+  | psubOptRestr (SOME (p : psub), i) = if i = 1 then NONE
+                                        else SOME (Int.min (p, i-1) : psub);
+fun lift2 (oo : psub option option obj) : psub obj =
+    lift (lapp (next (toObj psubOptRestr lift)) oo)
+
+(* strict positive version *)
 val oddZeroPrefix' : (pstr -> psub) obj =
     fix (fn recf =>
             toStrObj (* 00.rec or 01... *)
@@ -245,8 +267,9 @@ val oddZeroPrefix' : (pstr -> psub) obj =
                     lor (land (land (eq (lhd str) bot)
                                     (eq (lapp (next (toStrObj lhd)) (ltl str))
                                         (next bot)))
-                              (* TODO double ltl lifting, TODO 2-period example *)
-                              (lift (lapp recf (ltl str))))
+                              (* TODO 2-period example *)
+                              (lift2 (lapp (next (toObj pstrOptRestr (lapp recf)))
+                                           (ldrop2 str))))
                         (land (eq (lhd str) bot)
                               (eq (lapp (next (toStrObj lhd)) (ltl str))
                                   (next (later bot))))));
@@ -261,7 +284,7 @@ val _ = printTree [0,1] (constUntilTree 2) 5;
 val _ = printTree [0,1] (constUntilTree 3) 5;
 val _ = printTree [0,1] (constUntilTree 4) 7;
 
-(* TODO note *any* with head 1 is allowed *)
+(* note: *any* with head 1 is allowed *)
 val zeroOrAny : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (next (lsuc str)))) (* 0+1 *)
