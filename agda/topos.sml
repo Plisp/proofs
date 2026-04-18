@@ -77,8 +77,8 @@ fun toFn (objF : ('a -> 'b) obj) : 'a obj -> 'b obj =
 fun fix (func : 'a option obj -> 'a obj) : 'a obj =
     let fun fixpoint' i =
             func (fn j => if j = 1 then NONE
-                        else if j > i then raise Fail "non causal"
-                        else SOME (fixpoint' (j - 1)))
+                        else if j <= i then SOME (fixpoint' (j - 1))
+                        else raise Fail "non causal")
                  i
     in fixpoint' end;
 
@@ -194,6 +194,15 @@ val onlyOnes = fix (fn recf =>
                                               (lift (lapp recf (ltl str)))));
 val _ = printTree [0,1] onlyOnes 3;
 
+(* >(r s) => s = [0...]
+ * trivial by fixpoint theorem
+ *)
+val eqZeroes : (pstr -> psub) obj =
+    fix (fn recf => toStrObj (fn str =>
+                               limp (lift (lapp recf (next str)))
+                                    (eq str (const 0))));
+val _ = printTree [0,1] eqZeroes 3;
+
 (* >(r s') => hd s = 0
  * trivial since 'classical'
  *)
@@ -214,14 +223,16 @@ val firstGeqSecond : (pstr -> psub) obj =
                                            then i else 0)));
 val _ = printTree [0,1,2] firstGeqSecond 3;
 
-(* >(r s) => s = [0...]
- * trivial by fixpoint theorem
+(* >(r s') => hd s = 0 \/ hd s' = 0
+ * disjunctions are 'classical', as the bottom value is constant
  *)
-val eqZeroes : (pstr -> psub) obj =
+val firstOrSecondZero : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
-                               limp (lift (lapp recf (next str)))
-                                    (eq str (const 0))));
-val _ = printTree [0,1] eqZeroes 3;
+                               limp (lift (lapp recf (ltl str)))
+                                    (lor (eq (lhd str) bot)
+                                         (eq (lapp (next (toStrObj lhd)) (ltl str))
+                                             (next bot)))));
+val _ = printTree [0,1] firstOrSecondZero 5;
 
 (* >(r s') => hd s = 0 /\ hd s' = 0
  * note: only considers the head
@@ -244,17 +255,6 @@ val firstZeroSecondOne : (pstr -> psub) obj =
                                           (eq (lapp (next (toStrObj lhd)) (ltl str))
                                               (next (later bot))))));
 val _ = printTree [0,1,2] firstZeroSecondOne 5;
-
-(* >(r s') => hd s = 0 \/ hd s' = 0
- * disjunctions are 'classical', as the bottom value is constant
- *)
-val firstOrSecondZero : (pstr -> psub) obj =
-    fix (fn recf => toStrObj (fn str =>
-                               limp (lift (lapp recf (ltl str)))
-                                    (lor (eq (lhd str) bot)
-                                         (eq (lapp (next (toStrObj lhd)) (ltl str))
-                                             (next bot)))));
-val _ = printTree [0,1] firstOrSecondZero 5;
 
 (* >(r s') => s = 0*
  * an alternation sequence
