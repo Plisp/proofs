@@ -17,6 +17,8 @@ val (psubRestr : psub * int -> psub) = Int.min;
 val top : int obj = fn i => i;
 val bot : int obj = fn i => 0;
 fun land ca cb = fn i => Int.min (ca i, cb i);
+fun lland [] = (fn i => i)
+  | lland (a :: rest) = land a (lland rest);
 fun lor ca cb = fn i => Int.max (ca i, cb i);
 fun later c = fn i => Int.min (i, c i + 1);
 fun limp ca cb = fn i => if ca i <= cb i then i else cb i;
@@ -98,8 +100,10 @@ fun lhd (s : pstr obj) : int obj = fn i => hd (s i);
 fun ltl (s : pstr obj) : pstr option obj =
     fn i => if i = 1 then NONE else SOME (tl (s i));
 
-fun lhdSat (s : pstr obj) (P : int -> bool) : psub obj =
-    if P (hd (s 1)) then top else bot;
+fun lnthSat (str : pstr obj) n (P : pstr -> bool) : psub obj =
+    fn i => if i <= n then i
+          else if P (str i)
+          then i else n
 
 fun lsuc (s : pstr obj) : pstr obj = fn i => map (fn n => 1 + n) (s i)
 
@@ -182,8 +186,9 @@ fun constUntil n = unfold 0 (fn k => if k >= n then (0,k) else (1,k+1));
 
 (* strict positive test *)
 val onlyEvens = fix (fn recf =>
-                        toStrObj (fn str => land (lhdSat str (fn n => n mod 2 = 0))
-                                               (lift (lapp recf (ltl str)))));
+                        toStrObj (fn str =>
+                                     land (lnthSat str 0 (fn l => (hd l) mod 2 = 0))
+                                          (lift (lapp recf (ltl str)))));
 val s1 = ascending 0 2;
 val _ = take 5 s1;
 val p1 = take 5 (toFn onlyEvens s1);
@@ -206,11 +211,11 @@ val _ = printTree [0,1] eqZeroes 3;
 (* >(r s') => hd s = 0
  * trivial since 'classical'
  *)
-val startsWithZero : (pstr -> psub) obj =
+val startsWith0 : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (eq (lhd str) bot)));
-val _ = printTree [0,1] startsWithZero 2;
+val _ = printTree [0,1] startsWith0 2;
 
 (* >(r s') => >(hd s >= hd s')
  * also trivial, since the consequent predicate is 'classical'
@@ -218,47 +223,63 @@ val _ = printTree [0,1] startsWithZero 2;
 val firstGeqSecond : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
-                                    (fn i => if i = 1 then 1
-                                           else if hd (str i) >= hd (tl (str i))
-                                           then i else 0)));
+                                    (lnthSat str 1 (fn l => hd l >= hd (tl l)))));
 val _ = printTree [0,1,2] firstGeqSecond 3;
 
 (* >(r s') => hd s = 0 \/ hd s' = 0
- * disjunctions are 'classical', as the bottom value is constant
+ * 'classical' props are closed under OR, as the bottom value is constant
  *)
-val firstOrSecondZero : (pstr -> psub) obj =
+val firstOrSecond0 : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (lor (eq (lhd str) bot)
                                          (eq (lapp (next (toStrObj lhd)) (ltl str))
                                              (next bot)))));
-val _ = printTree [0,1] firstOrSecondZero 5;
+val _ = printTree [0,1] firstOrSecond0 5;
 
-(* >(r s') => hd s = 0 /\ hd s' = 0
- * note: only considers the head
+(* >(r s') => hd s = 0 /\ hd s'..' = 0
+ *
  *)
-val firstSecondZero : (pstr -> psub) obj =
+fun firstNth0 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (land (eq (lhd str) bot)
-                                          (eq (lapp (next (toStrObj lhd)) (ltl str))
-                                              (next bot)))));
-val _ = printTree [0,1] firstSecondZero 5;
+                                          (lnthSat str n
+                                                   (fn l => List.nth (l,n) = 0)))));
+val _ = printTree [0,1] (firstNth0 1) 5;
+val _ = printTree [0,1] (firstNth0 2) 5;
+val _ = printTree [0,1] (firstNth0 3) 5;
+val _ = printTree [0,1] (firstNth0 4) 5;
 
-(* >(r s') => hd s = 0 /\ hd s' = 1
+(* >(r s') => hd s = 0 /\ hd s'..' = 1
  * note: 02 allowed
  *)
-val firstZeroSecondOne : (pstr -> psub) obj =
+fun first0Nth1 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (land (eq (lhd str) bot)
-                                          (eq (lapp (next (toStrObj lhd)) (ltl str))
-                                              (next (later bot))))));
-val _ = printTree [0,1,2] firstZeroSecondOne 5;
+                                          (lnthSat str n
+                                                   (fn l => List.nth (l,n) = 1)))));
+val _ = printTree [0,1,2] (first0Nth1 1) 5;
+val _ = printTree [0,1,2] (first0Nth1 2) 5;
+val _ = printTree [0,1,2] (first0Nth1 3) 5;
 
 (* >(r s') => s = 0*
- * an alternation sequence
+ * an alternation sequence, can be unfolded as the limit of a big conjunction
  *)
+fun oddPrefixSub n =
+    fix (fn recf =>
+            toStrObj
+                (fn str =>
+                    limp (lift (lapp recf (ltl str)))
+                         (lland (List.tabulate
+                                     (n, fn n =>
+                                            lnthSat str n
+                                                    (fn l => List.nth (l,n) = 0))))));
+val _ = printTree [0,1] (oddPrefixSub 1) 7;
+val _ = printTree [0,1] (oddPrefixSub 3) 7;
+val _ = printTree [0,1] (oddPrefixSub 5) 7;
+
 val oddZeroPrefix : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
@@ -285,17 +306,6 @@ val oddZeroPrefix' : (pstr -> psub) obj =
                                   (next (later bot))))));
 val _ = printTree [0,1] oddZeroPrefix' 7;
 
-(* >>(r s'') => s = 0*
- * period 2 variation
- *)
-val mod2Prefix : (pstr -> psub) obj =
-    fix (fn recf => toStrObj
-                      (fn str =>
-                          limp (lift2 (lapp (next (toObj pstrOptRestr (lapp recf)))
-                                            (ltl2 str)))
-                               (eq str (const 0))))
-val _ = printTree [0,1] mod2Prefix 9;
-
 (* >(r s') => 111...10
  * TODO generalize above more
  *)
@@ -308,6 +318,17 @@ val _ = printTree [0,1] (constUntilTree 2) 5;
 val _ = printTree [0,1] (constUntilTree 3) 5;
 val _ = printTree [0,1] (constUntilTree 4) 7;
 
+(* >>(r s'') => s = 0*
+ * period 2 variation
+ *)
+val mod2Prefix : (pstr -> psub) obj =
+    fix (fn recf => toStrObj
+                      (fn str =>
+                          limp (lift2 (lapp (next (toObj pstrOptRestr (lapp recf)))
+                                            (ltl2 str)))
+                               (eq str (const 0))))
+val _ = printTree [0,1] mod2Prefix 9;
+
 (* note: *any* with head 1 is allowed *)
 val zeroOrAny : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
@@ -317,7 +338,7 @@ val zeroOrAny : (pstr -> psub) obj =
 val _ = printTree [0,1,2] zeroOrAny 3;
 
 (* multiple recursive conjuncts rs /\ rs => x
- * by making the antecedent smaller with and, we get more structure
+ * by making the antecedent smaller we get more structure
  *)
 val conjuncts : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
