@@ -182,7 +182,7 @@ fun printTree alphabet P maxDepth =
 val alternating = unfold 0 (fn i => (i mod 2, i+1));
 fun const n = unfold 0 (fn s => (n, s));
 fun ascending from by = unfold from (fn i => (i, i+by));
-fun constUntil n = unfold 0 (fn k => if k >= n then (0,k) else (1,k+1));
+fun const0Until n = unfold 0 (fn k => if k >= n then (1,k) else (0,k+1));
 
 (* strict positive test *)
 val onlyEvens = fix (fn recf =>
@@ -238,7 +238,8 @@ val firstOrSecond0 : (pstr -> psub) obj =
 val _ = printTree [0,1] firstOrSecond0 5;
 
 (* >(r s') => hd s = 0 /\ hd s'..' = 0
- *
+ * note: 01* allowed in addition to usual
+ * note: depth limited by P as imp only adds truth - no higher false values
  *)
 fun firstNth0 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
@@ -249,10 +250,9 @@ fun firstNth0 n : (pstr -> psub) obj =
 val _ = printTree [0,1] (firstNth0 1) 5;
 val _ = printTree [0,1] (firstNth0 2) 5;
 val _ = printTree [0,1] (firstNth0 3) 5;
-val _ = printTree [0,1] (firstNth0 4) 5;
 
 (* >(r s') => hd s = 0 /\ hd s'..' = 1
- * note: 02 allowed
+ * note: both 01* and 02* allowed
  *)
 fun first0Nth1 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
@@ -267,18 +267,6 @@ val _ = printTree [0,1,2] (first0Nth1 3) 5;
 (* >(r s') => s = 0*
  * an alternation sequence, can be unfolded as the limit of a big conjunction
  *)
-fun oddPrefixSub n =
-    fix (fn recf =>
-            toStrObj
-                (fn str =>
-                    limp (lift (lapp recf (ltl str)))
-                         (lland (List.tabulate
-                                     (n, fn n =>
-                                            lnthSat str n
-                                                    (fn l => List.nth (l,n) = 0))))));
-val _ = printTree [0,1] (oddPrefixSub 1) 7;
-val _ = printTree [0,1] (oddPrefixSub 3) 7;
-val _ = printTree [0,1] (oddPrefixSub 5) 7;
 
 val oddZeroPrefix : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
@@ -306,13 +294,13 @@ val oddZeroPrefix' : (pstr -> psub) obj =
                                   (next (later bot))))));
 val _ = printTree [0,1] oddZeroPrefix' 7;
 
-(* >(r s') => 111...10
- * TODO generalize above more
+(* >(r s') => 00...0111
+ * odd and even periods differ in structure
  *)
 fun constUntilTree n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
-                                    (eq str (constUntil n))));
+                                    (eq str (const0Until n))));
 val _ = printTree [0,1] (constUntilTree 1) 5;
 val _ = printTree [0,1] (constUntilTree 2) 5;
 val _ = printTree [0,1] (constUntilTree 3) 5;
