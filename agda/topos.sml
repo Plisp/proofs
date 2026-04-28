@@ -62,7 +62,7 @@ fun lapp (f : ('a -> 'b) option obj) (a : 'a option obj) : 'b option obj =
                        NONE => raise Fail ("lapp arg was NONE at " ^ Int.toString i)
                      | SOME pa => SOME (realF pa);
 
-(* morphisms
+(* morphisms, defined using the global elements functor
  * from int->a to int->b are int->(a->b)
  * we need a restriction map to correctly simulate earlier stages of an object
  * e.g. for equality
@@ -199,7 +199,7 @@ val onlyOnes = fix (fn recf =>
                                               (lift (lapp recf (ltl str)))));
 val _ = printTree [0,1] onlyOnes 3;
 
-(* >(r s) => s = [0...]
+(* >(r s) => s = 0*
  * trivial by fixpoint theorem
  *)
 val eqZeroes : (pstr -> psub) obj =
@@ -239,7 +239,8 @@ val _ = printTree [0,1] firstOrSecond0 5;
 
 (* >(r s') => hd s = 0 /\ hd s'..' = 0
  * note: 01* allowed in addition to usual
- * note: depth limited by P as imp only adds truth - no higher false values
+ * new note: depth limited by P as imp only adds truth - no higher false values
+ * ==> any propositional combination is depth limited and so non-recursive
  *)
 fun firstNth0 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
@@ -294,20 +295,45 @@ val oddZeroPrefix' : (pstr -> psub) obj =
                                   (next (later bot))))));
 val _ = printTree [0,1] oddZeroPrefix' 7;
 
-(* >(r s') => 00...0111
+(* >(r s') => s = 00..01*
  * odd and even periods differ in structure
  *)
 fun constUntilTree n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (eq str (const0Until n))));
-val _ = printTree [0,1] (constUntilTree 1) 5;
+val _ = printTree [0,1] (constUntilTree 1) 5; (* same as alternating *)
 val _ = printTree [0,1] (constUntilTree 2) 5;
 val _ = printTree [0,1] (constUntilTree 3) 5;
 val _ = printTree [0,1] (constUntilTree 4) 7;
 
+(* >(r s') => s = 00..01* \/ s = 1*
+ * alternating structure in both branches
+ *)
+fun disjTree n : (pstr -> psub) obj =
+    fix (fn recf => toStrObj (fn str =>
+                               limp (lift (lapp recf (ltl str)))
+                                    (lor (eq str (const0Until n))
+                                         (eq str (const 1)))));
+val _ = printTree [0,1] (disjTree 1) 6;
+val _ = printTree [0,1] (disjTree 2) 6;
+val _ = printTree [0,1] (disjTree 3) 6;
+val _ = printTree [0,1] (disjTree 4) 7;
+
+(* >(r s') => s = 00..01* /\ >bot
+ * note: >bot can be encoded using hd s' = 0 /\ hd s' = 1
+ * note: obviously depth-limited, due to implication
+ *)
+fun conjTree n : (pstr -> psub) obj =
+    fix (fn recf => toStrObj (fn str =>
+                               limp (lift (lapp recf (ltl str)))
+                                    (land (* (eq str (const0Until n)) *) top
+                                          (later bot))));
+val _ = printTree [0,1] (conjTree 1) 5;
+
 (* >>(r s'') => s = 0*
- * period 2 variation
+ * period 4 variation, 0000.rec \/ s = 001.. \/ s = 0001...
+ * note: further evidence for even period of implication
  *)
 val mod2Prefix : (pstr -> psub) obj =
     fix (fn recf => toStrObj
@@ -323,9 +349,23 @@ val zeroOrAny : (pstr -> psub) obj =
                                limp (lift (lapp recf (next (lsuc str)))) (* 0+1 *)
                                     (lor (eq str (const 0))
                                          (eq str (const 1))))); (* >= 1 true *)
-val _ = printTree [0,1,2] zeroOrAny 3;
+val _ = printTree [0,1] zeroOrAny 3;
 
-(* multiple recursive conjuncts rs /\ rs => x
+(* note: 000 allowed, iterates 100 -> 000 form alternating sequence *)
+val flip : (pstr -> psub) obj =
+    fix (fn recf => toStrObj (fn str =>
+                               limp (lift (lapp recf
+                                                (next (fn i =>
+                                                          let val l = str i in
+                                                              (if hd l = 0
+                                                               then 1
+                                                               else 0) :: tl l
+                                                          end))))
+                                    (lor (eq str (const0Until 2))
+                                         (eq str (const 1)))));
+val _ = printTree [0,1] flip 3;
+
+(* TODO multiple recursive conjuncts rs /\ rs => x
  * by making the antecedent smaller we get more structure
  *)
 val conjuncts : (pstr -> psub) obj =
