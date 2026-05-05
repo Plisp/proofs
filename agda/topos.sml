@@ -351,27 +351,45 @@ val zeroOrAny : (pstr -> psub) obj =
                                          (eq str (const 1))))); (* >= 1 true *)
 val _ = printTree [0,1] zeroOrAny 3;
 
-(* note: 000 allowed, iterates 100 -> 000 form alternating sequence *)
+(* (00)*0100000 *)
+
+fun position p l =
+    let fun position' p [] i = NONE
+          | position' p (y::ys) i = if p y then SOME i
+                                    else position' p ys (i+1)
+    in position' p l 0
+    end;
+
+val strange : (pstr -> psub) obj =
+    fix (fn recf =>
+            toStrObj
+                (fn str =>
+                    lor (land (land (eq (lhd str) bot)
+                                    (eq (lapp (next (toStrObj lhd)) (ltl str))
+                                        (next bot)))
+                              (lift2 (lapp (next (toObj pstrOptRestr (lapp recf)))
+                                           (ltl2 str))))
+                        (land (land (eq (lhd str) bot)
+                                    (eq (lapp (next (toStrObj lhd)) (ltl str))
+                                        (next (later bot))))
+                              (* zeroes *)
+                              (fn i => if i <= 2 then i
+                                     else 2 +
+                                          (case position (fn n => n <> 0) (tl (tl (str i)))
+                                            of NONE => i
+                                             | SOME k => k)))));
+val _ = printTree [0,1] strange 7;
+
+val conseq = (fn str => (lor (toFn strange str)
+                           (* 1 then zeroOddPrefix *)
+                           (land (eq (lhd str) (later bot))
+                                 (lift (lapp (next oddZeroPrefix) (ltl str))))));
+val _ = printTree [0,1] (toStrObj conseq) 5;
+
+fun flipFirst str = (fn i => (if hd (str i) = 0 then 1 else 0) :: tl (str i));
+
 val flip : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
-                               limp (lift (lapp recf
-                                                (next (fn i =>
-                                                          let val l = str i in
-                                                              (if hd l = 0
-                                                               then 1
-                                                               else 0) :: tl l
-                                                          end))))
-                                    (lor (eq str (const0Until 2))
-                                         (eq str (const 1)))));
-val _ = printTree [0,1] flip 3;
-
-(* TODO multiple recursive conjuncts rs /\ rs => x
- * by making the antecedent smaller we get more structure
- *)
-val conjuncts : (pstr -> psub) obj =
-    fix (fn recf => toStrObj (fn str =>
-                               limp (land (lift (lapp recf (next (lsuc str))))
-                                          (lift (lapp recf (ltl str))))
-                                    (lor (eq str (const 0))
-                                         (eq str (const 1)))));
-val _ = printTree [0,1,2] conjuncts 4;
+                               limp (lift (lapp recf (next (flipFirst str))))
+                                    (conseq str)));
+val _ = printTree [0,1] flip 7;
