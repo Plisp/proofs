@@ -100,7 +100,7 @@ fun lhd (s : pstr obj) : int obj = fn i => hd (s i);
 fun ltl (s : pstr obj) : pstr option obj =
     fn i => if i = 1 then NONE else SOME (tl (s i));
 
-fun lnthSat (str : pstr obj) n (P : pstr -> bool) : psub obj =
+fun lnthSat n (P : pstr -> bool) (str : pstr obj) : psub obj =
     fn i => if i <= n then i
           else if P (str i)
           then i else n
@@ -112,13 +112,6 @@ fun toStrObj (obj : pstr obj -> 'a obj) : (pstr -> 'a) obj = toObj List.take obj
 fun ltl2 (s : pstr obj) : pstr option option obj =
     lapp (next (toStrObj ltl)) (ltl s);
 val pstrOptRestr = optRestr (List.take : pstr * int -> pstr);
-
-(* tree drawing *)
-val horLine = "\226\149\180";
-val teeRight = "\226\148\156";
-val vertLine = "\226\148\130";
-val downRight = "\226\149\176";
-val upLeft = "\226\148\140";
 
 (* allTrue and allFalse are inclusive *)
 datatype node = Node of {last: int, children : node list,
@@ -151,7 +144,13 @@ fun buildTree alphabet P maxDepth =
        else map (fn c => build [c] 1) alphabet end;
 
 fun printTree alphabet P maxDepth =
-    let val firstSym = hd alphabet
+    let val horLine = "\226\149\180";
+        val teeRight = "\226\148\156";
+        val vertLine = "\226\148\130";
+        val downRight = "\226\149\176";
+        val upLeft = "\226\148\140";
+
+        val firstSym = hd alphabet
         val lastSym = List.last alphabet
         fun drawSub (Node node) backward depth =
             let fun pad [] = ""
@@ -175,6 +174,53 @@ fun printTree alphabet P maxDepth =
      ; print "\n"
     end;
 
+fun toDot roots =
+    let
+        val counter = ref 0
+        fun freshId () =
+            let val n = !counter
+            in counter := n + 1; "n" ^ Int.toString n
+            end
+        fun escape s =
+            String.translate (fn #"\"" => "\\\"" | #"\n" => "\\n" | c => str c) s
+        fun emitNode id last allTrue allFalse =
+            let val label = escape (Int.toString last)
+                val attrs =
+                    if allFalse
+                    then "[label=\"" ^ label ^ "\", style=filled, fillcolor=red]"
+                    else if allTrue
+                    then "[label=\"" ^ label ^ "\", style=filled, fillcolor=gray]"
+                    else "[label=\"" ^ label ^ "\"]"
+            in id ^ " " ^ attrs ^ ";\n"
+            end
+
+        fun walk (Node {last, children, allTrue, allFalse}) =
+            let val myId = freshId ()
+                val myText = emitNode myId last allTrue allFalse
+            in
+                if allFalse then (myId, myText) (* stop *)
+                else
+                    let
+                        fun processChild child =
+                            let val (cid, ctext) = walk child
+                            in (ctext, myId ^ " -> " ^ cid ^ ";\n")
+                            end
+                        val rendered = map processChild children
+                        val childText = String.concat (map #1 rendered)
+                        val edgeText = String.concat (map #2 rendered)
+                    in
+                        (myId, myText ^ childText ^ edgeText)
+                    end
+            end
+    in String.concatWith
+           "\n"
+           (map (fn root => "digraph {\n"
+                          ^"  node [shape=circle];\n"
+                          ^(#2 (walk root))
+                          ^"}")
+                roots)
+    end;
+
 (*
  * examples
  *)
@@ -187,7 +233,7 @@ fun const0Until n = unfold 0 (fn k => if k >= n then (1,k) else (0,k+1));
 (* strict positive test *)
 val onlyEvens = fix (fn recf =>
                         toStrObj (fn str =>
-                                     land (lnthSat str 0 (fn l => (hd l) mod 2 = 0))
+                                     land (lnthSat 0 (fn l => (hd l) mod 2 = 0) str)
                                           (lift (lapp recf (ltl str)))));
 val s1 = ascending 0 2;
 val _ = take 5 s1;
@@ -223,7 +269,7 @@ val _ = printTree [0,1] startsWith0 2;
 val firstGeqSecond : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
-                                    (lnthSat str 1 (fn l => hd l >= hd (tl l)))));
+                                    (lnthSat 1 (fn l => hd l >= hd (tl l)) str)));
 val _ = printTree [0,1,2] firstGeqSecond 3;
 
 (* >(r s') => hd s = 0 \/ hd s' = 0
@@ -246,8 +292,7 @@ fun firstNth0 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (land (eq (lhd str) bot)
-                                          (lnthSat str n
-                                                   (fn l => List.nth (l,n) = 0)))));
+                                          (lnthSat n (fn l => List.nth (l,n) = 0) str))));
 val _ = printTree [0,1] (firstNth0 1) 5;
 val _ = printTree [0,1] (firstNth0 2) 5;
 val _ = printTree [0,1] (firstNth0 3) 5;
@@ -259,8 +304,7 @@ fun first0Nth1 n : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
                                     (land (eq (lhd str) bot)
-                                          (lnthSat str n
-                                                   (fn l => List.nth (l,n) = 1)))));
+                                          (lnthSat n (fn l => List.nth (l,n) = 1) str))));
 val _ = printTree [0,1,2] (first0Nth1 1) 5;
 val _ = printTree [0,1,2] (first0Nth1 2) 5;
 val _ = printTree [0,1,2] (first0Nth1 3) 5;
@@ -355,8 +399,7 @@ val _ = printTree [0,1] zeroOrAny 3;
 
 fun position p l =
     let fun position' p [] i = NONE
-          | position' p (y::ys) i = if p y then SOME i
-                                    else position' p ys (i+1)
+          | position' p (y::ys) i = if p y then SOME i else position' p ys (i+1)
     in position' p l 0
     end;
 
@@ -375,7 +418,8 @@ val strange : (pstr -> psub) obj =
                               (* zeroes *)
                               (fn i => if i <= 2 then i
                                      else 2 +
-                                          (case position (fn n => n <> 0) (tl (tl (str i)))
+                                          (case position (fn n => n <> 0)
+                                                         (tl (tl (str i)))
                                             of NONE => i
                                              | SOME k => k)))));
 val _ = printTree [0,1] strange 7;
