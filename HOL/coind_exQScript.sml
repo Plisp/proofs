@@ -1,4 +1,4 @@
-open bossLib whileTheory pred_setTheory relationTheory optionTheory;
+open bossLib pred_setTheory relationTheory optionTheory;
 open arithmeticTheory numLib BasicProvers dep_rewrite;
 open listTheory llistTheory;
 
@@ -115,6 +115,15 @@ CoInductive even_llist:
   even_llist [||] ∧
   (∀x xs. EVEN x ∧ even_llist xs ⇒ even_llist (x:::xs))
 End
+
+(* once "provable" https://github.com/HOL-Theorem-Prover/HOL/issues/1880 *)
+(* Theorem silly: *)
+(*   (∀s. (test (f s) ⇒ P s) = test s) *)
+(*   ⇒ (∀s. ((test (f (f s)) ⇒ P (f s)) ⇒ P s) = test s) ∧ *)
+(*     (∀s. (test s ⇒ (test (f s) ⇒ P s) ⇒ P s) ⇒ (test s = P s)) *)
+(* Proof *)
+(*   rw[] >> metis_tac[] *)
+(* QED *)
 
 (* What theorems does this gives you?
  * How is this different from the inductive version? *)

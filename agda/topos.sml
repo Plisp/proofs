@@ -114,7 +114,7 @@ fun ltl2 (s : pstr obj) : pstr option option obj =
 val pstrOptRestr = optRestr (List.take : pstr * int -> pstr);
 
 (* allTrue and allFalse are inclusive *)
-datatype node = Node of {last: int, children : node list,
+datatype node = Node of {last: int, children : node list, allD : bool,
                          allTrue : bool, allFalse : bool};
 
 (* barely improves performance over stateless computation,
@@ -193,7 +193,6 @@ fun toDot roots =
                     else "[label=\"" ^ label ^ "\"]"
             in id ^ " " ^ attrs ^ ";\n"
             end
-
         fun walk (Node {last, children, allTrue, allFalse}) =
             let val myId = freshId ()
                 val myText = emitNode myId last allTrue allFalse
@@ -312,7 +311,6 @@ val _ = printTree [0,1,2] (first0Nth1 3) 5;
 (* >(r s') => s = 0*
  * an alternation sequence, can be unfolded as the limit of a big conjunction
  *)
-
 val oddZeroPrefix : (pstr -> psub) obj =
     fix (fn recf => toStrObj (fn str =>
                                limp (lift (lapp recf (ltl str)))
@@ -396,7 +394,6 @@ val zeroOrAny : (pstr -> psub) obj =
 val _ = printTree [0,1] zeroOrAny 3;
 
 (* (00)*0100000 *)
-
 fun position p l =
     let fun position' p [] i = NONE
           | position' p (y::ys) i = if p y then SOME i else position' p ys (i+1)
@@ -424,10 +421,10 @@ val strange : (pstr -> psub) obj =
                                              | SOME k => k)))));
 val _ = printTree [0,1] strange 7;
 
-val conseq = (fn str => (lor (toFn strange str)
-                           (* 1 then zeroOddPrefix *)
-                           (land (eq (lhd str) (later bot))
-                                 (lift (lapp (next oddZeroPrefix) (ltl str))))));
+val conseq = fn str => (lor (toFn strange str)
+                          (* 1 then zeroOddPrefix *)
+                          (land (eq (lhd str) (later bot))
+                                (lift (lapp (next oddZeroPrefix) (ltl str)))));
 val _ = printTree [0,1] (toStrObj conseq) 5;
 
 fun flipFirst str = (fn i => (if hd (str i) = 0 then 1 else 0) :: tl (str i));

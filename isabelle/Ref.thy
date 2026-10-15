@@ -14,6 +14,7 @@ lemma ext_imp:
   apply(simp)
   done  
 
+(*
 text \<open> refl \<close>
 lemma alpha:
   "\<forall>t. (\<lambda>x. x) t = (\<lambda>y. y) t"
@@ -331,14 +332,65 @@ text \<open> partial case maps to 'undefined': \<close>
 lemma "(case Tip of Node _ _ _ => 0) = undefined" by simp
 text \<open> nested case and default pattern: \<close>
 term "case t of Node (Node _ _ _) x Tip => 0 | _ => 1"
+*)
 
 (* induction examples *)
-primrec app :: "'a list => 'a list => 'a list"
-where
-  "app Nil ys = ys" |
-  "app (Cons x xs) ys = Cons x (app xs ys)"
 
-text \<open> induction heuristics \<close>
+(* lists as maps to sets? *)
+type_synonym 'a mylist = "nat \<times> ('a \<Rightarrow> nat set)"
+definition map_valid :: "'a mylist \<Rightarrow> bool" where
+  "map_valid m \<longleftrightarrow>
+     (\<forall>k. k < fst m \<longrightarrow> (\<exists>!e. k \<in> snd m e)) \<and>
+     (\<forall>k i. i \<in> snd m k \<longrightarrow> i < fst m)"
+definition list_map_rel :: "'a list \<Rightarrow> 'a mylist \<Rightarrow> bool" where
+  "list_map_rel xs m \<longleftrightarrow>
+     fst m = length xs \<and>
+     (\<forall>x i. i \<in> snd m x \<longleftrightarrow> i < fst m \<and> xs ! i = x)"
+
+definition map_append :: "'a mylist \<Rightarrow> 'a mylist \<Rightarrow> 'a mylist" where
+  "map_append m1 m2 =
+     (fst m1 + fst m2, (\<lambda>k. snd m1 k \<union> (\<lambda>i. fst m1 + i) ` (snd m2 k)))"
+
+lemma map_append_rel:
+  "list_map_rel xs m1 \<and> list_map_rel ys m2
+  \<Longrightarrow> list_map_rel (xs @ ys) (map_append m1 m2)"
+  unfolding map_append_def list_map_rel_def
+  apply(simp)
+  by (smt (verit, del_insts) add_diff_cancel_left' add_diff_inverse_nat
+      image_iff le_eq_less_or_eq nat_add_left_cancel_less nat_le_linear
+      not_add_less1 nth_append_left nth_append_right trans_less_add1)
+
+definition map_reverse :: "'a mylist \<Rightarrow> 'a mylist" where
+  "map_reverse m = (fst m, (\<lambda>k. (\<lambda>n. fst m - n - 1) ` (snd m k)))"
+
+lemma map_reverse_rel:
+  "list_map_rel xs m \<Longrightarrow> list_map_rel (rev xs) (map_reverse m)"
+  unfolding map_reverse_def list_map_rel_def
+  apply(induct xs, fastforce)
+  apply(simp)
+  sorry
+
+lemma map_reverse_reverse:
+  "map_valid m \<Longrightarrow> (map_reverse (map_reverse m)) = m"
+  unfolding map_reverse_def map_valid_def
+  apply(cases m)
+  apply(simp add: ext set_eqI Suc_diff_Suc image_iff le_eq_less_or_eq)
+  done
+
+(* easy equational *)
+fun halve :: "nat \<Rightarrow> nat"
+where
+  "halve 0 = 0" |
+  "halve (Suc 0) = 0" |
+  "halve (Suc (Suc n)) = Suc (halve n)"
+
+lemma "halve (n + n) = n"
+  apply(induct n, simp)
+  apply(simp only: add_Suc_right add_Suc)
+  apply(simp only: halve.simps)
+  done
+
+(* generalization *)
 primrec
   itrev :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list"
 where
@@ -347,18 +399,13 @@ where
 
 value "itrev [1::nat,2,3] [4,5,6]"
 
-lemma "itrev xs ys = app (rev xs) ys"
-  apply(induct xs)
-   apply simp
-  apply simp (* we once again have a useless induction hypothesis: ys changes with each
-                recursive call, but ys is the exact same in the induction hyp as in
-                the conclusion *)
+lemma "itrev xs ys = (rev xs) @ ys"
+  apply(induct xs, simp)
+  apply simp
   oops
 
-(* We generalise by universally quantifying ys before induction. *)
 lemma itrev_gen: "\<And>ys. itrev xs ys = (rev xs) @ ys"
-  apply(induct xs)
-   apply simp
+  apply(induct xs, simp)
   thm meta_spec (* very useful for instantiating big and *)
   apply(drule_tac x="a # ys" in meta_spec)
   apply simp
@@ -367,5 +414,106 @@ lemma itrev_gen: "\<And>ys. itrev xs ys = (rev xs) @ ys"
 lemma "itrev xs [] = rev xs"
   apply(simp add: itrev_gen)
   done
+
+(* harder version of benchmark problem, length is most obvious *)
+fun evenl :: "nat list \<Rightarrow> bool"
+  where
+    "evenl [] = True" |
+    "evenl [a] = False" |
+    "evenl (a # (a' # as)) = evenl as"
+thm evenl.induct
+
+lemma "evenl (l @ l)"
+  apply(induct l, simp) (* not possible to case on l *)
+  oops
+
+lemma evenl1: "evenl (as @ l) \<Longrightarrow> evenl (as @ a # a' # l)"
+  apply(induct as arbitrary: l rule: evenl.induct)
+    apply(simp)
+   apply(simp)
+   apply(case_tac l, simp, simp)
+  apply(simp)
+  done
+
+lemma "evenl (l @ l)"
+  apply(induct l rule: evenl.induct, simp, simp)
+  apply(simp add: evenl1)
+  done
+
+(* TODO conditional insertion sorting, unsolved by hipster *)
+fun count :: "nat \<Rightarrow> nat list \<Rightarrow> nat" where
+  "count n [] = 0" |
+  "count n (k#ks) = (if n = k then 1 else 0) + count n ks"
+
+lemma "count n xs = count n (sort xs)"
+  apply(simp add: List.linorder_class.sort_conv_fold)
+  apply(induct xs, simp)
+  apply(simp)
+(* what is the benchmark definition?*)
+  sorry
+
+(* generalization from single variable *)
+fun rot :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a list"
+where
+  "rot 0 l = l" |
+  "rot x [] = []" |
+  "rot (Suc x) (b # bs) = rot x (bs @ [b])"
+
+lemma rot_gen: "rot (length as) (as @ bs) = bs @ as"
+  apply(induct as arbitrary: bs, simp) (* generalize *)
+  apply(simp del: append_assoc)
+  apply(simp (no_asm) only: append_assoc)
+  (* induction with bs @ [a] *)
+  apply(simp only:)
+  apply(simp only: append_assoc)
+  (* cong *)
+  apply(metis Cons_eq_appendI eq_Nil_appendI)
+  done
+
+lemma "rot (length as) as = as"
+  apply(induct as, simp)
+  apply(simp)
+  (* note a # as = [a] @ as *)
+  apply(simp add: rot_gen)
+  done
+
+(* solved by hipster and not zeno, tricky single instance gen
+   note: doesn't actually require the lemmas *)
+lemma "take (length xs - i) (rev xs) = rev (drop i xs)"
+  apply(induct xs arbitrary: i, simp)
+  apply(simp del:take_append diff_is_0_eq' take_all drop_all)
+  apply(case_tac i, simp)
+  (* substitute i, reduce back to hyp.*)
+  apply(simp only: diff_Suc_Suc, thin_tac "_ = _")
+  apply(subgoal_tac "take (length xs - nat) (rev xs @ [a])
+                   = rev (drop nat xs)", simp)
+  (* extra @[a] in goal blocks unification *)
+  sorry
+
+lemma "take (length xs - i) (rev xs @ ys) = rev (drop i xs)"
+  apply(induct xs arbitrary: i ys, simp)
+  apply(simp del:take_append diff_is_0_eq' take_all drop_all append_assoc)
+  apply(simp only: append_assoc) (* reasonable *)
+  apply(case_tac i, simp, simp only:, thin_tac "_ = _")
+  apply(simp (no_asm) only: diff_Suc_Suc) (* reasonable *)
+  apply(simp only:) (* IH, absorb [a] @ ys *)
+  apply(simp)
+  done
+
+(* TODO convolution *)
+fun convol :: "nat list \<Rightarrow> nat list \<Rightarrow> nat list"
+  where
+  "convol xs [] = xs" |
+  "convol [] ys = ys" |
+  "convol (x#xs) (y#ys) 
+   = (x * y) # (map2 (+) (convol xs (y#ys)) (map (\<lambda>y. x*y) ys))"
+
+lemma "length as = length bs \<and> length bs = length cs
+   \<Longrightarrow> convol (convol as bs) cs = convol as (convol bs cs)"
+  apply(induct as arbitrary: bs cs)
+   apply(simp)
+  sorry
+
+
 
 end
