@@ -391,28 +391,28 @@ lemma "halve (n + n) = n"
   done
 
 (* generalization *)
-primrec
-  itrev :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list"
-where
+primrec itrev :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list" where
   "itrev [] ys = ys" |
   "itrev (x#xs) ys = itrev xs (x#ys)"
-
-value "itrev [1::nat,2,3] [4,5,6]"
-
-lemma "itrev xs ys = (rev xs) @ ys"
-  apply(induct xs, simp)
-  apply simp
-  oops
 
 lemma itrev_gen: "\<And>ys. itrev xs ys = (rev xs) @ ys"
   apply(induct xs, simp)
   thm meta_spec (* very useful for instantiating big and *)
-  apply(drule_tac x="a # ys" in meta_spec)
-  apply simp
+  apply(drule_tac x="a#ys" in meta_spec)
+  apply(simp)
   done
 
-lemma "itrev xs [] = rev xs"
-  apply(simp add: itrev_gen)
+lemma "itrev xs [] = rev xs" by (simp add: itrev_gen)
+
+(* unsolved by cclemma, requires unevaluation *)
+lemma "itrev (itrev xs []) Nil = xs" (* = itrev [] xs *)
+  apply(induct xs, simp)
+  apply(simp)
+  oops
+
+lemma itrevrev: "itrev (itrev xs ys) Nil = itrev ys xs"
+  apply(induct xs arbitrary: ys, simp)
+  apply(simp)
   done
 
 (* harder version of benchmark problem, length is most obvious *)
@@ -420,14 +420,14 @@ fun evenl :: "nat list \<Rightarrow> bool"
   where
     "evenl [] = True" |
     "evenl [a] = False" |
-    "evenl (a # (a' # as)) = evenl as"
+    "evenl (_#_#as) = evenl as"
 thm evenl.induct
 
 lemma "evenl (l @ l)"
   apply(induct l, simp) (* not possible to case on l *)
   oops
 
-lemma evenl1: "evenl (as @ l) \<Longrightarrow> evenl (as @ a # a' # l)"
+lemma evenl1: "evenl (as @ l) \<Longrightarrow> evenl (as @ a#a'#l)"
   apply(induct as arbitrary: l rule: evenl.induct)
     apply(simp)
    apply(simp)
@@ -440,8 +440,25 @@ lemma "evenl (l @ l)"
   apply(simp add: evenl1)
   done
 
+(* difficult (without lemmas), unsolved by hipster *)
+lemma "length (filter p xs) \<le> length xs"
+  apply(induct xs, simp)
+  apply(case_tac "p a")
+   apply(simp only: list.size filter.simps)
+   apply(subst if_True)
+   apply(subst list.size(4))
+   apply(subst add_Suc_right)+
+  thm Suc_le_mono add_0_right (* needed *)
+   apply(simp only: Suc_le_mono add_0_right)
+  apply(simp only: list.size filter.simps)
+  apply(subst if_False)
+  apply(subgoal_tac "length xs \<le> length xs + Suc 0")
+   apply linarith (* transitivity *)
+  apply(rule le_add1)
+  done
+
 (* TODO conditional insertion sorting, unsolved by hipster *)
-fun count :: "nat \<Rightarrow> nat list \<Rightarrow> nat" where
+primrec count :: "nat \<Rightarrow> nat list \<Rightarrow> nat" where
   "count n [] = 0" |
   "count n (k#ks) = (if n = k then 1 else 0) + count n ks"
 
@@ -457,7 +474,7 @@ fun rot :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a list"
 where
   "rot 0 l = l" |
   "rot x [] = []" |
-  "rot (Suc x) (b # bs) = rot x (bs @ [b])"
+  "rot (Suc x) (b#bs) = rot x (bs @ [b])"
 
 lemma rot_gen: "rot (length as) (as @ bs) = bs @ as"
   apply(induct as arbitrary: bs, simp) (* generalize *)
@@ -500,20 +517,18 @@ lemma "take (length xs - i) (rev xs @ ys) = rev (drop i xs)"
   apply(simp)
   done
 
-(* TODO convolution *)
+(* convolution *)
 fun convol :: "nat list \<Rightarrow> nat list \<Rightarrow> nat list"
   where
   "convol xs [] = xs" |
   "convol [] ys = ys" |
   "convol (x#xs) (y#ys) 
-   = (x * y) # (map2 (+) (convol xs (y#ys)) (map (\<lambda>y. x*y) ys))"
+   = (x*y)#(map2 (+) (convol xs (y#ys)) (map (\<lambda>y. x*y) ys))"
 
 lemma "length as = length bs \<and> length bs = length cs
    \<Longrightarrow> convol (convol as bs) cs = convol as (convol bs cs)"
   apply(induct as arbitrary: bs cs)
    apply(simp)
   sorry
-
-
 
 end
