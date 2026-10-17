@@ -12,7 +12,7 @@ lemma ext_imp:
   "(x::int) > 0 \<and> y > 0 \<longrightarrow> x+y > 0"
   apply(rule impI)
   apply(simp)
-  done  
+  done
 
 (*
 text \<open> refl \<close>
@@ -79,7 +79,7 @@ lemma "\<exists>y. \<forall>x. P x y \<Longrightarrow> \<forall>x. \<exists>y. P
   done
 
 text \<open> clarify \<close>
-lemma "(\<forall>x. P x \<longrightarrow> Q) = ((\<exists>x. P x) \<longrightarrow> Q)" 
+lemma "(\<forall>x. P x \<longrightarrow> Q) = ((\<exists>x. P x) \<longrightarrow> Q)"
   apply(rule iffI)
   apply(clarify)
    apply(erule allE, erule mp, assumption)
@@ -285,7 +285,7 @@ lemma monoR': "mono R_hat"
   done
 
 lemma sound:
-  assumes hyp: "\<forall>(H,x) \<in> R. (\<forall>h \<in> H. P h) \<longrightarrow> P x" 
+  assumes hyp: "\<forall>(H,x) \<in> R. (\<forall>h \<in> H. P h) \<longrightarrow> P x"
   shows "\<forall>x \<in> lfpt R_hat. P x"
 proof -
   from hyp
@@ -306,7 +306,7 @@ datatype 'a mylist = MyNil | MyCons 'a "'a mylist"
 datatype 'a tree = Tip | Node "'a tree" 'a "'a tree"
 
 (* mutually recursive types *)
-datatype 
+datatype
   ty = Integer | Real | RefT ref
   and
   ref = Class | Array ty
@@ -327,7 +327,7 @@ next
 qed
 
 text \<open> partial cases and dummy patterns: \<close>
-term "case t of Node _ b _ => b" 
+term "case t of Node _ b _ => b"
 text \<open> partial case maps to 'undefined': \<close>
 lemma "(case Tip of Node _ _ _ => 0) = undefined" by simp
 text \<open> nested case and default pattern: \<close>
@@ -395,8 +395,8 @@ primrec itrev :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list" where
   "itrev [] ys = ys" |
   "itrev (x#xs) ys = itrev xs (x#ys)"
 
-lemma itrev_gen: "\<And>ys. itrev xs ys = (rev xs) @ ys"
-  apply(induct xs, simp)
+lemma itrev_gen: "itrev xs ys = (rev xs) @ ys"
+  apply(induct xs arbitrary: ys, simp)
   thm meta_spec (* very useful for instantiating big and *)
   apply(drule_tac x="a#ys" in meta_spec)
   apply(simp)
@@ -428,7 +428,7 @@ lemma "evenl (l @ l)"
   oops
 
 lemma evenl1: "evenl (as @ l) \<Longrightarrow> evenl (as @ a#a'#l)"
-  apply(induct as arbitrary: l rule: evenl.induct)
+  apply(induct as rule: evenl.induct)
     apply(simp)
    apply(simp)
    apply(case_tac l, simp, simp)
@@ -519,16 +519,90 @@ lemma "take (length xs - i) (rev xs @ ys) = rev (drop i xs)"
 
 (* convolution *)
 fun convol :: "nat list \<Rightarrow> nat list \<Rightarrow> nat list"
-  where
-  "convol xs [] = xs" |
-  "convol [] ys = ys" |
-  "convol (x#xs) (y#ys) 
-   = (x*y)#(map2 (+) (convol xs (y#ys)) (map (\<lambda>y. x*y) ys))"
+(infixl "⊛" 70) where
+  "xs ⊛ [] = []" |
+  "[] ⊛ ys = []" |
+  "(x#xs)⊛(y#ys)
+ = (x*y)#(map2 (+) (xs⊛(y#ys)) (map (\<lambda>y. x*y) ys))"
 
-lemma "length as = length bs \<and> length bs = length cs
-   \<Longrightarrow> convol (convol as bs) cs = convol as (convol bs cs)"
+lemma lplus_linear:
+  "map2 (+) (map ((*) (n :: nat)) as) (map ((*) n) bs)
+ = map ((*) n) (map2 (+) as bs)"
+  apply(induct as arbitrary: bs, simp)
+  apply(case_tac bs; simp)
+  apply(thin_tac "_")
+  apply(rule distrib_left[symmetric])
+  done
+
+lemma lplus_assoc: "map2 (+) (map2 (+) (as :: nat list) bs) cs
+                  = map2 (+) as (map2 (+) bs cs)"
+  apply(induct as arbitrary: bs cs, simp)
+  apply(case_tac bs; case_tac cs; simp)
+  done
+
+lemma lplus_comm: "map2 (+) (as :: nat list) bs = map2 (+) bs as"
+  apply(induct as arbitrary: bs, simp)
+  apply(case_tac bs; simp)
+  done
+
+lemma lplus_cancel:
+   "map2 (+) (as :: nat list) bs = map2 (+) as cs
+\<longleftrightarrow> take (length as) bs = take (length as) cs"
+  apply(induct as arbitrary: bs cs, simp)
+  apply(case_tac bs; case_tac cs; simp)
+  done
+
+lemma convol_nil: "[] ⊛ bs = map ((*) n) ([] ⊛ bs)"
+  by(induct bs; simp)
+
+lemma convol_linear:
+  "(map ((*) n) as ⊛ bs) = (map ((*) n) (as ⊛ bs))"
+  apply(induct as bs rule: convol.induct; simp)
+  apply(subgoal_tac "map2 (+) (map ((*) n) (xs ⊛ (y # ys)))
+        (map ((*) (n * x)) ys)
+      = map2 (+) (map ((*) n) (xs ⊛ (y # ys)))
+        (map ((*) n) (map ((*) x) ys))")
+   defer
+   apply(metis (no_types) ext comp_apply map_map mult.assoc)
+  apply(simp only: lplus_linear)
+  apply(simp only: map_map)
+  done
+
+lemma lplus_times_sum: "(map ((*) (x + a)) (ys :: nat list))
+                      = map2 (+) (map ((*) x) ys) (map ((*) a) ys)"
+  apply(induct ys, simp)
+  apply(simp add: distrib_right)
+  done
+
+lemma convol_rdistrib: "(map2 (+) (as :: nat list) bs) ⊛ cs
+                      = map2 (+) (as ⊛ cs) (bs ⊛ cs)"
+  apply(induct as cs arbitrary: bs rule: convol.induct; simp)
+  apply(case_tac bs; simp)
+  apply(auto simp add: lplus_assoc lplus_cancel)
+   apply(rule distrib_right)
+  apply(rule_tac f="\<lambda>x. take (length (xs ⊛ (y # ys))) x" in arg_cong)
+  using lplus_assoc lplus_comm lplus_times_sum
+  apply(auto)
+  done
+
+lemma "(as ⊛ bs) ⊛ cs = as ⊛ (bs ⊛ cs)"
   apply(induct as arbitrary: bs cs)
+   apply(case_tac bs; case_tac cs; simp)
+  apply(case_tac bs; case_tac cs; simp)
+  apply(thin_tac "_ = _")+
+  apply(rename_tac a as bs' cs' b bs c cs)
+  apply(subst convol.simps(3)[symmetric])
+  apply(subst convol_rdistrib)
+  apply(subst lplus_assoc)
+  apply(simp add: lplus_cancel)
+  apply(subgoal_tac " (map2 (+) (map ((*) a) bs ⊛ (c # cs))
+                       (map ((*) (a * b)) cs))
+                    = (map ((*) a \<circ> (\<lambda>(x, y). x + y))
+                       (zip (bs ⊛ (c # cs)) (map ((*) b) cs)))")
    apply(simp)
-  sorry
+  apply(subst convol_linear)
+  using lplus_linear
+  apply(metis (no_types) ext mult.assoc comp_def map_map)
+  done
 
 end
