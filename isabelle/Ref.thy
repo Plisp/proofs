@@ -545,13 +545,6 @@ lemma lplus_comm: "map2 (+) (as :: nat list) bs = map2 (+) bs as"
   apply(case_tac bs; simp)
   done
 
-lemma lplus_cancel:
-   "map2 (+) (as :: nat list) bs = map2 (+) as cs
-\<longleftrightarrow> take (length as) bs = take (length as) cs"
-  apply(induct as arbitrary: bs cs, simp)
-  apply(case_tac bs; case_tac cs; simp)
-  done
-
 lemma convol_nil: "[] ⊛ bs = map ((*) n) ([] ⊛ bs)"
   by(induct bs; simp)
 
@@ -578,9 +571,9 @@ lemma convol_rdistrib: "(map2 (+) (as :: nat list) bs) ⊛ cs
                       = map2 (+) (as ⊛ cs) (bs ⊛ cs)"
   apply(induct as cs arbitrary: bs rule: convol.induct; simp)
   apply(case_tac bs; simp)
-  apply(auto simp add: lplus_assoc lplus_cancel)
+  apply(auto simp add: lplus_assoc)
    apply(rule distrib_right)
-  apply(rule_tac f="\<lambda>x. take (length (xs ⊛ (y # ys))) x" in arg_cong)
+  apply(rule_tac f="map2 (+) (xs ⊛ (y # ys))" in arg_cong)
   using lplus_assoc lplus_comm lplus_times_sum
   apply(auto)
   done
@@ -594,15 +587,12 @@ lemma "(as ⊛ bs) ⊛ cs = as ⊛ (bs ⊛ cs)"
   apply(subst convol.simps(3)[symmetric])
   apply(subst convol_rdistrib)
   apply(subst lplus_assoc)
-  apply(simp add: lplus_cancel)
-  apply(subgoal_tac " (map2 (+) (map ((*) a) bs ⊛ (c # cs))
-                       (map ((*) (a * b)) cs))
-                    = (map ((*) a \<circ> (\<lambda>(x, y). x + y))
-                       (zip (bs ⊛ (c # cs)) (map ((*) b) cs)))")
-   apply(simp)
+  apply(simp only:) (* apply IH *)
+  apply(rule_tac f="map2 (+) (as ⊛ ((b # bs) ⊛ (c # cs)))"
+                 in arg_cong)
   apply(subst convol_linear)
   using lplus_linear
-  apply(metis (no_types) ext mult.assoc comp_def map_map)
+  apply(metis (no_types) ext comp_apply map_map mult.assoc)
   done
 
 end
